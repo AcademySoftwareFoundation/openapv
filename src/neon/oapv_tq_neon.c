@@ -50,6 +50,8 @@ const s32 oapv_coeff[8][4] =
 #if !defined(__aarch64__)
 #define vpaddq_s32(a, b) \
     vcombine_s32(vpadd_s32(vget_low_s32(a), vget_high_s32(a)), vpadd_s32(vget_low_s32(b), vget_high_s32(b)))
+#define vmovl_high_s16(a) \
+    vmovl_s16(vget_high_s16(a))
 #endif
 
 #define multiply_s32(part1, part2, coeff, res) \
@@ -57,10 +59,10 @@ const s32 oapv_coeff[8][4] =
     high = vmulq_s32(part2, coeff); \
     res = vpaddq_s32(low, high)
 
-static void oapv_tx_pb8b_neon(s16 *src, s16 *dst, const int shift, int line)
+static void oapv_tx_pb8b_neon(const s16 *src, s16 *dst, const int shift, int line)
 {
     s16 i;
-    s16 *tempSrc = src;
+    const s16 *tempSrc = src;
     int16x4_t src_part1, src_part2;
     int32x4_t coeff0, coeff1, coeff2, coeff3, coeff4, coeff5, coeff6, coeff7;
     int32x4_t sh = vdupq_n_s32(-shift);
@@ -486,7 +488,7 @@ const oapv_fn_itx_t oapv_tbl_fn_itx_neon[2] =
             NULL
 };
 
-static int oapv_quant_neon(s16* coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset)
+static int oapv_quant_neon(s16* coef, u8 qp, const int q_matrix[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset)
 {
     s64 offset;
     int shift;
