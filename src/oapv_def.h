@@ -51,7 +51,7 @@
 #define OAPVD_MAGIC_CODE          0x41503144 /* AP1D */
 
 /* Max. and min. Quantization parameter */
-#define MAX_QUANT                 63
+#define MAX_QUANT(BD)             (63 + ((BD-10)*6))
 #define MIN_QUANT                 0
 
 #define MAX_COST                  (1.7e+308) /* maximum cost value */
@@ -67,11 +67,6 @@
 #define OAPV_MAX_DC_LEVEL_CTX     5
 #define OAPV_MIN_AC_LEVEL_CTX     0
 #define OAPV_MAX_AC_LEVEL_CTX     4
-
-/* need to check */
-#define OAPV_MAX_TILE_ROWS        20
-#define OAPV_MAX_TILE_COLS        20
-#define OAPV_MAX_TILES            (OAPV_MAX_TILE_ROWS * OAPV_MAX_TILE_COLS)
 
 /* Maximum transform dynamic range (excluding sign bit) */
 #define MAX_TX_DYNAMIC_RANGE      15
@@ -280,6 +275,7 @@ struct oapve_ctx {
     int                       num_tile_cols;
     int                       num_tile_rows;
     int                       qp[N_C];
+    s8                        qp_offset[N_C];
     int                       w;
     int                       h;
     int                       cfi;

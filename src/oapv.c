@@ -642,20 +642,24 @@ static int enc_read_param(oapve_ctx_t *ctx, oapve_param_t *param)
 {
     /* check input parameters */
     oapv_assert_rv(param->w > 0 && param->h > 0, OAPV_ERR_INVALID_ARGUMENT);
-    oapv_assert_rv(param->qp >= MIN_QUANT && param->qp <= MAX_QUANT, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(param->qp >= MIN_QUANT && param->qp <= MAX_QUANT(10), OAPV_ERR_INVALID_ARGUMENT);
 
-    ctx->qp[Y_C] = param->qp;
-    ctx->qp[U_C] = oapv_clip3(MIN_QUANT, MAX_QUANT, param->qp + param->qp_cb_offset);
-    ctx->qp[V_C] = oapv_clip3(MIN_QUANT, MAX_QUANT, param->qp + param->qp_cr_offset);
-    ctx->qp[X_C] = param->qp;
+    ctx->qp_offset[Y_C] = 0;
+    ctx->qp_offset[U_C] = param->qp_offset_c1;
+    ctx->qp_offset[V_C] = param->qp_offset_c2;
+    ctx->qp_offset[X_C] = param->qp_offset_c3;
 
     ctx->num_comp = get_num_comp(param->csp);
 
-    if(param->preset == OAPV_PRESET_SLOW) {
-        ctx->fn_enc_blk = enc_block_rdo_slow;
+    for(int i = 0; i < ctx->num_comp; i++) {
+        ctx->qp[i] = oapv_clip3(MIN_QUANT, MAX_QUANT(10), param->qp + ctx->qp_offset[i]);
     }
-    else if(param->preset == OAPV_PRESET_PLACEBO) {
+
+    if(param->preset == OAPV_PRESET_PLACEBO) {
         ctx->fn_enc_blk = enc_block_rdo_placebo;
+    }
+    else if(param->preset == OAPV_PRESET_SLOW) {
+        ctx->fn_enc_blk = enc_block_rdo_slow;
     }
     else if(param->preset == OAPV_PRESET_MEDIUM) {
         ctx->fn_enc_blk = enc_block_rdo_medium;
@@ -807,9 +811,8 @@ static int enc_tile(oapve_ctx_t *ctx, oapve_core_t *core, oapve_tile_t *tile)
     oapv_bsw_init(&bs, tile->bs_buf, tile->bs_buf_max, NULL);
 
     int qp = 0;
-    if(ctx->param->rc_type != 0) {
+    if(ctx->param->rc_type != OAPV_RC_CQP) {
         oapve_rc_get_qp(ctx, tile, ctx->qp[Y_C], &qp);
-        oapv_assert(qp != 0);
     }
     else {
         qp = ctx->qp[Y_C];
@@ -1124,7 +1127,7 @@ static int enc_frame(oapve_ctx_t *ctx)
 
     /* rc init */
     u64 cost_sum = 0;
-    if(ctx->param->rc_type != 0) {
+    if(ctx->param->rc_type != OAPV_RC_CQP) {
         oapve_rc_get_tile_cost_thread(ctx, &cost_sum);
 
         double bits_pic = ((double)ctx->param->bitrate * 1000) / ((double)ctx->param->fps_num / ctx->param->fps_den);
@@ -1135,15 +1138,9 @@ static int enc_frame(oapve_ctx_t *ctx)
 
         ctx->rc_param.lambda = oapve_rc_estimate_pic_lambda(ctx, cost_sum);
         ctx->rc_param.qp = oapve_rc_estimate_pic_qp(ctx->rc_param.lambda);
-        printf("QP=%d\n", ctx->rc_param.qp);
+
         for(int c = 0; c < ctx->num_comp; c++) {
-            ctx->qp[c] = ctx->rc_param.qp;
-            if(c == 1) {
-                ctx->qp[c] = oapv_clip3(MIN_QUANT, MAX_QUANT, ctx->qp[c] + ctx->param->qp_cb_offset);
-            }
-            else if(c == 2) {
-                ctx->qp[c] = oapv_clip3(MIN_QUANT, MAX_QUANT, ctx->qp[c] + ctx->param->qp_cr_offset);
-            }
+            ctx->qp[c] = oapv_clip3(MIN_QUANT, MAX_QUANT(10), ctx->rc_param.qp + ctx->qp_offset[c]);
         }
     }
 
@@ -1398,7 +1395,7 @@ int oapve_config(oapve_t eid, int cfg, void *buf, int *size)
     case OAPV_CFG_SET_QP:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         t0 = *((int *)buf);
-        oapv_assert_rv(t0 >= MIN_QUANT && t0 <= MAX_QUANT,
+        oapv_assert_rv(t0 >= MIN_QUANT && t0 <= MAX_QUANT(10),
                        OAPV_ERR_INVALID_ARGUMENT);
         ctx->param->qp = t0;
         break;
@@ -1462,8 +1459,9 @@ int oapve_param_default(oapve_param_t *param)
     oapv_mset(param, 0, sizeof(oapve_param_t));
     param->preset = OAPV_PRESET_DEFAULT;
 
-    param->qp_cb_offset = 0;
-    param->qp_cr_offset = 0;
+    param->qp_offset_c1 = 0;
+    param->qp_offset_c2 = 0;
+    param->qp_offset_c3 = 0;
 
     param->tile_w_mb = 16;
     param->tile_h_mb = 16;

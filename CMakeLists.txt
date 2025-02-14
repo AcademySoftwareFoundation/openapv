@@ -33,7 +33,7 @@ if(NOT RESULT EQUAL 0)
         "version.txt file doesn't exist!\n"
         "Since your working directory doesn't contain a git repository you must provide \"${CMAKE_SOURCE_DIR}/version.txt\" file containing a valid version string.\n"
         "The version string provided to version.txt must match the following format:\n\tv[VERSION_MAJOR].[VERSION_MINOR].[VERSION_PATCH]\n"
-        "To get the information on version of the downloaded library please follow the link below:\n\t https://github.com/openapv/openapv"
+        "To get the information on version of the downloaded library please follow the link below:\n\t https://github.com/AcademySoftwareFoundation/openapv"
         )
   endif()
 

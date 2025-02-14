@@ -157,7 +157,7 @@ double oapve_rc_estimate_pic_lambda(oapve_ctx_t* ctx, double cost)
 int oapve_rc_estimate_pic_qp(double lambda)
 {
     int qp = (int)(4.2005 * log(lambda) + 13.7122 + 0.5) + OAPV_RC_QP_OFFSET;
-    qp = oapv_clip3(MIN_QUANT, MAX_QUANT, qp);
+    qp = oapv_clip3(MIN_QUANT, MAX_QUANT(10), qp);
     return qp;
 }
 
@@ -184,7 +184,7 @@ void oapve_rc_get_qp(oapve_ctx_t* ctx, oapve_tile_t* tile, int frame_qp, int* qp
     *qp = (int)(4.2005 * log(est_lambda) + 13.7122 + 0.5);
     *qp = oapv_clip3(min_qp, max_qp, *qp);
     *qp += OAPV_RC_QP_OFFSET;
-    *qp = oapv_clip3(MIN_QUANT, MAX_QUANT, *qp);
+    *qp = oapv_clip3(MIN_QUANT, MAX_QUANT(10), *qp);
 }
 
 void oapve_rc_update_after_pic(oapve_ctx_t* ctx, double cost)
