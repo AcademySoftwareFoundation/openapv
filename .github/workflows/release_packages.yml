@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-pc:
+  build-linux:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -81,3 +81,42 @@ jobs:
           draft: false
           overwrite: true
 
+  build-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Install Windows toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64 mingw-w64-tools
+
+      - name: Build (crosscmopile) PC Windows version of openAPV, generate packages and md5 file
+        run: |
+          cmake -S ${{github.workspace}} -B ${{github.workspace}}/build-windows -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}/windows_x86_64_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+          cmake --build ${{github.workspace}}/build-windows
+          cd ${{github.workspace}}/build-windows
+          cpack -G ZIP -C Release
+
+      - name: 'Upload PC Windows artifacts'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapv-windows-${{github.event.release.tag_name}}
+          path: |
+            ${{ github.workspace }}/build-windows/*.zip
+            ${{ github.workspace }}/build-windows/*.md5
+          retention-days: 7
+
+      - name: Upload Windows assets to GitHub Release
+        uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: "build-windows/*.zip; build-windows/*.md5"
+          update_latest_release: true
+          draft: false
+          overwrite: true
