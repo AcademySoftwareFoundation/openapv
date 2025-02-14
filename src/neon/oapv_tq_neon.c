@@ -52,6 +52,14 @@ const s32 oapv_coeff[8][4] =
     vcombine_s32(vpadd_s32(vget_low_s32(a), vget_high_s32(a)), vpadd_s32(vget_low_s32(b), vget_high_s32(b)))
 #define vmovl_high_s16(a) \
     vmovl_s16(vget_high_s16(a))
+#define vzip1_s16(a, b) \
+    vreinterpret_s16_s32(vget_low_s32(vorrq_s32(vshll_n_s16(a, 16), vshll_n_s16(b, 0))))
+#define vzip1_s32(a, b) \
+    vreinterpret_s32_s64(vget_low_s64(vorrq_s64(vshll_n_s32(a, 32), vshll_n_s32(b, 0))))
+#define vzip2_s16(a, b) \
+    vreinterpret_s16_s32(vget_high_s32(vorrq_s32(vshll_n_s16(a, 16), vshll_n_s16(b, 0))))
+#define vzip2_s32(a, b) \
+    vreinterpret_s32_s64(vget_high_s64(vorrq_s64(vshll_n_s32(a, 32), vshll_n_s32(b, 0))))
 #endif
 
 #define multiply_s32(part1, part2, coeff, res) \
@@ -212,7 +220,7 @@ const oapv_fn_tx_t oapv_tbl_fn_txb_neon[2] =
 # define OAPV_INVTX_COEF_6      35 // coef21,  coef60
 # define OAPV_INVTX_COEF_4_LOG2	 6 // log2(coef00), log2(coef01), log2(coef40), log2(-coef41)
 
-void oapv_itx_pb8b_opt_neon(s16* src, int shift1, int shift2, int line)
+static void oapv_itx_pb8b_opt_neon(s16* src, int shift1, int shift2, int line)
 {
     int32x4_t sh1 = vdupq_n_s32(-shift1);
     int32x4_t sh2 = vdupq_n_s32(-shift2);
