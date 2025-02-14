@@ -57,6 +57,18 @@
     vsubl_s16(vget_high_s16(a), vget_high_s16(b))
 #define vmlal_high_s32(a, b, c) \
     vmlal_s32(a, vget_high_s32(b), vget_high_s32(c))
+#define vzip1q_s16(a, b) \
+    vorrq_s32(vshll_n_s16(vget_low_s16(a), 16), vshll_n_s16(vget_low_s16(b), 0))
+#define vzip1q_s32(a, b) \
+    vorrq_s64(vshll_n_s32(vget_low_s32(a), 32), vshll_n_s32(vget_low_s32(b), 0))
+#define vzip1q_s64(a, b) \
+    vcombine_s64(vget_low_s64(a), vget_low_s64(b))
+#define vzip2q_s16(a, b) \
+    vorrq_s32(vshll_n_s16(vget_high_s16(a), 16), vshll_n_s16(vget_high_s16(b), 0))
+#define vzip2q_s32(a, b) \
+    vorrq_s64(vshll_n_s32(vget_high_s32(a), 32), vshll_n_s32(vget_high_s32(b), 0))
+#define vzip2q_s64(a, b) \
+    vcombine_s64(vget_high_s64(a), vget_high_s64(b))
 
 #endif // __aarch64__
 
