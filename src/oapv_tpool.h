@@ -77,7 +77,7 @@ tpool_result_t oapv_tpool_deinit(oapv_tpool_t *tp);
 oapv_sync_obj_t oapv_tpool_sync_obj_create();
 tpool_result_t oapv_tpool_sync_obj_delete(oapv_sync_obj_t *sobj);
 int oapv_tpool_spinlock_wait(volatile int *addr, int val);
-void threadsafe_assign(volatile int *addr, int val);
+void threadsafe_assign_oapv(volatile int *addr, int val);
 
 void oapv_tpool_enter_cs(oapv_sync_obj_t sobj);
 void oapv_tpool_leave_cs(oapv_sync_obj_t sobj);
