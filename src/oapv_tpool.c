@@ -679,7 +679,7 @@ int oapv_tpool_spinlock_wait(volatile int *addr, int val)
     return temp;
 }
 
-void threadsafe_assign(volatile int *addr, int val)
+void threadsafe_assign_oapv(volatile int *addr, int val)
 {
     // thread safe volatile assign
     *addr = val;
