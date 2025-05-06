@@ -64,7 +64,7 @@ generate_export_header(${LIB_NAME_BASE}_dynamic
                        EXPORT_FILE_NAME ${CMAKE_BINARY_DIR}/include/oapv/oapv_exports.h)
 
 # This will cause the export macros to expand to nothing when building the static library.
-set_target_properties(${LIB_NAME_BASE} PROPERTIES COMPILE_FLAGS -DLIBSHARED_AND_STATIC_STATIC_DEFINE)
+target_compile_definitions(${LIB_NAME_BASE} PUBLIC OAPV_STATIC_DEFINE)
 
 source_group("base\\header" FILES ${LIB_BASE_INC} ${LIB_INC})
 source_group("base\\source" FILES ${LIB_BASE_SRC} ${LIB_API_SRC})
