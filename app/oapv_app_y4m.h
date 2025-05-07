@@ -45,6 +45,11 @@ static int y4m_test(FILE *fp)
 
     char buffer[9] = { 0 };
 
+    if (ftell(fp) < 0) {
+        /* Not seekable, so probably a pipe: assume not-y4m. */
+        return 0;
+    }
+
     /*Peek to check if y4m header is present*/
     if(!fread(buffer, 1, 8, fp))
         return -1;
