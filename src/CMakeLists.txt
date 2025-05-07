@@ -39,11 +39,14 @@ if(ARM)
                                       ${LIB_NEON_SRC} ${LIB_NEON_INC} )
   add_library( ${LIB_NAME_BASE}_dynamic SHARED ${LIB_API_SRC} ${LIB_INC} ${LIB_BASE_SRC} ${LIB_BASE_INC}
                                               ${LIB_NEON_SRC} ${LIB_NEON_INC} )
-else()
+elseif(X86)
   add_library( ${LIB_NAME_BASE} STATIC ${LIB_API_SRC} ${LIB_INC} ${LIB_BASE_SRC} ${LIB_BASE_INC} ${LIB_SSE_SRC} ${LIB_SSE_INC}
                                       ${LIB_AVX_SRC} ${LIB_AVX_INC} )
   add_library( ${LIB_NAME_BASE}_dynamic SHARED ${LIB_API_SRC} ${LIB_INC} ${LIB_BASE_SRC} ${LIB_BASE_INC} ${LIB_SSE_SRC} ${LIB_SSE_INC}
                                               ${LIB_AVX_SRC} ${LIB_AVX_INC} )
+else()
+  add_library( ${LIB_NAME_BASE} STATIC ${LIB_API_SRC} ${LIB_INC} ${LIB_BASE_SRC} ${LIB_BASE_INC} )
+  add_library( ${LIB_NAME_BASE}_dynamic SHARED ${LIB_API_SRC} ${LIB_INC} ${LIB_BASE_SRC} ${LIB_BASE_INC} )
 endif()
 
 set_target_properties(${LIB_NAME_BASE}_dynamic PROPERTIES VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR} SOVERSION ${LIB_SOVERSION})
@@ -78,8 +81,10 @@ source_group("base\\avx\\source" FILES ${LIB_AVX_SRC})
 
 if(ARM)
   include_directories( ${LIB_NAME_BASE} PUBLIC . .. ../inc ./neon)
-else()
+elseif(X86)
   include_directories( ${LIB_NAME_BASE} PUBLIC . .. ../inc ./sse ./avx)
+else()
+  include_directories( ${LIB_NAME_BASE} PUBLIC . .. ../inc)
 endif()
 
 set_target_properties(${LIB_NAME_BASE} PROPERTIES FOLDER lib
@@ -98,7 +103,7 @@ elseif( UNIX OR MINGW )
 
   if (ARM)
     set_property( SOURCE ${NEON} APPEND PROPERTY COMPILE_FLAGS "-flax-vector-conversions" )
-  else()
+  elseif (X86)
     set_property( SOURCE ${SSE} APPEND PROPERTY COMPILE_FLAGS "-msse4.1" )
     set_property( SOURCE ${AVX} APPEND PROPERTY COMPILE_FLAGS " -mavx2" )
   endif()
