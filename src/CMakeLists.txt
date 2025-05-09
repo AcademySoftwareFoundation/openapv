@@ -18,12 +18,14 @@ include_directories("${CMAKE_BINARY_DIR}/include")
 
 message("SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}")
 
-if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(arm|aarch)")
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" lowercase_CMAKE_SYSTEM_PROCESSOR)
+
+if(${lowercase_CMAKE_SYSTEM_PROCESSOR} MATCHES "^(arm|aarch)")
   message("  ARM processor")
   #  add_definitions (-mfloat-abi=softfp -mfpu=neon)
   add_definitions(-DARM=1)
   set(ARM "TRUE")
-elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(x86|ia64|i386|i686)")
+elseif(${lowercase_CMAKE_SYSTEM_PROCESSOR} MATCHES "^(x86|ia64|i386|i686|amd64)")
   message("  X86 processor")
   add_definitions(-DX86=1)
   set(X86 "TRUE")
