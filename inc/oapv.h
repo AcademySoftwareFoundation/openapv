@@ -38,11 +38,11 @@ extern "C" {
 
 #include <oapv_config.h>
 
-#if defined(OAPV_LIBVERSION_HEADER)
+#if OAPV_LIBVERSION_HEADER
 #include <oapv/oapv_libversion.h>
 #endif
 
-#if defined(OAPV_EXPORT_HEADER) && !defined(OAPV_STATIC_DEFINE)
+#if OAPV_EXPORT_HEADER && !defined(OAPV_STATIC_DEFINE)
 #include <oapv/oapv_exports.h>
 #else
 #define OAPV_EXPORT

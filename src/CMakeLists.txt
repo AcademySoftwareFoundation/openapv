@@ -19,8 +19,16 @@ set(LIB_LIBVERSION_HEADER "${CMAKE_BINARY_DIR}/include/${LIB_NAME_BASE}/${LIB_NA
 configure_file("${CMAKE_SOURCE_DIR}/inc/${LIB_NAME_BASE}_libversion.h.in" "${LIB_LIBVERSION_HEADER}" @ONLY)
 list(APPEND LIB_INC "${LIB_LIBVERSION_HEADER}")
 
+set(OAPV_LIBVERSION_HEADER 1)
+
 include(GenerateExportHeader)
 include_directories("${CMAKE_BINARY_DIR}/include")
+
+if(OAPV_BUILD_SHARED_LIB)
+  set(OAPV_EXPORT_HEADER 1)
+else()
+  set(OAPV_EXPORT_HEADER 0)
+endif()
 
 set(LIB_CONFIG_HEADER "${CMAKE_SOURCE_DIR}/inc/${LIB_NAME_BASE}_config.h")
 configure_file("${CMAKE_SOURCE_DIR}/inc/${LIB_NAME_BASE}_config.h.in" "${LIB_CONFIG_HEADER}" @ONLY)
