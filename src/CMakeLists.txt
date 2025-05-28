@@ -30,7 +30,7 @@ else()
   set(OAPV_EXPORT_HEADER 0)
 endif()
 
-set(LIB_CONFIG_HEADER "${CMAKE_SOURCE_DIR}/inc/${LIB_NAME_BASE}_config.h")
+set(LIB_CONFIG_HEADER "${CMAKE_BINARY_DIR}/include/${LIB_NAME_BASE}/${LIB_NAME_BASE}_config.h")
 configure_file("${CMAKE_SOURCE_DIR}/inc/${LIB_NAME_BASE}_config.h.in" "${LIB_CONFIG_HEADER}" @ONLY)
 list(APPEND LIB_INC "${LIB_CONFIG_HEADER}")
 

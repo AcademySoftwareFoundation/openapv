@@ -36,7 +36,7 @@
 extern "C" {
 #endif
 
-#include <oapv_config.h>
+#include <oapv/oapv_config.h>
 
 #if OAPV_LIBVERSION_HEADER
 #include <oapv/oapv_libversion.h>
