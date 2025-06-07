@@ -13,5 +13,5 @@ Requires:
 Libs: -L${libdir} -l@LIB_NAME_BASE@
 Libs.private: -L${libdir}/@LIB_NAME_BASE@ -lm
 
-Cflags: -I${includedir}
-Cflags.private: -DOAPV_STATIC_DEFINE
+Cflags: -I${includedir} @EXTRA_CFLAGS@
+Cflags.private: @EXTRA_CFLAGS_PRIVATE@

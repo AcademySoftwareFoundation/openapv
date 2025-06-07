@@ -173,6 +173,13 @@ if(OAPV_BUILD_SHARED_LIB)
 endif()
 
 if(NOT MSVC)
+    if(OAPV_BUILD_SHARED_LIB)
+        set(EXTRA_CFLAGS "")
+        set(EXTRA_CFLAGS_PRIVATE "-DOAPV_STATIC_DEFINE")
+    else()
+        set(EXTRA_CFLAGS "-DOAPV_STATIC_DEFINE")
+        set(EXTRA_CFLAGS_PRIVATE "")
+    endif()
     configure_file(
       "${CMAKE_SOURCE_DIR}/pkgconfig/${LIB_NAME_BASE}.pc.in"
       "${CMAKE_BINARY_DIR}/${LIB_NAME_BASE}.pc" @ONLY)
