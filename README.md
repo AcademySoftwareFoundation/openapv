@@ -17,7 +17,7 @@ The OpenAPV supports the following features:
 ## APV codec
 The APV codec is a professional video codec, which was developed in response to the need for professional level high quality video recording and post production. The primary purpose of the APV codec is for use in professional video recording and editing workflows for various types of content.
 
-APV codec utilizes technologies known to be over 20 years to achieve a royalty free codec. APV builds a video codec using only conventional coding technologies, which consist of traditional methods published between the early 1980s and the end of the 1990s.
+APV codec utilizes technologies known to be over 20 years old to achieve a royalty free codec. APV builds a video codec using only conventional coding technologies, which consist of traditional methods published between the early 1980s and the end of the 1990s.
 
 The APV codec standard has the following features:
 
@@ -28,7 +28,7 @@ The APV codec standard has the following features:
 - Support for various chroma sampling formats from 4:2:2 to 4:4:4, and bit-depths from 10 to 16
 - Support for multiple decoding and re-encoding without severe visual quality degradation
 - Support multi-view video and auxiliary video like depth, alpha, and preview
-- Support various metadata including HDR10/10+ and user-definded format
+- Support various metadata including HDR10/10+ and user-defined format
 
 ### Related specification
 - APV Codec (bitstream): [https://datatracker.ietf.org/doc/draft-lim-apv/](https://datatracker.ietf.org/doc/draft-lim-apv/)
@@ -74,7 +74,7 @@ The APV codec standard has the following features:
 ## How to use applications
 ### Encoder
 
-Encoder as input require raw YCbCr file (422, 444), 10-bit or more.
+Encoder requires raw YCbCr file (422, 444), 10-bit or more, as input.
 
 Displaying help:
 
@@ -119,8 +119,8 @@ For generating package ready for distribution (default deb) execute in build dir
 
 ## Versioning
 
-This project is using folowing versioning scheme ``API-SET.MAJOR.MINOR.PATCH``. It's mostly based on Semantic Versioning with addition of ``API-SET`` on first place.
-Project and library is following one common version number.
+This project is using the following versioning scheme ``API-SET.MAJOR.MINOR.PATCH``. It's mostly based on Semantic Versioning with addition of ``API-SET`` on first place.
+Project and library share a common version number.
 
 ## License
 

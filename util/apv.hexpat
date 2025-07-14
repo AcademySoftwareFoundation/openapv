@@ -68,7 +68,7 @@ struct PbuBase {
     }
     */
 
-    u32 pbu_size; // originally, this syntax is part of AuccessUnit
+    u32 pbu_size; // originally, this syntax is part of AccessUnit
     u8 pbu_type;
     u16 group_id;
     u8 reserved_zero_8bits;

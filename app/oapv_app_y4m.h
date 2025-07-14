@@ -123,7 +123,7 @@ static int y4m_parse_tags(y4m_params_t *y4m, char *tags)
     }
 
     if(!(found_w == 1 && found_h == 1)) {
-        logerr("Mandatory arugments are not found in y4m header");
+        logerr("Mandatory width and height values were not found in y4m header");
         return OAPV_ERR;
     }
 
@@ -266,7 +266,7 @@ static int write_y4m_header(char *fname, oapv_imgb_t *imgb)
     }
 
     if(strlen(c_buf) == 0) {
-        logerr("Color format is not suuported by y4m\n");
+        logerr("Color format is not supported by y4m\n");
         return -1;
     }
 
@@ -307,7 +307,7 @@ static int write_y4m_frame_header(char *fname)
 // return
 // - positive value : file name has y4m format name
 // - zero : YUV format name
-// - nogative value : unknown format name
+// - negative value : unknown format name
 static int check_file_name_type(char * fname)
 {
     char  fext[16];

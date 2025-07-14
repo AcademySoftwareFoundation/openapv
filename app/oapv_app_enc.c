@@ -86,11 +86,11 @@ static const args_opt_t enc_args_opts[] = {
     },
     {
         'z',  "fps", ARGS_VAL_TYPE_STRING, 0, NULL,
-        "frame rate (frame per second))"
+        "frame rate (frames per second)"
     },
     {
         'm',  "threads", ARGS_VAL_TYPE_STRING, 0, NULL,
-        "force to use a specific number of threads\n"
+        "force use of a specific number of threads\n"
         "      - 'auto' means that the value is internally determined"
     },
     {

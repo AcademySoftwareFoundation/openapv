@@ -328,8 +328,8 @@ struct oapv_imgb {
     /* time-stamps */
     oapv_mtime_t  ts[4];
 
-    int           ndata[4]; /* arbitrary data, if needs */
-    void         *pdata[4]; /* arbitrary adedress if needs */
+    int           ndata[4]; /* arbitrary data, if needed */
+    void         *pdata[4]; /* arbitrary address if needed */
 
     /* aligned width (in unit of pixel) */
     int           aw[OAPV_MAX_CC];
@@ -569,7 +569,7 @@ struct oapve_param {
     unsigned char q_matrix[OAPV_MAX_CC][OAPV_BLK_D]; // raster-scan order
     /* NOTE: tile_w and tile_h value can be changed internally,
              if the values are not set properly.
-             the min and max values are defeind in APV specification */
+             the min and max values are defined in APV specification */
     int           tile_w; // width of tile MUST be N * MB width
     int           tile_h; // height of tile MUST be N * MB height
 

@@ -124,9 +124,9 @@ struct oapv_fh {
     int       matrix_coefficients;            /* u( 8) */
     int       full_range_flag;                /* u( 1) */
     int       use_q_matrix;                   /* u( 1) */
-    /* (start) quantization_matix  */
+    /* (start) quantization_matrix  */
     int       q_matrix[N_C][OAPV_BLK_H][OAPV_BLK_W]; /* u( 8) */
-    /* ( end ) quantization_matix  */
+    /* ( end ) quantization_matrix  */
     /* (start) tile_info */
     int       tile_width_in_mbs;            /* u(20) */
     int       tile_height_in_mbs;           /* u(20) */

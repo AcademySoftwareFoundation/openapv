@@ -74,7 +74,7 @@ struct oapv_md_t35 {
     u8 *itu_t_t35_payload;
 };
 
-/* Mastering display colour volum metadata*/
+/* Mastering display colour volume metadata*/
 typedef struct oapv_md_mdcv oapv_md_mdcv_t;
 struct oapv_md_mdcv {
     u16 primary_chromaticity_x[3];  /* u(16) */

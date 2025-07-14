@@ -235,7 +235,7 @@ static __inline oapv_clk_t oapv_clk_sec(oapv_clk_t clk)
 #define CLIP_VAL(n, min, max) (((n) > (max)) ? (max) : (((n) < (min)) ? (min) : (n)))
 #define ALIGN_VAL(val, align) ((((val) + (align) - 1) / (align)) * (align))
 
-/* Function for atomic increament:
+/* Function for atomic increment:
    This function might need to modify according to O/S or CPU platform
 */
 static int atomic_inc(volatile int *pcnt)
@@ -421,7 +421,7 @@ static int imgb_read(FILE *fp, oapv_imgb_t *img, int width, int height, int is_y
         f_h = height;
     }
     else {
-        logerr("not supported bit-depth (%d)\n", bit_depth);
+        logerr("unsupported bit-depth (%d)\n", bit_depth);
         return -1;
     }
 
@@ -734,7 +734,7 @@ static int write_data(char *fname, unsigned char *data, int size)
 
     fp = fopen(fname, "ab");
     if(fp == NULL) {
-        logerr("cannot open an writing file=%s\n", fname);
+        logerr("cannot open the output file=%s\n", fname);
         return -1;
     }
     fwrite(data, 1, size, fp);

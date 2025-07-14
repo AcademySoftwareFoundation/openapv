@@ -104,7 +104,7 @@ should set zero in that case. */
 /*! Is bitstream byte aligned? */
 #define BSR_IS_BYTE_ALIGN(bs) ((((bs)->leftbits & 0x7) == 0)? 1: 0)
 
-/*! Is last byte of bitsteam? */
+/*! Is last byte of bitstream? */
 #define BSR_IS_LAST_BYTE(bs) \
     (((bs)->cur >= (bs)->end && bs->leftbits > 0 && (bs)->leftbits <= 8)? 1: 0)
 
