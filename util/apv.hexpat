@@ -5,6 +5,7 @@
 
 import std.io;
 import std.mem;
+import type.guid;
 
 /* PBU types */
 enum PbuType : u8 {
@@ -185,8 +186,36 @@ struct MetadataPayload {
 
     std::print("    metadata payload[{:d}] type = {:d}({}), size = {:d}", metadata_payload_count, payloadType, ptype_str, payloadSize);
 
-    u8 payloadData[while($ < endOffset)] [[sealed]];
-
+    if (payloadType == 4) {
+        u8 itu_t_t35_country_code;
+        if (itu_t_t35_country_code == 0xFF) {
+            u8 itu_t_t35_country_code_extension;
+            u8 itu_t_t35_payload[payloadSize - 2];
+        } else {
+            u8 itu_t_t35_payload[payloadSize - 1];
+        }
+    } else if (payloadType == 5) {
+        u16 primary_chromaticity_x[0];
+        u16 primary_chromaticity_y[0];
+        u16 primary_chromaticity_x[1];
+        u16 primary_chromaticity_y[1];
+        u16 primary_chromaticity_x[2];
+        u16 primary_chromaticity_y[2];
+        u16 white_point_chromaticity_x;
+        u16 white_point_chromaticity_y;
+        u32 max_mastering_luminance;
+        u32 min_mastering_luminance;
+    } else if (payloadType == 6) {
+        u16 max_cll;
+        u16 max_fall;
+    } else if (payloadType == 10) {
+        u8 ff_bytes[while($ < endOffset)] [[sealed]];
+    } else if (payloadType == 170) {
+        type::GUID uuid;
+        u8 user_defined_data_payload[while($ < endOffset)] [[sealed]];
+    } else {
+        u8 payloadData[while($ < endOffset)] [[sealed]];
+    }
     metadata_payload_count += 1;
 
 } [[name(std::format("MetadataPayload[{}]:{}", (metadata_payload_count - 1), ptype_str))]];
