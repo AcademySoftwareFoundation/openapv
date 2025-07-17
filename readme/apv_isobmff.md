@@ -188,7 +188,7 @@ else {
 
 tile_index for sub-samples based on tiles, this parameter indicates the tile index in raster order in a frame.
 
-## Sub-parameters for the MIME type 'codecs' parameter
+# Sub-parameters for the MIME type 'codecs' parameter
 
 When the 'codecs' parameter of a MIME type is used for a track containing  APV bitstream, as defined in IETF RFC 6381, the sub-parameters defined in this section is used.
 
