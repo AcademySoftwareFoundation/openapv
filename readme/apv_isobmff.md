@@ -1,5 +1,5 @@
 ISOBMFF binding for APV
-==============
+=======================
 
 # Introduction
 
@@ -53,7 +53,7 @@ The compressorname field of the VisualSampleEntry shall have '\012APV Coding'. T
 
 ### Description
 
-The box with APVCodecConfigurationBox shall contains APVDecoderConfigurationRecord as defined in {{APVDecoderConfigurationRecord}}
+The box with APVCodecConfigurationBox shall contain an APVDecoderConfigurationRecord as defined in {{APVDecoderConfigurationRecord}}
 
 ### Syntax
 
@@ -111,7 +111,7 @@ aligned(8) class APVDecoderConfigurationRecord {
 > indicates the value of the pbu_type field in the pbu header immediately preceding the frame data for a certain index i.
 
 + number_of_frame_info[i]
-> indicates the number of variations of the frame header information for the frames whose value of the pbu_type field in the pbu header immediately preceding it is idendtical with the value of the pub_type[i] field for a certain index i.
+> indicates the number of variations of the frame header information for the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical to the value of the pub_type[i] field for a certain index i.
 
 + color_description_present_flag[i][j]
 >indicates whether the color description information is provided for the jth variation of frame header whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i.
@@ -150,16 +150,16 @@ aligned(8) class APVDecoderConfigurationRecord {
 > indicates the value of the transfer_characteristics field in the jth variation of the frame header of the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i. If the value of number_of_frame_info[i] is 1, then the same value of this field must be used as the value of the transfer_characteristics field in the frame header of the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i. If the value of number_of_frame_info[i] is 1 is greater than 1, then the frame header in each sample must provide the value of transfer_characteristics field matched with one among the values of this field for all index j for the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i.
 
 + matrix_coefficients[i][j]
-> indicates the value of the matrix_coefficients field in the jth variation of the frame header of the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i. If the value of number_of_frame_info[i] is 1, then the same value of this field must be used as the value of the matrix_coefficients field in the frame header of the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i. If the value of number_of_frame_info[i] is 1 is greater than 1, then the frame header in each sample must provide the value of matrix_cofficients field matched with one among the values of this field for all index j for the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i.
+> indicates the value of the matrix_coefficients field in the jth variation of the frame header of the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i. If the value of number_of_frame_info[i] is 1, then the same value of this field must be used as the value of the matrix_coefficients field in the frame header of the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i. If the value of number_of_frame_info[i] is 1 is greater than 1, then the frame header in each sample must provide the value of matrix_coefficients field matched with one among the values of this field for all index j for the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i.
 
 + full_range_flag[i][j]
 > indicates the value of the full_range_flag field in the jth variation of the frame header of the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i. If the value of number_of_frame_info[i] is 1, then the same value of this field must be used as the value of
-the full_range_flag field in the frame header of the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i. If the value of number_of_frame_info[i] is 1 is greater than 1, then the frame header in each sample must provide the value of matrix_cofficients field matched with one among the values of this field for all index j for the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i.
+the full_range_flag field in the frame header of the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i. If the value of number_of_frame_info[i] is 1 is greater than 1, then the frame header in each sample must provide the value of matrix_coefficients field matched with one among the values of this field for all index j for the frames whose value of the pbu_type field in the pbu header immediately preceding it is identical with the value of the pbu_type[i] field for a certain index i.
 
 ## APV Sample Description
 
 ###	Format of sample
-When APV coded bitstream is encapsulated in a track with APVSampleEntry, each sample shall contain one and only one access unit of APV coded data. The format of sample shall be same as the raw_bitstream_access_unit, the length field of four bytes preceeding the access unit data, as defined in the section 12.1 of [APV codec specification](#apv-codec).
+When APV coded bitstream is encapsulated in a track with APVSampleEntry, each sample shall contain one and only one access unit of APV coded data. The format of sample shall be same as the raw_bitstream_access_unit, the length field of four bytes preceding the access unit data, as defined in the section 12.1 of [APV codec specification](#apv-codec).
 
 ###	Sync sample
 Every samples of APV bitstream shall be sync samples.
@@ -188,9 +188,9 @@ else {
 
 tile_index for sub-samples based on tiles, this parameter indicates the tile index in raster order in a frame.
 
-# Sub-parameters for the MIME tyype 'codecs' parameter
+## Sub-parameters for the MIME type 'codecs' parameter
 
-When the 'codecs' parameter of a MIME type is used for a track containing  APV bistream, as defined in IETF RFC 6381, the sub-parameters defined in this section is used.
+When the 'codecs' parameter of a MIME type is used for a track containing  APV bitstream, as defined in IETF RFC 6381, the sub-parameters defined in this section is used.
 
 The 'codecs' parameter string for the APV bitstream is defined as follows:
 
