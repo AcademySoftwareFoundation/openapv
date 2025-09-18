@@ -68,6 +68,12 @@ The APV codec standard has the following features:
   cmake --build build-windows
   ```
 
+- Build Instructions macOS (Apple Silicon)
+  ```
+  cmake -S . -B build-darwin -DUNIVERSAL=FALSE -DCMAKE_OSX_ARCHITECTURES=arm64 -DARM=1 -DCMAKE_BUILD_TYPE=Release
+  cmake --build build-darwin
+  ```
+
 - Output Location
   - Executable applications can be found under build*/bin/
   - Library files can be found under build*/lib/

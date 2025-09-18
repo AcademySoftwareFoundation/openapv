@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-linux:
+  build-linux-amd64:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -41,11 +41,11 @@ jobs:
           draft: false
           overwrite: true
 
-  build-arm:
+  build-linux-arm64:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -61,7 +61,7 @@ jobs:
           cmake --build ${{github.workspace}}/build-arm
           cd ${{github.workspace}}/build-arm
           cpack -C Release
- 
+
       - name: 'Upload ARM artifacts'
         uses: actions/upload-artifact@v4
         with:
@@ -81,11 +81,41 @@ jobs:
           draft: false
           overwrite: true
 
+  build-darwin-arm64:
+    runs-on: macos-13-xlarge
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build macOS ARM64 (Apple Silicon)
+        run: |
+          cmake -S ${{github.workspace}} -B ${{github.workspace}}/build-darwin -DUNIVERSAL=FALSE -DCMAKE_OSX_ARCHITECTURES=arm64 -DARM=1 -DCMAKE_BUILD_TYPE=Release
+          cmake --build ${{github.workspace}}/build-darwin
+          cd ${{github.workspace}}/build-darwin
+          # Builds OpenAPV-0.2.0.3-Darwin.tar.gz
+          cpack -C Release -G TGZ
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openapv-darwin-${{github.event.release.tag_name}}
+          path: |
+            ${{ github.workspace }}/build-darwin/*.tar.gz
+            ${{ github.workspace }}/build-darwin/*.md5
+          retention-days: 7
+
+      - uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: "build-darwin/*.tar.gz; build-darwin/*.md5"
+          update_latest_release: true
+          draft: false
+          overwrite: true
+
   build-windows:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
