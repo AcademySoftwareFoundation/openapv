@@ -77,6 +77,15 @@ jobs:
           cmake -S ${{github.workspace}} -B ${{github.workspace}}/build-darwin -DUNIVERSAL=FALSE -DCMAKE_OSX_ARCHITECTURES=arm64 -DARM=1 -DCMAKE_BUILD_TYPE=Release
           cmake --build ${{github.workspace}}/build-darwin
 
+  build-darwin-universal:
+    runs-on: macos-13-xlarge
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build macOS Universal (ARM64 + AMD64)
+        run: |
+          cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -DCMAKE_TOOLCHAIN_FILE=macos_universal_toolchain.cmake -DUNIVERSAL=1 -DCMAKE_BUILD_TYPE=Release
+          cmake --build ${{github.workspace}}/build
+
   test-linux:
     runs-on: ubuntu-latest
     needs: build-linux-amd64

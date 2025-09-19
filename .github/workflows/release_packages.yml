@@ -111,6 +111,36 @@ jobs:
           draft: false
           overwrite: true
 
+  build-darwin-universal:
+    runs-on: macos-13-xlarge
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build macOS Universal (ARM64 + AMD64)
+        run: |
+          cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -DCMAKE_TOOLCHAIN_FILE=macos_universal_toolchain.cmake -DUNIVERSAL=1 -DCMAKE_BUILD_TYPE=Release
+          cmake --build ${{github.workspace}}/build
+          cd ${{github.workspace}}/build
+          # Builds OpenAPV-0.2.0.3-Darwin.dmg
+          cpack -C Release -G DragNDrop
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openapv-universal-${{github.event.release.tag_name}}
+          path: |
+            ${{ github.workspace }}/build/*.dmg
+            ${{ github.workspace }}/build/*.md5
+          retention-days: 7
+
+      - uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: "build/*.dmg; build/*.md5"
+          update_latest_release: true
+          draft: false
+          overwrite: true
+
   build-windows:
     runs-on: ubuntu-latest
     steps:

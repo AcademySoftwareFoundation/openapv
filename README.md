@@ -74,6 +74,18 @@ The APV codec standard has the following features:
   cmake --build build-darwin
   ```
 
+- Build Instructions macOS (Universal)
+  ```
+  cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=macos_universal_toolchain.cmake -DUNIVERSAL=1 -DCMAKE_BUILD_TYPE=Release
+  cmake --build build
+  ```
+
+- Build Instructions iOS (ARM64)
+  ```
+  cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=ios_arm64_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+  cmake --build build
+  ```
+
 - Output Location
   - Executable applications can be found under build*/bin/
   - Library files can be found under build*/lib/
