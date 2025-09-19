@@ -91,7 +91,6 @@ jobs:
           cmake -S ${{github.workspace}} -B ${{github.workspace}}/build-darwin -DUNIVERSAL=FALSE -DCMAKE_OSX_ARCHITECTURES=arm64 -DARM=1 -DCMAKE_BUILD_TYPE=Release
           cmake --build ${{github.workspace}}/build-darwin
           cd ${{github.workspace}}/build-darwin
-          # Builds OpenAPV-0.2.0.3-Darwin.tar.gz
           cpack -C Release -G TGZ
 
       - uses: actions/upload-artifact@v4
@@ -121,7 +120,6 @@ jobs:
           cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -DCMAKE_TOOLCHAIN_FILE=macos_universal_toolchain.cmake -DUNIVERSAL=1 -DCMAKE_BUILD_TYPE=Release
           cmake --build ${{github.workspace}}/build
           cd ${{github.workspace}}/build
-          # Builds OpenAPV-0.2.0.3-Darwin.dmg
           cpack -C Release -G DragNDrop
 
       - uses: actions/upload-artifact@v4
