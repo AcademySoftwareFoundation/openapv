@@ -122,8 +122,8 @@ fn get_num_tiles (auto tile_w_mb, auto tile_h_mb, auto w, auto h) {
     u32 TileCols = 0;
     u32 TileRows = 0;
 
-    w_mb = (w + 7) >> 3;
-    h_mb = (h + 7) >> 3;
+    w_mb = (w + 15) >> 4;
+    h_mb = (h + 15) >> 4;
 
     TileCols = 0;
     startMb = 0;
