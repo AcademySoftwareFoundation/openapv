@@ -97,7 +97,7 @@ jobs:
         uses: jwlawson/actions-setup-cmake@v2
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: build-PC-artifacts
 
