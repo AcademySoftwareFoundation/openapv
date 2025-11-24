@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -71,7 +71,7 @@ jobs:
   build-darwin-arm64:
     runs-on: macos-13-xlarge
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Build macOS ARM64 (Apple Silicon)
         run: |
           cmake -S ${{github.workspace}} -B ${{github.workspace}}/build-darwin -DUNIVERSAL=FALSE -DCMAKE_OSX_ARCHITECTURES=arm64 -DARM=1 -DCMAKE_BUILD_TYPE=Release
@@ -80,7 +80,7 @@ jobs:
   build-darwin-universal:
     runs-on: macos-13-xlarge
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Build macOS Universal (ARM64 + AMD64)
         run: |
           cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -DCMAKE_TOOLCHAIN_FILE=macos_universal_toolchain.cmake -DUNIVERSAL=1 -DCMAKE_BUILD_TYPE=Release
@@ -91,7 +91,7 @@ jobs:
     needs: build-linux-amd64
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
