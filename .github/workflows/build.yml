@@ -69,7 +69,7 @@ jobs:
           cmake --build ${{github.workspace}}/build-arm
 
   build-darwin-arm64:
-    runs-on: macos-13-xlarge
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
       - name: Build macOS ARM64 (Apple Silicon)
@@ -78,7 +78,7 @@ jobs:
           cmake --build ${{github.workspace}}/build-darwin
 
   build-darwin-universal:
-    runs-on: macos-13-xlarge
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
       - name: Build macOS Universal (ARM64 + AMD64)
