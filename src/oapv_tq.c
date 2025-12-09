@@ -142,16 +142,15 @@ int oapve_rdoq(oapve_core_t* core, s16 *src_coef, s16 *dst_coef, int log2_cuw, i
     /* ===== quantization ===== */
     for(scan_pos = 0; scan_pos < max_num_coef; scan_pos++) {
         u32 blk_pos = scan[scan_pos];
-        s64 level_double = src_coef[blk_pos];
-        s32 max_abs_level;
+        s32 level_double;
+        u32 max_abs_level;
         s64 temp_level;
         double err;
 
         temp_level = ((s64)oapv_abs(src_coef[blk_pos]) * core->q_mat_enc[ch_type][blk_pos]);
-        level_double = temp_level;
+        level_double = (s32)oapv_min(temp_level, ((s32)0x7FFFFFFF) - ((1 << q_bits) - 1));
         tmp_level_double[blk_pos] = level_double;
-        max_abs_level = (u32)oapv_min((temp_level >> q_bits), (1 << MAX_TX_DYNAMIC_RANGE) - 1);
-        max_abs_level++;
+        max_abs_level = (u32)oapv_min((level_double + ((1 << q_bits) - 1)) >> q_bits, (1 << MAX_TX_DYNAMIC_RANGE) - 1);
         err = (double)level_double * core->err_scale_tbl[ch_type][blk_pos];
         base_dist += err * err;
         tmp_coef[blk_pos] = src_coef[blk_pos] >= 0 ? (s16)max_abs_level : -(s16)(max_abs_level);
