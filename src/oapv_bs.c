@@ -152,7 +152,7 @@ static const u8 tbl_zero_count4[16] = {
 };
 
 // skip code if lefbits are larger than skip bit count;
-static void inline bsr_skip_code(oapv_bs_t *bs, int size)
+static inline void bsr_skip_code(oapv_bs_t *bs, int size)
 {
     oapv_assert(size <= 32);
     oapv_assert(bs->leftbits >= size);
