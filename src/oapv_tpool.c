@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "oapv_tpool.h"
-#if defined(WIN32) || defined(WIN64)
+#if defined(_WIN32)
 #include <windows.h>
 #include <process.h>
 #else
@@ -41,7 +41,7 @@
 
 #define WINDOWS_MUTEX_SYNC 0
 
-#if !defined(WIN32) && !defined(WIN64)
+#if !defined(_WIN32)
 
 typedef struct thread_ctx {
     // synchronization members
