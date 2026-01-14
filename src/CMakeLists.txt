@@ -182,6 +182,9 @@ if(NOT MSVC)
         set(EXTRA_CFLAGS "-DOAPV_STATIC_DEFINE")
         set(EXTRA_CFLAGS_PRIVATE "")
     endif()
+    if(NOT WIN32)
+        set(EXTRA_CFLAGS_PRIVATE "${EXTRA_CFLAGS_PRIVATE} -pthread")
+    endif()
     configure_file(
       "${CMAKE_SOURCE_DIR}/pkgconfig/${LIB_NAME_BASE}.pc.in"
       "${CMAKE_BINARY_DIR}/${LIB_NAME_BASE}.pc" @ONLY)
