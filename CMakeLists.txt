@@ -128,8 +128,11 @@ elseif(UNIX OR MINGW)
         set(OPT_DBG "-DNDEBUG") # disable assert
     endif()
 
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OPT_DBG} -${OPT_LV} -fomit-frame-pointer -pthread")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OPT_DBG} -${OPT_LV} -fomit-frame-pointer")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wno-unused-function")
+    if(NOT WIN32)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+    endif()
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lm")
 
     if(ENABLE_COVERAGE)
