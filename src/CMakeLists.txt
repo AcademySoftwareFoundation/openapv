@@ -120,6 +120,25 @@ elseif(UNIX OR MINGW)
     endif()
     if(HAS_AVX2)
       set_property(SOURCE ${AVX} APPEND PROPERTY COMPILE_FLAGS "-mavx2")
+      # check _mm256_setr_m128i is supported
+      include(CheckCSourceCompiles)
+      include(CMakePushCheckState)
+
+      cmake_push_check_state(RESET)
+      set(CMAKE_REQUIRED_FLAGS "-mavx2")
+      check_c_source_compiles("
+      #include <immintrin.h>
+      int main(void)
+      {
+        __m128i a, b;
+        _mm256_setr_m128i(a, b);
+        return 0;
+      }
+      " HAVE_MM256_SETR)
+      cmake_pop_check_state()
+      if(HAVE_MM256_SETR)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_MM256_SETR")
+      endif(HAVE_MM256_SETR)
     endif()
   endif()
 
