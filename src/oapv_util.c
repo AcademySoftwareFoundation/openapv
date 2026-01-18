@@ -44,17 +44,16 @@ static void md5_trans(u32 *buf, const u8 *msg)
 {
     register u32 a, b, c, d;
 
-#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
-    const u32 *blk = (const u32 *)msg;
-#else
+#if OAPV_BIG_ENDIAN
     u32 x[16];
     int i;
-
+    const u32 *ptr = (const u32 *)msg;
     for (i = 0; i < 16; i++) {
-        x[i] = ((u32)msg[i*4+0]) | (((u32)msg[i*4+1]) << 8) | 
-               (((u32)msg[i*4+2]) << 16) | (((u32)msg[i*4+3]) << 24);
+         x[i] = OAPV_LE32_TO_CPU(ptr[i]);
     }
     const u32 *blk = x;
+#else // Little Endian
+    const u32 *blk = (const u32 *)msg;
 #endif
 
     a = buf[0];
