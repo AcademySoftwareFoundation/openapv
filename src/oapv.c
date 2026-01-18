@@ -167,7 +167,7 @@ static void imgb_to_blk_16(void *src, int blk_w, int blk_h, int s_src, int offse
 static void imgb_to_blk_p21x_y(void *src, int blk_w, int blk_h, int s_src, int offset_src, int s_dst, void *dst, int bd)
 {
     const int mid_val = (1 << (bd - 1));
-    u16      *s = (s16 *)src;
+    u16      *s = (u16 *)src;
     s16      *d = (s16 *)dst;
     int       shift_pic_bits = 16 - bd;
 
