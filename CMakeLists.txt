@@ -280,7 +280,7 @@ set_tests_properties(encode PROPERTIES
 # Test - decode
 add_test(NAME decode COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i out.oapv)
 set_tests_properties(decode PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     DEPENDS encode
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 125"
@@ -290,7 +290,7 @@ set_tests_properties(decode PROPERTIES
 # Test - decode qp_A.apv
 add_test(NAME decode_qp_A COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_A.apv -v 3 --hash)
 set_tests_properties(decode_qp_A PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -299,7 +299,7 @@ set_tests_properties(decode_qp_A PROPERTIES
 # Test - decode qp_B.apv
 add_test(NAME decode_qp_B COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_B.apv -v 3 --hash)
 set_tests_properties(decode_qp_B PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -308,7 +308,7 @@ set_tests_properties(decode_qp_B PROPERTIES
 # Test - decode qp_C.apv
 add_test(NAME decode_qp_C COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_C.apv -v 3 --hash)
 set_tests_properties(decode_qp_C PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -317,7 +317,7 @@ set_tests_properties(decode_qp_C PROPERTIES
 # Test - decode qp_D.apv
 add_test(NAME decode_qp_D COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_D.apv -v 3 --hash)
 set_tests_properties(decode_qp_D PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -326,7 +326,7 @@ set_tests_properties(decode_qp_D PROPERTIES
 # Test - decode qp_E.apv
 add_test(NAME decode_qp_E COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_E.apv -v 3 --hash)
 set_tests_properties(decode_qp_E PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -335,7 +335,7 @@ set_tests_properties(decode_qp_E PROPERTIES
 # Test - decode syn_A.apv
 add_test(NAME decode_syn_A COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/syn_A.apv -v 3 --hash)
 set_tests_properties(decode_syn_A PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -344,7 +344,7 @@ set_tests_properties(decode_syn_A PROPERTIES
 # Test - decode syn_B.apv
 add_test(NAME decode_syn_B COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/syn_B.apv -v 3 --hash)
 set_tests_properties(decode_syn_B PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -353,7 +353,7 @@ set_tests_properties(decode_syn_B PROPERTIES
 # Test - decode tile_A.apv
 add_test(NAME decode_tile_A COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/tile_A.apv -v 3 --hash)
 set_tests_properties(decode_tile_A PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -362,7 +362,7 @@ set_tests_properties(decode_tile_A PROPERTIES
 # Test - decode tile_B.apv
 add_test(NAME decode_tile_B COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/tile_B.apv -v 3 --hash)
 set_tests_properties(decode_tile_B PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -371,7 +371,7 @@ set_tests_properties(decode_tile_B PROPERTIES
 # Test - decode tile_C.apv
 add_test(NAME decode_tile_C COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/tile_C.apv -v 3 --hash)
 set_tests_properties(decode_tile_C PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -380,7 +380,7 @@ set_tests_properties(decode_tile_C PROPERTIES
 # Test - decode tile_D.apv
 add_test(NAME decode_tile_D COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/tile_D.apv -v 3 --hash)
 set_tests_properties(decode_tile_D PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -389,7 +389,7 @@ set_tests_properties(decode_tile_D PROPERTIES
 # Test - decode tile_E.apv
 add_test(NAME decode_tile_E COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/tile_E.apv -v 3 --hash)
 set_tests_properties(decode_tile_E PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"

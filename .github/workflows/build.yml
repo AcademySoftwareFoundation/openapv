@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build-linux-amd64:
@@ -68,6 +69,25 @@ jobs:
           cmake -S ${{github.workspace}} -B ${{github.workspace}}/build-arm -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}/arm64_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
           cmake --build ${{github.workspace}}/build-arm
 
+  build-linux-s390x:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Install s390x toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-s390x-linux-gnu g++-s390x-linux-gnu binutils-s390x-linux-gnu libc6-s390x-cross
+
+      - name: Build (crosscompile) PC Linux s390x
+        run: |
+          cmake -S ${{github.workspace}} -B ${{github.workspace}}/build-s390x -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=s390x -DCMAKE_C_COMPILER=s390x-linux-gnu-gcc -DCMAKE_CXX_COMPILER=s390x-linux-gnu-g++ -DCMAKE_BUILD_TYPE=Release
+          cmake --build ${{github.workspace}}/build-s390x
+
   build-darwin-arm64:
     runs-on: macos-latest
     steps:
@@ -124,3 +144,29 @@ jobs:
         with:
           name: LastTest.log
           path: ${{github.workspace}}/build/Testing/Temporary/LastTest.log
+
+  test-linux-s390x:
+    runs-on: ubuntu-latest
+    env:
+      QEMU_LD_PREFIX: /usr/s390x-linux-gnu
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Install s390x toolchain and emulator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-s390x-linux-gnu g++-s390x-linux-gnu binutils-s390x-linux-gnu libc6-s390x-cross qemu-user qemu-user-static
+
+      - name: Build (crosscompile) PC Linux s390x for tests
+        run: |
+          cmake -S ${{github.workspace}} -B ${{github.workspace}}/build-s390x -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=s390x -DCMAKE_C_COMPILER=s390x-linux-gnu-gcc -DCMAKE_CXX_COMPILER=s390x-linux-gnu-g++ -DCMAKE_BUILD_TYPE=Release -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-s390x;-L;/usr/s390x-linux-gnu"
+          cmake --build ${{github.workspace}}/build-s390x
+
+      - name: Run tests for s390x
+        run: |
+          cd build-s390x
+          ctest --output-on-failure --timeout 15
