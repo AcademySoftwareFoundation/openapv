@@ -100,7 +100,7 @@ int oapv_bsw_write1(oapv_bs_t *bs, int val)
     oapv_assert(bs);
 
     bs->leftbits--;
-    bs->code |= ((val & 0x1) << bs->leftbits);
+    bs->code |= ((u64)(val & 0x1) << bs->leftbits);
 
     if(bs->leftbits == 0) {
         oapv_assert_rv(bs->cur < bs->end, -1);
