@@ -368,96 +368,28 @@ static void print_stat_frm(oapvd_stat_t *stat, oapv_frms_t *frms, oapvm_t mid, a
     }
 }
 
-int main(int argc, const char **argv)
+int main_oapv1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 {
-    args_parser_t   *args;
-    args_var_t      *args_var = NULL;
-    unsigned char   *bs_buf = NULL;
     oapvd_t          did = NULL;
     oapvm_t          mid = NULL;
     oapvd_cdesc_t    cdesc;
+    oapv_au_info_t   aui;
+    oapvd_stat_t     stat;
+    unsigned char   *bs_buf = NULL;
+    oapv_frm_info_t *finfo = NULL;
     oapv_bitb_t      bitb;
     oapv_frms_t      ofrms;
     oapv_imgb_t     *imgb_w = NULL;
     oapv_imgb_t     *imgb_o = NULL;
     oapv_frm_t      *frm = NULL;
-    oapv_au_info_t   aui;
-    oapvd_stat_t     stat;
     int              i, ret = 0;
     oapv_clk_t       clk_beg, clk_end, clk_tot;
     int              au_cnt, frm_cnt[OAPV_MAX_NUM_FRAMES];
     int              read_size, bs_buf_size = 0;
-    FILE            *fp_bs = NULL;
-    int              is_y4m = 0;
-    char            *errstr = NULL;
-    oapv_frm_info_t *finfo = NULL;
 
     memset(frm_cnt, 0, sizeof(int) * OAPV_MAX_NUM_FRAMES);
     memset(&aui, 0, sizeof(oapv_au_info_t));
     memset(&ofrms, 0, sizeof(oapv_frms_t));
-
-    // print logo
-    logv2("  ____                ___   ___ _   __\n");
-    logv2(" / __ \\___  ___ ___  / _ | / _ \\ | / / Decoder (v%s)\n", oapv_version(NULL));
-    logv2("/ /_/ / _ \\/ -_) _ \\/ __ |/ ___/ |/ / \n");
-    logv2("\\____/ .__/\\__/_//_/_/ |_/_/   |___/  \n");
-    logv2("    /_/                               \n");
-    logv2("\n");
-
-    /* help message */
-    if(argc < 2 || !strcmp(argv[1], "--help") || !strcmp(argv[1], "-h")) {
-        print_usage(argv);
-        return 0;
-    }
-    /* parse command line */
-    args = args_create(dec_args_opts, NUM_ARGS_OPT);
-    if(args == NULL) {
-        logerr("ERR: cannot create argument parser\n");
-        ret = -1;
-        goto ERR;
-    }
-    args_var = args_init_vars(args);
-    if(args_var == NULL) {
-        logerr("ERR: cannot initialize argument parser\n");
-        ret = -1;
-        goto ERR;
-    }
-    if(args->parse(args, argc, argv, &errstr)) {
-        logerr("ERR: command parsing error (%s)\n", errstr);
-        ret = -1;
-        goto ERR;
-    }
-    // print command line string for information
-    print_commandline(argc, argv);
-
-    if(args->check_mandatory(args, &errstr)) {
-        logerr("ERR: '--%s' argument is mandatory\n", errstr);
-        ret = -1;
-        goto ERR;
-    }
-
-    /* open input file */
-    fp_bs = fopen(args_var->fname_inp, "rb");
-    if(fp_bs == NULL) {
-        logerr("ERR: cannot open bitstream file = %s\n", args_var->fname_inp);
-        print_usage(argv);
-        ret = -1; goto ERR;
-    }
-    /* open output file */
-    if(strlen(args_var->fname_out) > 0) {
-        ret = check_file_name_type(args_var->fname_out);
-        if(ret > 0) {
-            is_y4m = 1;
-        }
-        else if(ret == 0) {
-            is_y4m = 0;
-        }
-        else { // invalid or unknown file name type
-            logerr("ERR: unknown file type name for decoded video\n");
-            ret = -1; goto ERR;
-        }
-        clear_data(args_var->fname_out); /* remove decoded file contents if exists */
-    }
 
     // create bitstream buffer
     bs_buf = malloc(MAX_BS_BUF);
@@ -466,6 +398,7 @@ int main(int argc, const char **argv)
         ret = -1;
         goto ERR;
     }
+
     // create decoder
     if(!strcmp(args_var->threads, "auto")){
         cdesc.threads = OAPV_CDESC_THREADS_AUTO;
@@ -674,10 +607,338 @@ ERR:
     }
     if(imgb_w != NULL)
         imgb_w->release(imgb_w);
+
+    return 0;
+}
+
+int main_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
+{
+    oapvd_t          did = NULL;
+    oapvm_t          mid = NULL;
+    oapvd_cdesc_t    cdesc;
+    oapv_au_info_t   aui;
+    oapvd_stat_t     stat;
+    unsigned char   *bs_buf = NULL;
+    oapv_frm_info_t *finfo = NULL;
+    oapv_bitb_t      bitb;
+    oapv_frms_t      ofrms;
+    oapv_imgb_t     *imgb_w = NULL;
+    oapv_imgb_t     *imgb_o = NULL;
+    oapv_frm_t      *frm = NULL;
+    int              i, ret = 0;
+    oapv_clk_t       clk_beg, clk_end, clk_tot;
+    int              au_cnt, frm_cnt[OAPV_MAX_NUM_FRAMES];
+    int              read_size, bs_buf_size = 0;
+
+    memset(frm_cnt, 0, sizeof(int) * OAPV_MAX_NUM_FRAMES);
+    memset(&aui, 0, sizeof(oapv_au_info_t));
+    memset(&ofrms, 0, sizeof(oapv_frms_t));
+
+    // create bitstream buffer
+    bs_buf = malloc(MAX_BS_BUF);
+    if(bs_buf == NULL) {
+        logerr("ERR: cannot allocate bitstream buffer, size=%d\n", MAX_BS_BUF);
+        ret = -1;
+        goto ERR;
+    }
+
+    // create decoder
+    if(!strcmp(args_var->threads, "auto")){
+        cdesc.threads = OAPV_CDESC_THREADS_AUTO;
+    }
+    else {
+        cdesc.threads = atoi(args_var->threads);
+    }
+    did = oapvd_create(&cdesc, &ret);
+    if(did == NULL) {
+        logerr("ERR: cannot create OAPV decoder (err=%d)\n", ret);
+        ret = -1;
+        goto ERR;
+    }
+    if(set_extra_config(did, args_var)) {
+        logerr("ERR: cannot set extra configurations\n");
+        ret = -1;
+        goto ERR;
+    }
+
+    clk_tot = 0;
+    au_cnt = 0;
+
+    /* create metadata container */
+    mid = oapvm_create(&ret);
+    if(OAPV_FAILED(ret)) {
+        logerr("ERR: cannot create OAPV metadata container (err=%d)\n", ret);
+        ret = -1;
+        goto ERR;
+    }
+
+    /* decoding loop */
+    while(args_var->max_au == 0 || (au_cnt < args_var->max_au)) {
+        read_size = read_bitstream(fp_bs, bs_buf, &bs_buf_size);
+        if (read_size == 0) {
+            logv3("--> end of bitstream\n")
+            break;
+        }
+        if (read_size < 0) {
+            logv3("--> bitstream reading error\n")
+            ret = -1;
+            goto ERR;
+        }
+
+        if(OAPV_FAILED(oapvd_info(bs_buf, bs_buf_size, &aui))) {
+            logerr("ERR: cannot get information from bitstream\n");
+            ret = -1;
+            goto ERR;
+        }
+
+        /* create decoding frame buffers */
+        ofrms.num_frms = aui.num_frms;
+        for(i = 0; i < ofrms.num_frms; i++) {
+            finfo = &aui.frm_info[i];
+            frm = &ofrms.frm[i];
+
+            if(frm->imgb != NULL && (frm->imgb->w[0] != finfo->w || frm->imgb->h[0] != finfo->h)) {
+                frm->imgb->release(frm->imgb);
+                frm->imgb = NULL;
+            }
+
+            if(frm->imgb == NULL) {
+                if(args_var->output_csp == 1) {
+                    frm->imgb = imgb_create(finfo->w, finfo->h, OAPV_CS_SET(OAPV_CF_PLANAR2, 10, 0));
+                }
+                else {
+                    frm->imgb = imgb_create(finfo->w, finfo->h, finfo->cs);
+                }
+                if(frm->imgb == NULL) {
+                    logerr("ERR: cannot allocate image buffer (w:%d, h:%d, cs:%d)\n",
+                           finfo->w, finfo->h, finfo->cs);
+                    ret = -1;
+                    goto ERR;
+                }
+            }
+        }
+
+        if(args_var->disable_companding && finfo->use_companding == 1) {
+            args_var->output_depth = 12;
+        }
+        if(args_var->output_depth == 0) {
+            args_var->output_depth = OAPV_CS_GET_BIT_DEPTH(finfo->cs);
+        }
+
+        /* main decoding block */
+        bitb.addr = bs_buf;
+        bitb.ssize = bs_buf_size;
+        memset(&stat, 0, sizeof(oapvd_stat_t));
+
+        clk_beg = oapv_clk_get();
+
+        ret = oapvd_decode(did, &bitb, &ofrms, mid, &stat);
+
+        clk_end = oapv_clk_from(clk_beg);
+        clk_tot += clk_end;
+
+        if(OAPV_FAILED(ret)) {
+            logerr("ERR: failed to decode bitstream\n");
+            ret = -1;
+            goto END;
+        }
+        if(stat.read != bs_buf_size) {
+            logerr("\t=> different reading of bitstream (in:%d, read:%d)\n",
+                   bs_buf_size, stat.read);
+            continue;
+        }
+
+        /* testing of metadata reading */
+        if(mid) {
+            oapvm_payload_t *pld = NULL;   // metadata payload
+            int              num_plds = 0; // number of metadata payload
+
+            ret = oapvm_get_all(mid, NULL, &num_plds);
+
+            if(OAPV_FAILED(ret)) {
+                logerr("ERR: failed to read metadata\n");
+                goto END;
+            }
+            if(num_plds > 0) {
+                pld = malloc(sizeof(oapvm_payload_t) * num_plds);
+                ret = oapvm_get_all(mid, pld, &num_plds);
+                if(OAPV_FAILED(ret)) {
+                    logerr("ERR: failed to read metadata\n");
+                    free(pld);
+                    goto END;
+                }
+            }
+            if(pld != NULL)
+                free(pld);
+        }
+
+        /* print decoding results */
+        print_stat_au(&stat, au_cnt, args_var, clk_end, clk_tot);
+        print_stat_frm(&stat, &ofrms, mid, args_var);
+
+        /* write decoded frames into files */
+        for(i = 0; i < ofrms.num_frms; i++) {
+            frm = &ofrms.frm[i];
+            if(ofrms.num_frms > 0) {
+                if(OAPV_CS_GET_BIT_DEPTH(frm->imgb->cs) != args_var->output_depth && args_var->output_csp != OUTPUT_CSP_P210) {
+                    if(imgb_w == NULL) {
+                        imgb_w = imgb_create(frm->imgb->w[0], frm->imgb->h[0],
+                                             OAPV_CS_SET(OAPV_CS_GET_FORMAT(frm->imgb->cs), args_var->output_depth, 0));
+                        if(imgb_w == NULL) {
+                            logerr("ERR: cannot allocate image buffer (w:%d, h:%d, cs:%d)\n",
+                                   frm->imgb->w[0], frm->imgb->h[0], frm->imgb->cs);
+                            ret = -1;
+                            goto ERR;
+                        }
+                    }
+                    imgb_cpy(imgb_w, frm->imgb);
+                    imgb_o = imgb_w;
+                }
+                else {
+                    imgb_o = frm->imgb;
+                }
+
+                if(strlen(args_var->fname_out)) {
+                    if(frm_cnt[i] == 0 && is_y4m) {
+                        if(write_y4m_header(args_var->fname_out, imgb_o)) {
+                            logerr("ERR: cannot write Y4M header\n");
+                            ret = -1;
+                            goto ERR;
+                        }
+                    }
+                    if(write_dec_img(args_var->fname_out, imgb_o, is_y4m)) {
+                        logerr("ERR: cannot write decoded video\n");
+                        ret = -1;
+                        goto ERR;
+                    }
+                }
+                frm_cnt[i]++;
+            }
+        }
+        au_cnt++;
+        oapvm_rem_all(mid); // remove all metadata for next au decoding
+        fflush(stdout);
+        fflush(stderr);
+    }
+
+END:
+    logv2_line("Summary");
+    logv2("Processed access units            = %d\n", au_cnt);
+    int total_frame_count = 0;
+    for(i = 0; i < OAPV_MAX_NUM_FRAMES; i++)
+        total_frame_count += frm_cnt[i];
+    logv2("Decoded frame count               = %d\n", total_frame_count);
+    if(total_frame_count > 0) {
+        logv2("Total decoding time               = %d msec,", (int)oapv_clk_msec(clk_tot));
+        logv2(" %.3f sec\n", (float)(oapv_clk_msec(clk_tot) / 1000.0));
+        logv2("Average decoding time for a frame = %d msec\n", (int)oapv_clk_msec(clk_tot) / total_frame_count);
+        logv2("Average decoding speed            = %.3f frames/sec\n", ((float)total_frame_count * 1000) / ((float)oapv_clk_msec(clk_tot)));
+    }
+    logv2_line(NULL);
+
+ERR:
+    if(did)
+        oapvd_delete(did);
+
+    if(mid)
+        oapvm_delete(mid);
+
+    for(int i = 0; i < ofrms.num_frms; i++) {
+        if(ofrms.frm[i].imgb != NULL) {
+            ofrms.frm[i].imgb->release(ofrms.frm[i].imgb);
+        }
+    }
+    if(imgb_w != NULL)
+        imgb_w->release(imgb_w);
+
+    return 0;
+}
+
+int main(int argc, const char **argv)
+{
+    args_parser_t   *args;
+    args_var_t      *args_var = NULL;
+    int              ret = 0;
+    int              is_y4m = 0;
+    char            *errstr = NULL;
+    FILE            *fp_bs = NULL;
+
+
+    // print logo
+    logv2("  ____                ___   ___ _   __\n");
+    logv2(" / __ \\___  ___ ___  / _ | / _ \\ | / / Decoder (v%s)\n", oapv_version(NULL));
+    logv2("/ /_/ / _ \\/ -_) _ \\/ __ |/ ___/ |/ / \n");
+    logv2("\\____/ .__/\\__/_//_/_/ |_/_/   |___/  \n");
+    logv2("    /_/                               \n");
+    logv2("\n");
+
+    /* help message */
+    if(argc < 2 || !strcmp(argv[1], "--help") || !strcmp(argv[1], "-h")) {
+        print_usage(argv);
+        return 0;
+    }
+    /* parse command line */
+    args = args_create(dec_args_opts, NUM_ARGS_OPT);
+    if(args == NULL) {
+        logerr("ERR: cannot create argument parser\n");
+        ret = -1;
+        goto ERR;
+    }
+    args_var = args_init_vars(args);
+    if(args_var == NULL) {
+        logerr("ERR: cannot initialize argument parser\n");
+        ret = -1;
+        goto ERR;
+    }
+    if(args->parse(args, argc, argv, &errstr)) {
+        logerr("ERR: command parsing error (%s)\n", errstr);
+        ret = -1;
+        goto ERR;
+    }
+    // print command line string for information
+    print_commandline(argc, argv);
+
+    if(args->check_mandatory(args, &errstr)) {
+        logerr("ERR: '--%s' argument is mandatory\n", errstr);
+        ret = -1;
+        goto ERR;
+    }
+
+    /* open input file */
+    fp_bs = fopen(args_var->fname_inp, "rb");
+    if(fp_bs == NULL) {
+        logerr("ERR: cannot open bitstream file = %s\n", args_var->fname_inp);
+        print_usage(argv);
+        ret = -1; goto ERR;
+    }
+    /* open output file */
+    if(strlen(args_var->fname_out) > 0) {
+        ret = check_file_name_type(args_var->fname_out);
+        if(ret > 0) {
+            is_y4m = 1;
+        }
+        else if(ret == 0) {
+            is_y4m = 0;
+        }
+        else { // invalid or unknown file name type
+            logerr("ERR: unknown file type name for decoded video\n");
+            ret = -1; goto ERR;
+        }
+        clear_data(args_var->fname_out); /* remove decoded file contents if exists */
+    }
+
+    if(0) {
+        ret = main_oapv1(args_var, fp_bs, is_y4m);
+    }
+    else {
+        ret = main_oapv2(args_var, fp_bs, is_y4m);
+    }
+    if(ret < 0) goto ERR;
+
+
+ERR:
     if(fp_bs)
         fclose(fp_bs);
-    if(bs_buf)
-        free(bs_buf);
     if(args)
         args->release(args);
     if(args_var)

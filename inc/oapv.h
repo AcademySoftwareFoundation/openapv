@@ -752,6 +752,29 @@ OAPV_EXPORT int oapvd_info(void *au, int au_size, oapv_au_info_t *aui);
  *****************************************************************************/
 OAPV_EXPORT const char *oapv_version(unsigned int *ver_num);
 
+/*****************************************************************************
+ * OpenAPV version 2 APIs
+ ****************************************************************************/
+#if 0
+/* description for decoder creation */
+typedef struct oapv2d_cdesc oapvd_cdesc_t;
+struct oapv2d_cdesc {
+    /* max number of threads (or OAPV_CDESC_THREADS_AUTO for auto-assignment) */
+    int threads;
+};
+
+/* instance identifier for OAPV2 decoder */
+typedef void       *oapv2d_t;
+
+/* main APIs *****************************************************************/
+OAPV_EXPORT oapv2d_t oapv2d_create(oapv2d_cdesc_t *cdesc, int *err);
+OAPV_EXPORT void oapv2d_delete(oapvd_t did);
+OAPV_EXPORT int oapv2d_config(oapvd_t did, int cfg, void *buf, int *size);
+#endif
+
+OAPV_EXPORT int oapv2d_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat);
+
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
