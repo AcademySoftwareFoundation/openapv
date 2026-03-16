@@ -173,7 +173,7 @@ static int read_au_size(FILE *fp)
 {
     unsigned char buf[4];
 
-    for(int i = 0; i < 4; i++) {
+   for(int i = 0; i < 4; i++) {
         if(1 != fread(&buf[i], 1, 1, fp))
             return -1;
     }
@@ -611,6 +611,27 @@ ERR:
     return 0;
 }
 
+static int read_u32(FILE *fp, unsigned int * val)
+{
+    unsigned char buf[4];
+
+    for(int i = 0; i < 4; i++) {
+        if(1 != fread(&buf[i], 1, 1, fp))
+            return -1;
+    }
+    *val = ((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | (buf[3]));
+    return 0;
+}
+
+static int read_pdu(FILE *fp, unsigned char *pdu, unsigned int pdu_size)
+{
+    if(pdu_size != fread(pdu, 1, pdu_size, fp)) {
+        logerr("Cannot read PDU!\n");
+        return -1;
+    }
+    return 0;
+}
+
 int main_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 {
     oapvd_t          did = NULL;
@@ -628,7 +649,7 @@ int main_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     int              i, ret = 0;
     oapv_clk_t       clk_beg, clk_end, clk_tot;
     int              au_cnt, frm_cnt[OAPV_MAX_NUM_FRAMES];
-    int              read_size, bs_buf_size = 0;
+    int              read_size, bs_buf_size;
 
     memset(frm_cnt, 0, sizeof(int) * OAPV_MAX_NUM_FRAMES);
     memset(&aui, 0, sizeof(oapv_au_info_t));
@@ -672,19 +693,57 @@ int main_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         goto ERR;
     }
 
-    /* decoding loop */
+    /* AU loop ***************************************************************/
     while(args_var->max_au == 0 || (au_cnt < args_var->max_au)) {
-        read_size = read_bitstream(fp_bs, bs_buf, &bs_buf_size);
-        if (read_size == 0) {
-            logv3("--> end of bitstream\n")
-            break;
+        /* read access unit size */
+        unsigned int au_size;
+        if(read_u32(fp_bs, &au_size) < 0) {
+            if(feof(fp_bs)) {
+                logv2_line("");
+                logv2("End of file\n");
+                ret = 0; goto END;
+            }
+            else {
+                logerr("ERR: cannot read au_size\n");
+                ret = -1; goto ERR;
+            }
         }
-        if (read_size < 0) {
-            logv3("--> bitstream reading error\n")
-            ret = -1;
-            goto ERR;
+        logv3("AU size = %d\n", au_size);
+        /* check signature ('aPv1') */
+        unsigned int signature = 0;
+        if(read_u32(fp_bs, &signature) < 0) {
+            logerr("ERR: cannot read signature\n");
+            ret = -1; goto ERR;
+        }
+        if(signature != 0x61507631) {
+            logerr("ERR: signature mismatch")
+            ret = -1;  goto ERR;
+        }
+        au_size -= 4; /* byte size of signature syntax */
+
+        /* PDU loop **********************************************************/
+        int rsize = 0;
+        while(rsize < au_size) {
+            /* read a PDU size */
+            unsigned int pdu_size;
+            if(read_u32(fp_bs, &pdu_size) < 0) {
+                logerr("ERR: cannot read PDU size\n");
+                ret = -1; goto ERR;
+            }
+            logv3("  PDU size = %d\n", pdu_size);
+            rsize += 4; /* byte size of pdu_size syntax */
+
+            /* read a PDU */
+            if(read_pdu(fp_bs, bs_buf, pdu_size) < 0) {
+                ret = -1; goto ERR;
+            }
+            /* get PDU type */
+
+
+            rsize += pdu_size;
         }
 
+#if 0
         if(OAPV_FAILED(oapvd_info(bs_buf, bs_buf_size, &aui))) {
             logerr("ERR: cannot get information from bitstream\n");
             ret = -1;
@@ -819,6 +878,7 @@ int main_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         oapvm_rem_all(mid); // remove all metadata for next au decoding
         fflush(stdout);
         fflush(stderr);
+#endif
     }
 
 END:
