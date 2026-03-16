@@ -772,7 +772,16 @@ OAPV_EXPORT void oapv2d_delete(oapvd_t did);
 OAPV_EXPORT int oapv2d_config(oapvd_t did, int cfg, void *buf, int *size);
 #endif
 
+/* PDU information */
+typedef struct oapv_pbu_info oapv_pbu_info_t;
+struct oapv_pbu_info {
+    unsigned char   pbu_type;
+    unsigned short  group_id;
+};
+
 OAPV_EXPORT int oapv2d_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat);
+
+OAPV_EXPORT int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbui);
 
 
 #ifdef __cplusplus

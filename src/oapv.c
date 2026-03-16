@@ -2009,6 +2009,11 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
     return OAPV_OK;
 }
 
+int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbui)
+{
+    return OAPV_OK;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // end of decoder code
 #endif // ENABLE_DECODER

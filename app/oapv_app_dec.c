@@ -623,9 +623,9 @@ static int read_u32(FILE *fp, unsigned int * val)
     return 0;
 }
 
-static int read_pdu(FILE *fp, unsigned char *pdu, unsigned int pdu_size)
+static int read_pbu(FILE *fp, unsigned char *pbu, unsigned int pbu_size)
 {
-    if(pdu_size != fread(pdu, 1, pdu_size, fp)) {
+    if(pbu_size != fread(pbu, 1, pbu_size, fp)) {
         logerr("Cannot read PDU!\n");
         return -1;
     }
@@ -725,22 +725,22 @@ int main_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         int rsize = 0;
         while(rsize < au_size) {
             /* read a PDU size */
-            unsigned int pdu_size;
-            if(read_u32(fp_bs, &pdu_size) < 0) {
+            unsigned int pbu_size;
+            if(read_u32(fp_bs, &pbu_size) < 0) {
                 logerr("ERR: cannot read PDU size\n");
                 ret = -1; goto ERR;
             }
-            logv3("  PDU size = %d\n", pdu_size);
-            rsize += 4; /* byte size of pdu_size syntax */
+            logv3("  PDU size = %d\n", pbu_size);
+            rsize += 4; /* byte size of pbu_size syntax */
 
             /* read a PDU */
-            if(read_pdu(fp_bs, bs_buf, pdu_size) < 0) {
+            if(read_pbu(fp_bs, bs_buf, pbu_size) < 0) {
                 ret = -1; goto ERR;
             }
-            /* get PDU type */
+            /* get PDU information */
 
 
-            rsize += pdu_size;
+            rsize += pbu_size;
         }
 
 #if 0
