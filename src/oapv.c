@@ -1897,7 +1897,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
 
             ofrms->frm[nfrms].pbu_type = pbuh.pbu_type;
             ofrms->frm[nfrms].group_id = pbuh.group_id;
-            stat->frm_size[nfrms] = pbu_size + 4 /* byte size of 'pbu_size' syntax */;
+            stat->frm_size[nfrms] = pbu_size + 4; /* byte size of 'pbu_size' syntax */
             nfrms++;
 
             // go to the end of frame data for next PDU
@@ -1987,11 +1987,7 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
             }
             return OAPV_OK; // founded access_unit_info, no need to read more PBUs
         }
-        if(pbuh.pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME ||
-           pbuh.pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME ||
-           pbuh.pbu_type == OAPV_PBU_TYPE_PREVIEW_FRAME ||
-           pbuh.pbu_type == OAPV_PBU_TYPE_DEPTH_FRAME ||
-           pbuh.pbu_type == OAPV_PBU_TYPE_ALPHA_FRAME) {
+        if(OAPV_PBU_TYPE_IS_FRAME(pbuh.pbu_type)) {
             // parse frame_info in PBU
             oapv_fi_t fi;
 
@@ -2009,7 +2005,150 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
     return OAPV_OK;
 }
 
-int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbui)
+int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_info)
+{
+    oapv_bs_t bs;
+    oapv_assert_rv(pbu_size >= 4, OAPV_ERR_INVALID_ARGUMENT);
+
+    oapv_bsr_init(&bs, pbu, pbu_size, NULL);
+
+    /* parse pbu_header() */
+    pbu_info->pbu_type = oapv_bsr_read(&bs, 8);
+    pbu_info->group_id = oapv_bsr_read(&bs, 16);
+
+    return OAPV_OK;
+}
+
+int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info)
+{
+    oapv_bs_t    bs;
+    oapv_pbuh_t  pbuh;
+    oapv_fh_t    fh;
+    int          ret = OAPV_OK;
+
+    oapv_assert_rv(pbu_size >= (OAPV_PBU_HEADER_BYTE + OAPV_FRAME_INFO_BYTE), OAPV_ERR_INVALID_ARGUMENT);
+    oapv_bsr_init(&bs, pbu, pbu_size, NULL);
+
+    DUMP_SET(0);
+    // decode PBU header
+    ret = oapvd_vlc_pbu_header(&bs, &pbuh);
+    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+
+    // check frame type PBU
+    oapv_assert_gv(OAPV_PBU_TYPE_IS_FRAME(pbuh.pbu_type), ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
+
+    // decode frame header
+    ret = oapvd_vlc_frame_header(&bs, &fh);
+    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+
+    fh_to_finfo(&fh, pbuh.pbu_type, pbuh.group_id, frm_info);
+
+ERR:
+    DUMP_SET(1);
+    return ret;
+}
+
+int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat)
+{
+    oapvd_ctx_t *ctx;
+    oapv_pbuh_t  pbuh;
+    int          ret = OAPV_OK;
+
+    ctx = dec_id_to_ctx(did);
+    oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_mset(stat, 0, sizeof(oapvd_stat_t));
+
+    oapv_bs_t   *bs;
+    oapv_assert_gv((bitb->ssize >= 8), ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
+    oapv_bsr_init(&ctx->bs, (u8 *)bitb->addr, bitb->ssize, NULL);
+    bs = &ctx->bs;
+
+    // parse PBU header
+    ret = oapvd_vlc_pbu_header(bs, &pbuh);
+    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+    // check frame type PBU
+    oapv_assert_gv(OAPV_PBU_TYPE_IS_FRAME(pbuh.pbu_type), ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
+
+    // decode frame
+    ret = oapvd_vlc_frame_header(bs, &ctx->fh);
+    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+
+    ret = dec_frm_prepare(ctx, imgb);
+    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+
+    int           thread_ret;
+    oapv_tpool_t *tpool = ctx->tpool;
+    int           parallel_task = 1;
+    int           tidx = 0;
+
+    parallel_task = (ctx->threads > ctx->num_tiles) ? ctx->num_tiles : ctx->threads;
+
+    /* decode tiles ************************************/
+    for(tidx = 0; tidx < (parallel_task - 1); tidx++) {
+        tpool->run(ctx->thread_id[tidx], dec_thread_tile,
+                   (void *)ctx->core[tidx]);
+    }
+    ret = dec_thread_tile((void *)ctx->core[tidx]);
+    for(tidx = 0; tidx < parallel_task - 1; tidx++) {
+        tpool->join(ctx->thread_id[tidx], &thread_ret);
+        if(OAPV_FAILED(thread_ret)) {
+            ret = thread_ret;
+        }
+    }
+    /****************************************************/
+
+    /* READ FILLER HERE !!! */
+    if(OAPV_SUCCEEDED(ret) && ctx->use_frm_hash) {
+        oapv_imgb_set_md5(imgb);
+    }
+    else {
+        oapv_imgb_clr_md5(imgb);
+    }
+    // following function should be called even error cases,
+    // because input imgb's ref count needs to decreased.
+    // after this function, ctx->imgb cannot be accessed.
+    dec_frm_finish(ctx);
+
+    // check thread's return value
+    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+
+    // go to the end of frame data
+    oapv_bsr_move(bs, ctx->tile_end);
+    // set stat
+    fh_to_finfo(&ctx->fh, pbuh.pbu_type, pbuh.group_id, &stat->aui.frm_info[0]);
+    stat->read = stat->frm_size[0] = BSR_GET_READ_BYTE(bs);
+    stat->aui.num_frms = 1;
+    return ret;
+
+ERR:
+    return ret;
+
+    return OAPV_OK;
+}
+
+int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
+{
+    int        ret;
+    oapv_bs_t  bs;
+    oapv_aui_t ai;
+
+    oapv_bsr_init(&bs, bitb->addr, bitb->ssize, NULL);
+
+    DUMP_SET(0);
+    ret = oapvd_vlc_au_info(&bs, &ai);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+    oapv_mset(aui, 0, sizeof(oapv_au_info_t)); // clear
+
+    aui->num_frms = ai.num_frames;
+    for(int i = 0; i < ai.num_frames; i++) {
+        fi_to_finfo(&ai.frame_info[i], ai.pbu_type[i], ai.group_id[i], &aui->frm_info[i]);
+    }
+    DUMP_SET(1);
+    return OAPV_OK;
+}
+
+int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_payload_t *pld)
 {
     return OAPV_OK;
 }

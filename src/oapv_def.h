@@ -408,8 +408,8 @@ struct oapvd_ctx {
 #endif // ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
 
-#define OAPV_FRAME_INFO_BYTE (112)
-#define OAPV_PBU_HEADER_BYTE (32)
+#define OAPV_PBU_HEADER_BYTE (4)
+#define OAPV_FRAME_INFO_BYTE (12)
 
 #include "oapv_metadata.h"
 #include "oapv_vlc.h"

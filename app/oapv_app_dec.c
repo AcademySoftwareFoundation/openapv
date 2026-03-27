@@ -368,7 +368,7 @@ static void print_stat_frm(oapvd_stat_t *stat, oapv_frms_t *frms, oapvm_t mid, a
     }
 }
 
-int main_oapv1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
+int dec_oapv1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 {
     oapvd_t          did = NULL;
     oapvm_t          mid = NULL;
@@ -475,7 +475,7 @@ int main_oapv1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             }
         }
 
-        if(args_var->disable_companding && finfo->use_companding == 1) {
+        if(args_var->disable_companding && finfo->use_companding) {
             args_var->output_depth = 12;
         }
         if(args_var->output_depth == 0) {
@@ -632,32 +632,39 @@ static int read_pbu(FILE *fp, unsigned char *pbu, unsigned int pbu_size)
     return 0;
 }
 
-int main_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
+static const char * get_key_from_val(const oapv_dict_str_int_t * dict, int val)
+{
+    while(strlen(dict->key) > 0) {
+        if(dict->val == val){
+            return dict->key;
+        }
+        dict++;
+    }
+    return NULL;
+}
+
+int dec_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 {
     oapvd_t          did = NULL;
     oapvm_t          mid = NULL;
     oapvd_cdesc_t    cdesc;
     oapv_au_info_t   aui;
     oapvd_stat_t     stat;
-    unsigned char   *bs_buf = NULL;
-    oapv_frm_info_t *finfo = NULL;
+    unsigned char   *pbu = NULL;
     oapv_bitb_t      bitb;
-    oapv_frms_t      ofrms;
-    oapv_imgb_t     *imgb_w = NULL;
-    oapv_imgb_t     *imgb_o = NULL;
-    oapv_frm_t      *frm = NULL;
-    int              i, ret = 0;
-    oapv_clk_t       clk_beg, clk_end, clk_tot;
-    int              au_cnt, frm_cnt[OAPV_MAX_NUM_FRAMES];
-    int              read_size, bs_buf_size;
+    oapv_imgb_t     *imgb_dec = NULL;
+    oapv_imgb_t     *imgb_out = NULL;
+    oapv_imgb_t     *imgb_tmp = NULL;
 
-    memset(frm_cnt, 0, sizeof(int) * OAPV_MAX_NUM_FRAMES);
-    memset(&aui, 0, sizeof(oapv_au_info_t));
-    memset(&ofrms, 0, sizeof(oapv_frms_t));
+    int              ret = 0;
+    oapv_clk_t       clk_beg, clk_end, clk_tot;
+    int              au_cnt = 0; // number of decoded access unit;
+    int              primary_frm_cnt = 0; // number of decoded primary frame
+    int              primary_frm_gid = -1; // group id of primary frame
 
     // create bitstream buffer
-    bs_buf = malloc(MAX_BS_BUF);
-    if(bs_buf == NULL) {
+    pbu = malloc(MAX_BS_BUF);
+    if(pbu == NULL) {
         logerr("ERR: cannot allocate bitstream buffer, size=%d\n", MAX_BS_BUF);
         ret = -1;
         goto ERR;
@@ -708,7 +715,6 @@ int main_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 ret = -1; goto ERR;
             }
         }
-        logv3("AU size = %d\n", au_size);
         /* check signature ('aPv1') */
         unsigned int signature = 0;
         if(read_u32(fp_bs, &signature) < 0) {
@@ -721,178 +727,158 @@ int main_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         }
         au_size -= 4; /* byte size of signature syntax */
 
+        logv3("AU(size=%d)\n", au_size);
+
         /* PDU loop **********************************************************/
         int rsize = 0;
+        oapv_pbu_info_t pbu_info;
+
         while(rsize < au_size) {
-            /* read a PDU size */
+            /* read a PBU size */
             unsigned int pbu_size;
             if(read_u32(fp_bs, &pbu_size) < 0) {
-                logerr("ERR: cannot read PDU size\n");
+                logerr("ERR: cannot read PBU size\n");
                 ret = -1; goto ERR;
             }
-            logv3("  PDU size = %d\n", pbu_size);
             rsize += 4; /* byte size of pbu_size syntax */
 
-            /* read a PDU */
-            if(read_pbu(fp_bs, bs_buf, pbu_size) < 0) {
+            /* read a PBU */
+            if(read_pbu(fp_bs, pbu, pbu_size) < 0) {
                 ret = -1; goto ERR;
             }
-            /* get PDU information */
-
-
-            rsize += pbu_size;
-        }
-
-#if 0
-        if(OAPV_FAILED(oapvd_info(bs_buf, bs_buf_size, &aui))) {
-            logerr("ERR: cannot get information from bitstream\n");
-            ret = -1;
-            goto ERR;
-        }
-
-        /* create decoding frame buffers */
-        ofrms.num_frms = aui.num_frms;
-        for(i = 0; i < ofrms.num_frms; i++) {
-            finfo = &aui.frm_info[i];
-            frm = &ofrms.frm[i];
-
-            if(frm->imgb != NULL && (frm->imgb->w[0] != finfo->w || frm->imgb->h[0] != finfo->h)) {
-                frm->imgb->release(frm->imgb);
-                frm->imgb = NULL;
+            /* get PBU information */
+            if(OAPV_FAILED(oapvd_info_pbu(pbu, pbu_size, &pbu_info))) {
+                logerr("ERR: cannot get PBU information\n");
+                ret = -1; goto ERR;
             }
 
-            if(frm->imgb == NULL) {
-                if(args_var->output_csp == 1) {
-                    frm->imgb = imgb_create(finfo->w, finfo->h, OAPV_CS_SET(OAPV_CF_PLANAR2, 10, 0));
-                }
-                else {
-                    frm->imgb = imgb_create(finfo->w, finfo->h, finfo->cs);
-                }
-                if(frm->imgb == NULL) {
-                    logerr("ERR: cannot allocate image buffer (w:%d, h:%d, cs:%d)\n",
-                           finfo->w, finfo->h, finfo->cs);
-                    ret = -1;
-                    goto ERR;
-                }
+            const char * pbu_type_str = get_key_from_val(oapv_dict_pbu_type, pbu_info.pbu_type);
+            if(pbu_type_str == NULL) {
+                logerr("ERR: unknown PBU type (%d)\n", pbu_info.pbu_type);
+                ret = -1; goto ERR;
             }
-        }
+            logv3("  PBU(%s gid=%d size=%d)\n", pbu_type_str, pbu_info.group_id, pbu_size);
 
-        if(args_var->disable_companding && finfo->use_companding == 1) {
-            args_var->output_depth = 12;
-        }
-        if(args_var->output_depth == 0) {
-            args_var->output_depth = OAPV_CS_GET_BIT_DEPTH(finfo->cs);
-        }
+            if(pbu_info.pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME) {
+                // actual decoding is only supported for primary frames in this code
+                oapv_frm_info_t finfo;
 
-        /* main decoding block */
-        bitb.addr = bs_buf;
-        bitb.ssize = bs_buf_size;
-        memset(&stat, 0, sizeof(oapvd_stat_t));
+                // check group id
+                if(primary_frm_gid < 0) primary_frm_gid = pbu_info.group_id;
+                else if(primary_frm_gid != pbu_info.group_id) {
+                    logv2("  WARNING: group_id of primary frame is changed\n");
+                    primary_frm_gid = pbu_info.group_id;
+                }
 
-        clk_beg = oapv_clk_get();
+                // get frame information
+                ret = oapvd_info_frame(pbu, pbu_size, &finfo);
 
-        ret = oapvd_decode(did, &bitb, &ofrms, mid, &stat);
+                // create decoding frame buffers if needs
+                if(imgb_dec != NULL && (imgb_dec->w[0] != finfo.w || imgb_dec->h[0] != finfo.h)) {
+                    imgb_dec->release(imgb_dec);
+                    imgb_dec = NULL;
+                }
+                if(imgb_dec == NULL) {
+                    if(args_var->output_csp == 1) {
+                        imgb_dec = imgb_create(finfo.w, finfo.h, OAPV_CS_SET(OAPV_CF_PLANAR2, 10, 0));
+                    }
+                    else {
+                        imgb_dec = imgb_create(finfo.w, finfo.h, finfo.cs);
+                    }
+                    if(imgb_dec == NULL) {
+                        logerr("ERR: cannot allocate image buffer (w:%d, h:%d, cs:%d)\n",
+                               finfo.w, finfo.h, finfo.cs);
+                        ret = -1; goto ERR;
+                    }
+                }
 
-        clk_end = oapv_clk_from(clk_beg);
-        clk_tot += clk_end;
+                if(args_var->disable_companding && finfo.use_companding) {
+                    args_var->output_depth = 12;
+                }
+                if(args_var->output_depth == 0) {
+                    args_var->output_depth = OAPV_CS_GET_BIT_DEPTH(finfo.cs);
+                }
+                // start to decode a frame
+                bitb.addr = pbu;
+                bitb.ssize = pbu_size;
 
-        if(OAPV_FAILED(ret)) {
-            logerr("ERR: failed to decode bitstream\n");
-            ret = -1;
-            goto END;
-        }
-        if(stat.read != bs_buf_size) {
-            logerr("\t=> different reading of bitstream (in:%d, read:%d)\n",
-                   bs_buf_size, stat.read);
-            continue;
-        }
+                clk_beg = oapv_clk_get();
 
-        /* testing of metadata reading */
-        if(mid) {
-            oapvm_payload_t *pld = NULL;   // metadata payload
-            int              num_plds = 0; // number of metadata payload
+                ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat);
 
-            ret = oapvm_get_all(mid, NULL, &num_plds);
+                clk_end = oapv_clk_from(clk_beg);
+                clk_tot += clk_end;
 
-            if(OAPV_FAILED(ret)) {
-                logerr("ERR: failed to read metadata\n");
-                goto END;
-            }
-            if(num_plds > 0) {
-                pld = malloc(sizeof(oapvm_payload_t) * num_plds);
-                ret = oapvm_get_all(mid, pld, &num_plds);
                 if(OAPV_FAILED(ret)) {
-                    logerr("ERR: failed to read metadata\n");
-                    free(pld);
-                    goto END;
+                    logerr("ERR: failed to decode a frame (ret = %d)\n", ret);
+                    ret = -1; goto ERR;
                 }
-            }
-            if(pld != NULL)
-                free(pld);
-        }
+                if(stat.read != pbu_size) {
+                    logerr("\t=> different reading of bitstream (in:%d, read:%d)\n",
+                           pbu_size, stat.read);
+                }
 
-        /* print decoding results */
-        print_stat_au(&stat, au_cnt, args_var, clk_end, clk_tot);
-        print_stat_frm(&stat, &ofrms, mid, args_var);
-
-        /* write decoded frames into files */
-        for(i = 0; i < ofrms.num_frms; i++) {
-            frm = &ofrms.frm[i];
-            if(ofrms.num_frms > 0) {
-                if(OAPV_CS_GET_BIT_DEPTH(frm->imgb->cs) != args_var->output_depth && args_var->output_csp != OUTPUT_CSP_P210) {
-                    if(imgb_w == NULL) {
-                        imgb_w = imgb_create(frm->imgb->w[0], frm->imgb->h[0],
-                                             OAPV_CS_SET(OAPV_CS_GET_FORMAT(frm->imgb->cs), args_var->output_depth, 0));
-                        if(imgb_w == NULL) {
+                /* write decoded frames into files */
+                if(OAPV_CS_GET_BIT_DEPTH(imgb_dec->cs) != args_var->output_depth && args_var->output_csp != OUTPUT_CSP_P210) {
+                    if(imgb_tmp == NULL) {
+                        imgb_tmp = imgb_create(imgb_dec->w[0], imgb_dec->h[0],
+                                             OAPV_CS_SET(OAPV_CS_GET_FORMAT(imgb_dec->cs), args_var->output_depth, 0));
+                        if(imgb_tmp == NULL) {
                             logerr("ERR: cannot allocate image buffer (w:%d, h:%d, cs:%d)\n",
-                                   frm->imgb->w[0], frm->imgb->h[0], frm->imgb->cs);
-                            ret = -1;
-                            goto ERR;
+                                   imgb_dec->w[0], imgb_dec->h[0], imgb_dec->cs);
+                            ret = -1; goto ERR;
                         }
                     }
-                    imgb_cpy(imgb_w, frm->imgb);
-                    imgb_o = imgb_w;
+                    imgb_cpy(imgb_tmp, imgb_dec);
+                    imgb_out = imgb_tmp;
                 }
                 else {
-                    imgb_o = frm->imgb;
+                    imgb_out = imgb_dec;
                 }
 
                 if(strlen(args_var->fname_out)) {
-                    if(frm_cnt[i] == 0 && is_y4m) {
-                        if(write_y4m_header(args_var->fname_out, imgb_o)) {
+                    if(primary_frm_cnt == 0 && is_y4m) {
+                        if(write_y4m_header(args_var->fname_out, imgb_out)) {
                             logerr("ERR: cannot write Y4M header\n");
                             ret = -1;
                             goto ERR;
                         }
                     }
-                    if(write_dec_img(args_var->fname_out, imgb_o, is_y4m)) {
+                    if(write_dec_img(args_var->fname_out, imgb_out, is_y4m)) {
                         logerr("ERR: cannot write decoded video\n");
                         ret = -1;
                         goto ERR;
                     }
                 }
-                frm_cnt[i]++;
+                primary_frm_cnt++;
+                fflush(stdout);
+                fflush(stderr);
             }
+            else if (OAPV_PBU_TYPE_IS_FRAME(pbu_info.pbu_type)) {
+                // other types of frame PBU
+            }
+            else if (pbu_info.pbu_type == OAPV_PBU_TYPE_AU_INFO) {
+                ret = oapvd_decode_auinfo(did, &bitb, &aui);
+                if(OAPV_FAILED(ret)) {
+                    logerr("ERR: cannot get PBU information\n");
+                    ret = -1; goto ERR;
+                }
+            }
+            else if (pbu_info.pbu_type == OAPV_PBU_TYPE_METADATA) {
+            }
+            rsize += pbu_size;
         }
-        au_cnt++;
-        oapvm_rem_all(mid); // remove all metadata for next au decoding
-        fflush(stdout);
-        fflush(stderr);
-#endif
     }
 
 END:
     logv2_line("Summary");
     logv2("Processed access units            = %d\n", au_cnt);
-    int total_frame_count = 0;
-    for(i = 0; i < OAPV_MAX_NUM_FRAMES; i++)
-        total_frame_count += frm_cnt[i];
-    logv2("Decoded frame count               = %d\n", total_frame_count);
-    if(total_frame_count > 0) {
+    logv2("Decoded frame count               = %d\n", primary_frm_cnt);
+    if(primary_frm_cnt > 0) {
         logv2("Total decoding time               = %d msec,", (int)oapv_clk_msec(clk_tot));
         logv2(" %.3f sec\n", (float)(oapv_clk_msec(clk_tot) / 1000.0));
-        logv2("Average decoding time for a frame = %d msec\n", (int)oapv_clk_msec(clk_tot) / total_frame_count);
-        logv2("Average decoding speed            = %.3f frames/sec\n", ((float)total_frame_count * 1000) / ((float)oapv_clk_msec(clk_tot)));
+        logv2("Average decoding time for a frame = %d msec\n", (int)oapv_clk_msec(clk_tot) / primary_frm_cnt);
+        logv2("Average decoding speed            = %.3f frames/sec\n", ((float)primary_frm_cnt * 1000) / ((float)oapv_clk_msec(clk_tot)));
     }
     logv2_line(NULL);
 
@@ -903,13 +889,11 @@ ERR:
     if(mid)
         oapvm_delete(mid);
 
-    for(int i = 0; i < ofrms.num_frms; i++) {
-        if(ofrms.frm[i].imgb != NULL) {
-            ofrms.frm[i].imgb->release(ofrms.frm[i].imgb);
-        }
-    }
-    if(imgb_w != NULL)
-        imgb_w->release(imgb_w);
+    if(imgb_dec != NULL)
+        imgb_dec->release(imgb_dec);
+
+    if(imgb_tmp != NULL)
+        imgb_tmp->release(imgb_tmp);
 
     return 0;
 }
@@ -988,10 +972,10 @@ int main(int argc, const char **argv)
     }
 
     if(0) {
-        ret = main_oapv1(args_var, fp_bs, is_y4m);
+        ret = dec_oapv1(args_var, fp_bs, is_y4m);
     }
     else {
-        ret = main_oapv2(args_var, fp_bs, is_y4m);
+        ret = dec_oapv2(args_var, fp_bs, is_y4m);
     }
     if(ret < 0) goto ERR;
 
