@@ -86,12 +86,17 @@ static const args_opt_t dec_args_opts[] = {
         ARGS_NO_KEY,  "output-csp", ARGS_VAL_TYPE_INTEGER, 0, NULL,
         "output color space (chroma format)\n"
         "      - 0: coded CSP\n"
-        "      - 1: convert to P210 in case of YCbCr422\n"
+        "      - 1: convert to P210 in case of YCbCr422"
     },
     {
         ARGS_NO_KEY,  "disable-companding", ARGS_VAL_TYPE_NONE, 0, NULL,
         "forcely disable companding process\n"
         "      Note: this option forces to output 12 bits picture in case of 444/4444-16C12 profile"
+    },
+    {
+        ARGS_NO_KEY,  "api-set", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        "testing with specific API set (0 or 1)\n"
+        "      Note: API set 1 only supports 1.x or higher library version"
     },
     {ARGS_END_KEY, "", ARGS_VAL_TYPE_NONE, 0, NULL, ""} /* termination */
 };
@@ -109,6 +114,7 @@ typedef struct args_var {
     int  output_depth;
     int  output_csp;
     int  disable_companding;
+    int  api_set;
 } args_var_t;
 
 static args_var_t *args_init_vars(args_parser_t *args)
@@ -126,6 +132,7 @@ static args_var_t *args_init_vars(args_parser_t *args)
     args_set_variable_by_key_long(opts, "max-au", &vars->max_au);
     args_set_variable_by_key_long(opts, "hash", &vars->hash);
     args_set_variable_by_key_long(opts, "disable-companding", &vars->disable_companding);
+    args_set_variable_by_key_long(opts, "api-set", &vars->api_set);
     args_set_variable_by_key_long(opts, "verbose", &op_verbose);
     op_verbose = VERBOSE_SIMPLE; /* default */
     args_set_variable_by_key_long(opts, "threads", vars->threads);
@@ -368,7 +375,7 @@ static void print_stat_frm(oapvd_stat_t *stat, oapv_frms_t *frms, oapvm_t mid, a
     }
 }
 
-int dec_oapv1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
+int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 {
     oapvd_t          did = NULL;
     oapvm_t          mid = NULL;
@@ -643,7 +650,7 @@ static const char * get_key_from_val(const oapv_dict_str_int_t * dict, int val)
     return NULL;
 }
 
-int dec_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
+int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 {
     oapvd_t          did = NULL;
     oapvm_t          mid = NULL;
@@ -727,7 +734,7 @@ int dec_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         }
         au_size -= 4; /* byte size of signature syntax */
 
-        logv3("AU(size=%d)\n", au_size);
+        logv3("AU(%d byte)\n", au_size);
 
         /* PDU loop **********************************************************/
         int rsize = 0;
@@ -757,7 +764,7 @@ int dec_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 logerr("ERR: unknown PBU type (%d)\n", pbu_info.pbu_type);
                 ret = -1; goto ERR;
             }
-            logv3("  PBU(%s gid=%d size=%d)\n", pbu_type_str, pbu_info.group_id, pbu_size);
+            logv3("  PBU(%s, gid=%d, %d byte)\n", pbu_type_str, pbu_info.group_id, pbu_size);
 
             if(pbu_info.pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME) {
                 // actual decoding is only supported for primary frames in this code
@@ -971,11 +978,14 @@ int main(int argc, const char **argv)
         clear_data(args_var->fname_out); /* remove decoded file contents if exists */
     }
 
-    if(0) {
-        ret = dec_oapv1(args_var, fp_bs, is_y4m);
+    if(args_var->api_set == 0) {
+        ret = dec_api_set_0(args_var, fp_bs, is_y4m);
+    }
+    else if(args_var->api_set == 1){
+        ret = dec_api_set_1(args_var, fp_bs, is_y4m);
     }
     else {
-        ret = dec_oapv2(args_var, fp_bs, is_y4m);
+        logerr("ERR: unknown API set number (%d)\n", args_var->api_set);
     }
     if(ret < 0) goto ERR;
 
