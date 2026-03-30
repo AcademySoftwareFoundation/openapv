@@ -798,7 +798,7 @@ OAPV_EXPORT int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_inf
 OAPV_EXPORT int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info, oapv_tile_info_t *tile_info);
 
 OAPV_EXPORT int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui);
-OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_tile_info_t * part, oapv_imgb_t *imgb, oapvd_stat_t *stat);
+OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat, oapv_tile_info_t * part);
 
 
 

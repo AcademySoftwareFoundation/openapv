@@ -811,7 +811,7 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
                 clk_beg = oapv_clk_get();
 
-                ret = oapvd_decode_frame(did, &bitb, NULL, imgb_dec, &stat);
+                ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat, NULL);
 
                 clk_end = oapv_clk_from(clk_beg);
                 clk_tot += clk_end;

@@ -2099,7 +2099,7 @@ ERR:
     return ret;
 }
 
-int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_tile_info_t * part, oapv_imgb_t *imgb, oapvd_stat_t *stat)
+int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat, oapv_tile_info_t * part)
 {
     oapvd_ctx_t *ctx;
     oapv_pbuh_t  pbuh;
