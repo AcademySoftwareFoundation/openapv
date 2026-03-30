@@ -771,7 +771,7 @@ int dec_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 }
 
                 // get frame information
-                ret = oapvd_info_frame(pbu, pbu_size, &finfo);
+                ret = oapvd_info_frame(pbu, pbu_size, &finfo, NULL);
 
                 // create decoding frame buffers if needs
                 if(imgb_dec != NULL && (imgb_dec->w[0] != finfo.w || imgb_dec->h[0] != finfo.h)) {
@@ -804,7 +804,7 @@ int dec_oapv2(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
                 clk_beg = oapv_clk_get();
 
-                ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat);
+                ret = oapvd_decode_frame(did, &bitb, NULL, imgb_dec, &stat);
 
                 clk_end = oapv_clk_from(clk_beg);
                 clk_tot += clk_end;
