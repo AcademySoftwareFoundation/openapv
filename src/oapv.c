@@ -1460,15 +1460,15 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_
 
     if(part != NULL) {
         for(i = 0; i < ctx->num_tiles; i++) {
-            ctx->tile[i].stat = DEC_TILE_STAT_SKIP_DECODING; /* bypass decoding */
+            ctx->tile[i].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_SKIP); /* bypass decoding */
         }
         for(i = 0; i < part->num_tiles; i++) {
-            ctx->tile[part->pos_tiles[i].idx].stat = DEC_TILE_STAT_NOT_DECODED;
+            ctx->tile[part->pos_tiles[i].idx].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_DECODE);
         }
     }
     else {
         for(i = 0; i < ctx->num_tiles; i++) {
-            ctx->tile[i].stat = DEC_TILE_STAT_NOT_DECODED;
+            ctx->tile[i].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_DECODE);
         }
     }
 
@@ -1601,15 +1601,15 @@ static int dec_thread_tile(void *arg)
         // find not decoded tile
         oapv_tpool_enter_cs(ctx->sync_obj);
         for(i = 0; i < ctx->num_tiles; i++) {
-            if(tile[i].stat == DEC_TILE_STAT_NOT_DECODED) {
-                tile[i].stat = DEC_TILE_STAT_ON_DECODING;
+            if(DEC_TILE_STAT_IS_DO(tile[i].stat)) {
+                tile[i].stat = DEC_TILE_STAT_ON(tile[i].stat);
                 tidx = i;
                 break;
             }
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
         if(i == ctx->num_tiles) {
-            break;
+            break; // end of worker thread
         }
 
         // wait until to know bistream start position
@@ -1638,24 +1638,25 @@ static int dec_thread_tile(void *arg)
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
 
-        ret = dec_tile(core, &tile[tidx]);
+        if(DEC_TILE_STAT_IS_DECODE(tile[i].stat)) {
+            ret = dec_tile(core, &tile[tidx]);
+        }
 
         oapv_tpool_enter_cs(ctx->sync_obj);
         if (OAPV_SUCCEEDED(ret)) {
-            tile[tidx].stat = DEC_TILE_STAT_DECODED;
+            tile[tidx].stat = DEC_TILE_STAT_DONE(tile[tidx].stat);
         }
         else {
-            tile[tidx].stat = ret;
+            tile[tidx].stat = DEC_TILE_STAT_ERR(tile[tidx].stat);
             thread_ret = ret;
         }
-        tile[tidx].stat = OAPV_SUCCEEDED(ret) ? DEC_TILE_STAT_DECODED : ret;
         oapv_tpool_leave_cs(ctx->sync_obj);
     }
     return thread_ret;
 
 ERR:
     oapv_tpool_enter_cs(ctx->sync_obj);
-    tile[tidx].stat = DEC_TILE_STAT_SIZE_ERROR;
+    tile[tidx].stat = DEC_TILE_STAT_ERR(tile[tidx].stat);
     if (tidx + 1 < ctx->num_tiles)
     {
         tile[tidx + 1].bs_beg = tile[tidx].bs_beg;
