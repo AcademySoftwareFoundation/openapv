@@ -753,7 +753,7 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
         logv3("AU(%d byte)\n", au_size);
 
-        /* PDU loop **********************************************************/
+        /* PBU loop **********************************************************/
         int rsize = 0;
         oapv_pbu_info_t pbu_info;
 
@@ -928,6 +928,9 @@ ERR:
 
     if(imgb_tmp != NULL)
         imgb_tmp->release(imgb_tmp);
+
+    if(pbu != NULL)
+        free(pbu);
 
     return 0;
 }
