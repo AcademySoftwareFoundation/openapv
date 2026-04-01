@@ -91,12 +91,19 @@ static const args_opt_t dec_args_opts[] = {
     {
         ARGS_NO_KEY,  "disable-companding", ARGS_VAL_TYPE_NONE, 0, NULL,
         "forcely disable companding process\n"
-        "      Note: this option forces to output 12 bits picture in case of 444/4444-16C12 profile"
+        "      Note: this option forces to output 12 bits picture in case of 444-16C12\n"
+        "            and 4444-16C12 profile"
     },
     {
         ARGS_NO_KEY,  "api-set", ARGS_VAL_TYPE_INTEGER, 0, NULL,
         "testing with specific API set (0 or 1)\n"
         "      Note: API set 1 only supports 1.x or higher library version"
+    },
+    {
+        ARGS_NO_KEY,  "cyclic-tile-decoding", ARGS_VAL_TYPE_NONE, 0, NULL,
+        "testing using tile-based decoding in cyclic way\n"
+        "      Note: this option is just for testing tile-based decoding method and\n"
+        "            API set 1 option is required to support this"
     },
     {ARGS_END_KEY, "", ARGS_VAL_TYPE_NONE, 0, NULL, ""} /* termination */
 };
@@ -115,6 +122,7 @@ typedef struct args_var {
     int  output_csp;
     int  disable_companding;
     int  api_set;
+    int  cyclic_tile_decoding;
 } args_var_t;
 
 static args_var_t *args_init_vars(args_parser_t *args)
@@ -133,6 +141,7 @@ static args_var_t *args_init_vars(args_parser_t *args)
     args_set_variable_by_key_long(opts, "hash", &vars->hash);
     args_set_variable_by_key_long(opts, "disable-companding", &vars->disable_companding);
     args_set_variable_by_key_long(opts, "api-set", &vars->api_set);
+    args_set_variable_by_key_long(opts, "cyclic-tile-decoding", &vars->cyclic_tile_decoding);
     args_set_variable_by_key_long(opts, "verbose", &op_verbose);
     op_verbose = VERBOSE_SIMPLE; /* default */
     args_set_variable_by_key_long(opts, "threads", vars->threads);
@@ -652,29 +661,45 @@ static const char * get_key_from_val(const oapv_dict_str_int_t * dict, int val)
 
 int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 {
-    oapvd_t          did = NULL;
-    oapvm_t          mid = NULL;
-    oapvd_cdesc_t    cdesc;
-    oapv_au_info_t   aui;
-    oapvd_stat_t     stat;
-    unsigned char   *pbu = NULL;
-    oapv_bitb_t      bitb;
-    oapv_imgb_t     *imgb_dec = NULL;
-    oapv_imgb_t     *imgb_out = NULL;
-    oapv_imgb_t     *imgb_tmp = NULL;
+    oapvd_t           did = NULL;
+    oapvd_cdesc_t     cdesc;
+    oapv_au_info_t    aui;
+    oapvd_stat_t      stat;
+    oapv_bitb_t       bitb;
+    oapv_tile_info_t  tinfo_in_frm;
+    oapv_tile_info_t *ptinfo_in_frm = NULL;
+    oapv_tile_info_t  tinfo_dec;
+    oapv_tile_info_t *ptinfo_dec = NULL;
 
-    int              ret = 0;
-    oapv_clk_t       clk_beg, clk_end, clk_tot;
-    int              au_cnt = 0; // number of decoded access unit;
-    int              primary_frm_cnt = 0; // number of decoded primary frame
-    int              primary_frm_gid = -1; // group id of primary frame
+    oapv_imgb_t      *imgb_dec = NULL;
+    oapv_imgb_t      *imgb_out = NULL;
+    oapv_imgb_t      *imgb_tmp = NULL;
+
+    int               ret = 0;
+    oapv_clk_t        clk_beg, clk_end, clk_tot;
+    int               au_cnt = 0; // number of decoded access unit;
+    int               primary_frm_cnt = 0; // number of decoded primary frame
+    int               primary_frm_gid = -1; // group id of primary frame
+    unsigned char    *pbu = NULL;
 
     // create bitstream buffer
     pbu = malloc(MAX_BS_BUF);
     if(pbu == NULL) {
         logerr("ERR: cannot allocate bitstream buffer, size=%d\n", MAX_BS_BUF);
-        ret = -1;
-        goto ERR;
+        ret = -1; goto ERR;
+    }
+
+    if(args_var->cyclic_tile_decoding) {
+        if(args_var->api_set == 0) {
+            logerr("ERR: cyclic tile-based decoding cannot be supported in API set 0\n");
+            ret = -1; goto ERR;
+        }
+        ptinfo_in_frm = &tinfo_in_frm;
+        ptinfo_dec = &tinfo_dec;
+    }
+    else {
+        ptinfo_in_frm = NULL;
+        ptinfo_dec = NULL;
     }
 
     // create decoder
@@ -698,14 +723,6 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
     clk_tot = 0;
     au_cnt = 0;
-
-    /* create metadata container */
-    mid = oapvm_create(&ret);
-    if(OAPV_FAILED(ret)) {
-        logerr("ERR: cannot create OAPV metadata container (err=%d)\n", ret);
-        ret = -1;
-        goto ERR;
-    }
 
     /* AU loop ***************************************************************/
     while(args_var->max_au == 0 || (au_cnt < args_var->max_au)) {
@@ -778,7 +795,11 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 }
 
                 // get frame information
-                ret = oapvd_info_frame(pbu, pbu_size, &finfo, NULL);
+                ret = oapvd_info_frame(pbu, pbu_size, &finfo, ptinfo_in_frm);
+                if(OAPV_FAILED(ret)) {
+                    logerr("ERR: failed to get frame information (ret = %d)\n", ret);
+                    ret = -1; goto ERR;
+                }
 
                 // create decoding frame buffers if needs
                 if(imgb_dec != NULL && (imgb_dec->w[0] != finfo.w || imgb_dec->h[0] != finfo.h)) {
@@ -805,13 +826,22 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 if(args_var->output_depth == 0) {
                     args_var->output_depth = OAPV_CS_GET_BIT_DEPTH(finfo.cs);
                 }
+
+                if(args_var->cyclic_tile_decoding) {
+                    ptinfo_dec->num_tiles = 1; // only one tile decoding in cyclic-way
+                    ptinfo_dec->pos_tiles[0].idx = primary_frm_cnt % ptinfo_in_frm->num_tiles;
+
+                    // clear image buffer to remove previous frame's decoded tile image
+                    imgb_clear(imgb_dec);
+                }
+
                 // start to decode a frame
                 bitb.addr = pbu;
                 bitb.ssize = pbu_size;
 
                 clk_beg = oapv_clk_get();
 
-                ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat, NULL);
+                ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat, ptinfo_dec);
 
                 clk_end = oapv_clk_from(clk_beg);
                 clk_tot += clk_end;
@@ -892,9 +922,6 @@ END:
 ERR:
     if(did)
         oapvd_delete(did);
-
-    if(mid)
-        oapvm_delete(mid);
 
     if(imgb_dec != NULL)
         imgb_dec->release(imgb_dec);

@@ -675,6 +675,14 @@ static void imgb_cpy(oapv_imgb_t *dst, oapv_imgb_t *src)
     }
 }
 
+void imgb_clear(oapv_imgb_t *imgb)
+{
+    int i;
+    for(i = 0; i < imgb->np; i++) {
+        memset(imgb->a[i], 0, imgb->bsize[i]);
+    }
+}
+
 static void measure_psnr(oapv_imgb_t *org, oapv_imgb_t *rec, double psnr[4], int bit_depth)
 {
     double sum[4], mse[4];

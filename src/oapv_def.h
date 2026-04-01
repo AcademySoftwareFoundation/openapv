@@ -360,9 +360,9 @@ struct oapvd_tile {
     int          h;         /* tile height in unit of pixel */
     u32          tile_size; /* tile data size (byte size of tile(tileIdx) syntax) */
 
-    u8          *bs_beg; /* start position of tile in input bistream */
-    u8          *bs_end; /* end position of tile() in input bistream */
-    volatile s32 stat;   // decoding status
+    u8          *bs_beg;    /* start position of tile in input bistream */
+    u8          *bs_end;    /* end position of tile() in input bistream */
+    volatile s32 stat;      /* decoding status */
 };
 
 typedef struct oapvd_core oapvd_core_t;

@@ -2135,7 +2135,7 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
     int           tidx = 0;
 
     if(part != NULL) {
-        oapv_assert_gv(part->num_tiles <= ctx->num_tiles, ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
+        oapv_assert_gv(part->num_tiles > 0 && part->num_tiles <= ctx->num_tiles, ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
         parallel_task = (ctx->threads > part->num_tiles) ? part->num_tiles : ctx->threads;
     }
     else {
