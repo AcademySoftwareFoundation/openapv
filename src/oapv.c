@@ -1234,7 +1234,7 @@ static int enc_platform_init(oapve_ctx_t *ctx)
     ctx->fn_itx = oapv_tbl_fn_itx_neon;
     ctx->fn_txb = oapv_tbl_fn_txb_neon;
     ctx->fn_quant = oapv_tbl_fn_quant_neon;
-    ctx->fn_had8x8 = oapv_dc_removed_had8x8;
+    ctx->fn_had8x8 = oapv_dc_removed_had8x8_neon;
 #endif
     return OAPV_OK;
 }
@@ -1887,7 +1887,6 @@ static int dec_platform_init(oapvd_ctx_t *ctx)
     }
 #elif ARM_NEON
     ctx->fn_itx = oapv_tbl_fn_itx_neon;
-    ctx->fn_dquant = oapv_tbl_fn_dquant;
 #endif
     return OAPV_OK;
 }
