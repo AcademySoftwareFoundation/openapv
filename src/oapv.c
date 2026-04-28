@@ -1552,6 +1552,10 @@ static int dec_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_
 
 static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
 {
+    if (imgb->w[0] < ctx->fh.fi.frame_width || imgb->h[0] < ctx->fh.fi.frame_height) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
+
     ctx->imgb = imgb;
     imgb_addref(ctx->imgb); // increase reference count
 
