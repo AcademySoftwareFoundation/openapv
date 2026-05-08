@@ -331,7 +331,7 @@ static void print_stat_frm(oapvd_stat_t *stat, oapv_frms_t *frms, oapvm_t mid, a
                                  : finfo[i].pbu_type == OAPV_PBU_TYPE_PREVIEW_FRAME ? "PREVIEW"
                                  : finfo[i].pbu_type == OAPV_PBU_TYPE_DEPTH_FRAME ? "DEPTH"
                                  : finfo[i].pbu_type == OAPV_PBU_TYPE_ALPHA_FRAME ? "ALPHA"
-                                 : "UNKNOWN";
+                                 : "Unknown";
 
         const char * str_csp = finfo[i].cs == OAPV_CS_YCBCR400_10LE ? "400-10"
                              : finfo[i].cs == OAPV_CS_YCBCR422_10LE ? "422-10"
@@ -341,7 +341,7 @@ static void print_stat_frm(oapvd_stat_t *stat, oapv_frms_t *frms, oapvm_t mid, a
                              : finfo[i].cs == OAPV_CS_YCBCR4444_10LE ? "4444-10"
                              : finfo[i].cs == OAPV_CS_YCBCR4444_12LE ? "4444-12"
                              : finfo[i].cs == OAPV_CS_YCBCR4444_16LE ? "4444-16"
-                             : "unknown-cs";
+                             : "Unknown";
 
         // clang-format on
 

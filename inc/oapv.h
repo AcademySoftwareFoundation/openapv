@@ -58,7 +58,7 @@ extern "C" {
 #define OAPV_VER_APISET                 (0)
 #define OAPV_VER_MAJOR                  (2)
 #define OAPV_VER_MINOR                  (1)
-#define OAPV_VER_PATCH                  (1)
+#define OAPV_VER_PATCH                  (3)
 
 /* 4-bytes version number */
 #define OAPV_VER_NUM \
@@ -320,7 +320,7 @@ struct oapv_imgb {
     int           h[OAPV_MAX_CC];
     /* X position of left top (in unit of pixel) */
     int           x[OAPV_MAX_CC];
-    /* Y postion of left top (in unit of pixel) */
+    /* Y position of left top (in unit of pixel) */
     int           y[OAPV_MAX_CC];
     /* buffer stride (in unit of byte) */
     int           s[OAPV_MAX_CC];

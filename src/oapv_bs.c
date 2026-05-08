@@ -232,7 +232,6 @@ void oapv_bsr_skip(oapv_bs_t *bs, int size)
 
 void *oapv_bsr_sink(oapv_bs_t *bs)
 {
-    oapv_assert_rv(bs->cur - BSW_GET_SINK_BYTE(bs) < bs->end, NULL);
     oapv_assert_rv((bs->leftbits & 7) == 0, NULL);
     bs->cur = bs->cur - (bs->leftbits >> 3);
     bs->code = 0;

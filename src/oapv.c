@@ -36,7 +36,7 @@ static void imgb_pad(oapv_imgb_t *imgb, int aw, int ah, int comp_sft[N_C][2])
     int imgb_w = imgb->w[0];
     int imgb_h = imgb->h[0];
 
-    if(aw == imgb_w && ah == imgb_h) { // no needs to pad
+    if(aw == imgb_w && ah == imgb_h) { // no need to pad
         return;
     }
 
@@ -79,7 +79,7 @@ static void imgb_pad_p210(oapv_imgb_t *imgb, int aw, int ah, int comp_sft[N_C][2
     int imgb_w = imgb->w[0];
     int imgb_h = imgb->h[0];
 
-    if(aw == imgb_w && ah == imgb_h) { // no needs to pad
+    if(aw == imgb_w && ah == imgb_h) { // no need to pad
         return;
     }
 
@@ -542,7 +542,7 @@ static void enc_flush(oapve_ctx_t *ctx)
                     ctx->tpool->release(&ctx->thread_id[i]);
                 }
             }
-            // dinitialize the tc
+            // deinitialize the tc
             oapv_tpool_deinit(ctx->tpool);
             oapv_mfree_fast(ctx->tpool);
             ctx->tpool = NULL;
@@ -938,7 +938,7 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
         ctx->core[i]->ctx = ctx;
         ctx->core[i]->thread_idx = i;
     }
-    // recontruction picture
+    // reconstruction picture
     if(imgb_r != NULL) {
         for(int c = 0; c < ctx->num_c; c++) {
             imgb_r->w[c] = imgb_i->w[c];
@@ -1407,6 +1407,10 @@ static int dec_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_
 
 static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
 {
+    if (imgb->w[0] < ctx->fh.fi.frame_width || imgb->h[0] < ctx->fh.fi.frame_height) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
+
     ctx->imgb = imgb;
     imgb_addref(ctx->imgb); // increase reference count
 
@@ -1466,7 +1470,7 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
 
 static void dec_frm_finish(oapvd_ctx_t *ctx)
 {
-    imgb_release(ctx->imgb);                   // decrease reference cnout
+    imgb_release(ctx->imgb); // decrease reference count
     ctx->imgb = NULL;
 }
 
@@ -1665,7 +1669,7 @@ static void dec_flush(oapvd_ctx_t *ctx)
                     ctx->tpool->release(&ctx->thread_id[i]);
                 }
             }
-            // dinitialize the tpool
+            // deinitialize the tpool
             oapv_tpool_deinit(ctx->tpool);
             oapv_mfree(ctx->tpool);
             ctx->tpool = NULL;
