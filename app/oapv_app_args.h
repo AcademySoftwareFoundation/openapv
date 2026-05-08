@@ -57,6 +57,7 @@ typedef struct args_opt {
     int   val_type;                    /* value type */
     int   flag;                        /* flag to setting or not */
     void *val;                         /* actual value */
+    int   val_len;                     /* buffer length for string values */
     char  desc[1024];                   /* description of option */
 } args_opt_t;
 
@@ -124,7 +125,10 @@ static int args_read_value(args_opt_t *ops, const char *argv)
         break;
 
     case ARGS_VAL_TYPE_STRING:
-        strcpy((char *)ops->val, argv);
+        if(ops->val_len > 0) {
+            strncpy((char *)ops->val, argv, (size_t)(ops->val_len - 1));
+            ((char *)ops->val)[ops->val_len - 1] = '\0';
+        }
         break;
 
     default:
@@ -314,7 +318,7 @@ ERR:
     return -1;
 }
 
-static int args_set_variable_by_key_long(args_opt_t *opts, char *key_long, void *var)
+static int _args_set_variable_by_key_long(args_opt_t *opts, char *key_long, void *var, int val_len)
 {
     int   idx;
     char  buf[ARGS_MAX_KEY_LONG];
@@ -337,8 +341,12 @@ static int args_set_variable_by_key_long(args_opt_t *opts, char *key_long, void 
     if(idx < 0)
         return -1;
     opts[idx].val = var;
+    opts[idx].val_len = val_len;
     return 0;
 }
+
+#define args_set_variable_by_key_long(opts, key_long, var) \
+    _args_set_variable_by_key_long(opts, key_long, (void *)(var), (int)sizeof(var))
 
 static int args_set_variable_by_key(args_opt_t *opts, char *key, void *var)
 {
