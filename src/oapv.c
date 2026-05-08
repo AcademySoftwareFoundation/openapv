@@ -1428,20 +1428,33 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
     ctx->w = oapv_align_value(ctx->fh.fi.frame_width, OAPV_MB_W);
     ctx->h = oapv_align_value(ctx->fh.fi.frame_height, OAPV_MB_H);
 
+    if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
+        ctx->disable_companding = 0;
+    }
+
+
+
     if(OAPV_CS_GET_FORMAT(imgb->cs) == OAPV_CF_PLANAR2) {
         ctx->fn_blk_to_pic[Y_C] = oapv_blk_to_pic_p21x_y;
         ctx->fn_blk_to_pic[U_C] = oapv_blk_to_pic_p21x_uv;
         ctx->fn_blk_to_pic[V_C] = oapv_blk_to_pic_p21x_uv;
     }
     else {
-        if(ctx->disable_companding){
-            for(int i = 0; i < ctx->num_c; i++) {
-                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+        if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
+            if(ctx->disable_companding){
+                for(int i = 0; i < ctx->num_c; i++) {
+                    ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+                }
+            }
+            else{
+                for(int i = 0; i < ctx->num_c; i++) {
+                    ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_12E16;
+                }
             }
         }
         else{
             for(int i = 0; i < ctx->num_c; i++) {
-                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_12E16;
+                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
             }
         }
     }

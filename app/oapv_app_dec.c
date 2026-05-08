@@ -126,7 +126,7 @@ static args_var_t *args_init_vars(args_parser_t *args)
     args_set_variable_by_key_long(opts, "max-au", &vars->max_au);
     args_set_variable_by_key_long(opts, "hash", &vars->hash);
     args_set_variable_by_key_long(opts, "disable-companding", &vars->disable_companding);
-    vars->disable_companding = 1; /* default */
+    vars->disable_companding = 0; /* default */
     args_set_variable_by_key_long(opts, "verbose", &op_verbose);
     op_verbose = VERBOSE_SIMPLE; /* default */
     args_set_variable_by_key_long(opts, "threads", vars->threads);
