@@ -126,11 +126,11 @@ static const args_opt_t enc_args_opts[] = {
         ARGS_NO_KEY,  "profile", ARGS_VAL_TYPE_STRING, 0, NULL,
         "profile string\n"
         "      - 422-10: YCbCr422 10bit (default)\n"
-        "      - 422-12; YCbCr422 12bit\n"
+        "      - 422-12: YCbCr422 12bit\n"
         "      - 444-10: YCbCr444 10bit\n"
-        "      - 444-12; YCbCr444 12bit\n"
+        "      - 444-12: YCbCr444 12bit\n"
         "      - 4444-10: YCbCr4444 10bit\n"
-        "      - 4444-12; YCbCr4444 12bit\n"
+        "      - 4444-12: YCbCr4444 12bit\n"
         "      - 400-10: YCbCr400 (monochrome) 10bit\n"
         "      Note: Color space and bit depth of input video will be converted\n"
         "            automatically to support the given profile, if needs\n"
@@ -485,7 +485,7 @@ static int check_conf(oapve_cdesc_t *cdesc, args_var_t *vars)
         }
         int p = get_val_from_key(oapv_param_opts_profile, vars->profile);
         if(p < 0) {
-            logerr("ERR: invalid profile (%s)\n", vars->family);
+            logerr("ERR: invalid profile (%s)\n", vars->profile);
             return -1;
         }
 
@@ -732,7 +732,7 @@ static int update_param(args_var_t *vars, oapve_param_t *param)
         }
         int kbps = family_to_bitrate(vars->family, param);
         if(kbps < 0) {
-            logerr("ERR: failed to get targe bitrate from family value\n");
+            logerr("ERR: failed to get target bitrate from family value\n");
             return -1;
         }
         sprintf(vars->bitrate, "%d", kbps);
@@ -781,7 +781,7 @@ static int parse_master_display(const char* data_string, oapvm_payload_mdcv_t *m
     // Check if sscanf successfully assigned all expected fields (10 numerical values).
     const int expected_fields = 10;
     if (assigned_fields != expected_fields) {
-        logerr("Parsing error: master diplay color volume information");
+        logerr("Parsing error: master display color volume information");
         return -1;
     }
     return 0; // Success

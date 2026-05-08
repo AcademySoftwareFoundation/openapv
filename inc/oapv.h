@@ -315,7 +315,7 @@ struct oapv_imgb {
     int           h[OAPV_MAX_CC];
     /* X position of left top (in unit of pixel) */
     int           x[OAPV_MAX_CC];
-    /* Y postion of left top (in unit of pixel) */
+    /* Y position of left top (in unit of pixel) */
     int           y[OAPV_MAX_CC];
     /* buffer stride (in unit of byte) */
     int           s[OAPV_MAX_CC];

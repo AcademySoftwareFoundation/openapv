@@ -260,7 +260,7 @@ void oapve_vlc_ac_coef(oapv_bs_t* bs, s16* coef, int * kparam_ac)
 
             BSW_WRITE_64BITS(bs, code64, nbits);
         }
-        else { // zero coefficent value
+        else { // zero coefficient value
             run++;
         }
     }
