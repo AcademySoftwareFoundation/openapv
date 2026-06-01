@@ -32,7 +32,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Linux assets to GitHub Release
-        uses: xresloader/upload-to-github-release@v1.6.1
+        uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -72,7 +72,7 @@ jobs:
           retention-days: 7
 
       - name: Upload ARM assets to GitHub Release
-        uses: xresloader/upload-to-github-release@v1.6.1
+        uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -101,7 +101,7 @@ jobs:
             ${{ github.workspace }}/build-darwin/*.md5
           retention-days: 7
 
-      - uses: xresloader/upload-to-github-release@v1.6.1
+      - uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -130,7 +130,7 @@ jobs:
             ${{ github.workspace }}/build/*.md5
           retention-days: 7
 
-      - uses: xresloader/upload-to-github-release@v1.6.1
+      - uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -170,7 +170,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Windows assets to GitHub Release
-        uses: xresloader/upload-to-github-release@v1.6.1
+        uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
