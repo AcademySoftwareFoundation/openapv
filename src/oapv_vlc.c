@@ -687,6 +687,7 @@ static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
             }
             else {
                 k++;
+                oapv_assert_rv(k < 30, -1);
             }
         }
     }
@@ -733,6 +734,7 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
                 break;
             }
             else {
+                oapv_assert_rv(k < 31, -1);
                 symbol += (1 << k);
                 k++;
             }

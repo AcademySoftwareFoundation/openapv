@@ -36,7 +36,7 @@
 #include "oapv_metadata.h"
 
 #define KPARAM_DC(level)      oapv_min((level)>>1, OAPV_KPARAM_DC_MAX)
-#define KPARAM_AC(level)      oapv_min((level)>>2, OAPV_KPARAM_AC_MAX)
+#define KPARAM_AC(level)      oapv_clip3(OAPV_KPARAM_AC_MIN, OAPV_KPARAM_AC_MAX, (level)>>2)
 #define KPARAM_RUN(run)       oapv_min((run)>>2, OAPV_KPARAM_RUN_MAX)
 
 void oapve_set_frame_header(oapve_ctx_t * ctx, oapv_fh_t * fh);
