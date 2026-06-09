@@ -1171,6 +1171,7 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
     /****************************************************/
 
     for(int i = 0; i < ctx->num_tiles; i++) {
+        oapv_assert_gv(bs_tile_pos + ctx->tile[i].bs_size <= bs->end, ret, OAPV_ERR_OUT_OF_BS_BUF, ERR);
         oapv_mcpy(bs_tile_pos, ctx->tile[i].bs_buf, ctx->tile[i].bs_size);
         bs_tile_pos = bs_tile_pos + ctx->tile[i].bs_size;
         ctx->fh.tile_size[i] = ctx->tile[i].bs_size - OAPV_TILE_SIZE_LEN;

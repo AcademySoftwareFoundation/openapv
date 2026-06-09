@@ -37,23 +37,31 @@
 #if ENABLE_ENCODER
 ///////////////////////////////////////////////////////////////////////////////
 #define BSW_FLUSH_4BYTE(bs) {                     \
-        *(bs)->cur++ = ((bs)->code >> 24) & 0xFF; \
-        *(bs)->cur++ = ((bs)->code >> 16) & 0xFF; \
-        *(bs)->cur++ = ((bs)->code >> 8) & 0xFF;  \
-        *(bs)->cur++ = ((bs)->code) & 0xFF;       \
+        if ((bs)->cur + 4 <= (bs)->end) {         \
+            *(bs)->cur++ = ((bs)->code >> 24) & 0xFF; \
+            *(bs)->cur++ = ((bs)->code >> 16) & 0xFF; \
+            *(bs)->cur++ = ((bs)->code >> 8) & 0xFF;  \
+            *(bs)->cur++ = ((bs)->code) & 0xFF;       \
+        } else {                                  \
+            (bs)->cur += 4;                       \
+        }                                         \
         (bs)->code = 0;                           \
         (bs)->leftbits = 32;                      \
     }
 
 #define BSW_FLUSH_8BYTE(bs) {                     \
-        *(bs)->cur++ = ((bs)->code >> 56) & 0xFF; \
-        *(bs)->cur++ = ((bs)->code >> 48) & 0xFF; \
-        *(bs)->cur++ = ((bs)->code >> 40) & 0xFF; \
-        *(bs)->cur++ = ((bs)->code >> 32) & 0xFF; \
-        *(bs)->cur++ = ((bs)->code >> 24) & 0xFF; \
-        *(bs)->cur++ = ((bs)->code >> 16) & 0xFF; \
-        *(bs)->cur++ = ((bs)->code >> 8) & 0xFF;  \
-        *(bs)->cur++ = ((bs)->code) & 0xFF;       \
+        if ((bs)->cur + 8 <= (bs)->end) {         \
+            *(bs)->cur++ = ((bs)->code >> 56) & 0xFF; \
+            *(bs)->cur++ = ((bs)->code >> 48) & 0xFF; \
+            *(bs)->cur++ = ((bs)->code >> 40) & 0xFF; \
+            *(bs)->cur++ = ((bs)->code >> 32) & 0xFF; \
+            *(bs)->cur++ = ((bs)->code >> 24) & 0xFF; \
+            *(bs)->cur++ = ((bs)->code >> 16) & 0xFF; \
+            *(bs)->cur++ = ((bs)->code >> 8) & 0xFF;  \
+            *(bs)->cur++ = ((bs)->code) & 0xFF;       \
+        } else {                                  \
+            (bs)->cur += 8;                       \
+        }                                         \
         (bs)->code = 0;                           \
         (bs)->leftbits = 64;                      \
     }
