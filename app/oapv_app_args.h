@@ -126,6 +126,9 @@ static int args_read_value(args_opt_t *ops, const char *argv)
 
     case ARGS_VAL_TYPE_STRING:
         if(ops->val_len > 0) {
+            if(strlen(argv) >= (size_t)ops->val_len) {
+                return -1;
+            }
             strncpy((char *)ops->val, argv, (size_t)(ops->val_len - 1));
             ((char *)ops->val)[ops->val_len - 1] = '\0';
         }
