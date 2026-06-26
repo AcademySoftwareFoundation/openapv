@@ -57,7 +57,7 @@ typedef struct args_opt {
     int   val_type;                    /* value type */
     int   flag;                        /* flag to setting or not */
     void *val;                         /* actual value */
-    int   val_len;                     /* buffer length for string values */
+    int   val_len;                     /* buffer length; only used for ARGS_VAL_TYPE_STRING */
     char  desc[1024];                   /* description of option */
 } args_opt_t;
 
@@ -344,7 +344,12 @@ static int _args_set_variable_by_key_long(args_opt_t *opts, char *key_long, void
     if(idx < 0)
         return -1;
     opts[idx].val = var;
-    opts[idx].val_len = val_len;
+    if(ARGS_GET_CMD_OPT_VAL_TYPE(opts[idx].val_type) == ARGS_VAL_TYPE_STRING) {
+        opts[idx].val_len = val_len;
+    }
+    else {
+        opts[idx].val_len = 0;
+    }
     return 0;
 }
 
