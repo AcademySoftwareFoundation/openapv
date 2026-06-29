@@ -36,7 +36,7 @@ static void imgb_pad(oapv_imgb_t *imgb, int aw, int ah, int comp_sft[N_C][2])
     int imgb_w = imgb->w[0];
     int imgb_h = imgb->h[0];
 
-    if(aw == imgb_w && ah == imgb_h) { // no needs to pad
+    if(aw == imgb_w && ah == imgb_h) { // no need to pad
         return;
     }
 
@@ -79,7 +79,7 @@ static void imgb_pad_p210(oapv_imgb_t *imgb, int aw, int ah, int comp_sft[N_C][2
     int imgb_w = imgb->w[0];
     int imgb_h = imgb->h[0];
 
-    if(aw == imgb_w && ah == imgb_h) { // no needs to pad
+    if(aw == imgb_w && ah == imgb_h) { // no need to pad
         return;
     }
 
@@ -542,7 +542,7 @@ static void enc_flush(oapve_ctx_t *ctx)
                     ctx->tpool->release(&ctx->thread_id[i]);
                 }
             }
-            // dinitialize the tc
+            // deinitialize the tc
             oapv_tpool_deinit(ctx->tpool);
             oapv_mfree_fast(ctx->tpool);
             ctx->tpool = NULL;
@@ -938,7 +938,7 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
         ctx->core[i]->ctx = ctx;
         ctx->core[i]->thread_idx = i;
     }
-    // recontruction picture
+    // reconstruction picture
     if(imgb_r != NULL) {
         for(int c = 0; c < ctx->num_c; c++) {
             imgb_r->w[c] = imgb_i->w[c];
@@ -1408,6 +1408,11 @@ static int dec_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_
 static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_t *imgb)
 {
     int i;
+
+    if (imgb->w[0] < ctx->fh.fi.frame_width || imgb->h[0] < ctx->fh.fi.frame_height) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
+
     ctx->imgb = imgb;
     imgb_addref(ctx->imgb); // increase reference count
 
@@ -1425,20 +1430,31 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_
     ctx->w = oapv_align_value(ctx->fh.fi.frame_width, OAPV_MB_W);
     ctx->h = oapv_align_value(ctx->fh.fi.frame_height, OAPV_MB_H);
 
+    if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
+        ctx->disable_companding = 0;
+    }
+
     if(OAPV_CS_GET_FORMAT(imgb->cs) == OAPV_CF_PLANAR2) {
         ctx->fn_blk_to_pic[Y_C] = oapv_blk_to_pic_p21x_y;
         ctx->fn_blk_to_pic[U_C] = oapv_blk_to_pic_p21x_uv;
         ctx->fn_blk_to_pic[V_C] = oapv_blk_to_pic_p21x_uv;
     }
     else {
-        if(ctx->disable_companding){
-            for(int i = 0; i < ctx->num_c; i++) {
-                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+        if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
+            if(ctx->disable_companding){
+                for(i = 0; i < ctx->num_c; i++) {
+                    ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+                }
+            }
+            else{
+                for(i = 0; i < ctx->num_c; i++) {
+                    ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_12E16;
+                }
             }
         }
         else{
-            for(int i = 0; i < ctx->num_c; i++) {
-                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_12E16;
+            for(i = 0; i < ctx->num_c; i++) {
+                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
             }
         }
     }
@@ -1453,7 +1469,7 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_
     oapv_assert_rv((ctx->num_tile_cols <= OAPV_MAX_TILE_COLS) && (ctx->num_tile_rows <= OAPV_MAX_TILE_ROWS), OAPV_ERR_MALFORMED_BITSTREAM);
     dec_set_tile_info(ctx->tile, ctx->w, ctx->h, tile_w, tile_h, ctx->num_tile_cols, ctx->num_tiles);
 
-    for(int i = 0; i < ctx->num_tiles; i++) {
+    for(i = 0; i < ctx->num_tiles; i++) {
         ctx->tile[i].bs_beg = NULL;
     }
     ctx->tile[0].bs_beg = oapv_bsr_sink(&ctx->bs);
@@ -1477,7 +1493,7 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_
 
 static void dec_frm_finish(oapvd_ctx_t *ctx)
 {
-    imgb_release(ctx->imgb);                   // decrease reference cnout
+    imgb_release(ctx->imgb); // decrease reference count
     ctx->imgb = NULL;
 }
 
@@ -1677,7 +1693,7 @@ static void dec_flush(oapvd_ctx_t *ctx)
                     ctx->tpool->release(&ctx->thread_id[i]);
                 }
             }
-            // dinitialize the tpool
+            // deinitialize the tpool
             oapv_tpool_deinit(ctx->tpool);
             oapv_mfree(ctx->tpool);
             ctx->tpool = NULL;

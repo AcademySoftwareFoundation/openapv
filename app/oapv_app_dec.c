@@ -105,6 +105,11 @@ static const args_opt_t dec_args_opts[] = {
         "      Note: this option is just for testing tile-based decoding method and\n"
         "            API set 1 option is required to support this"
     },
+    {
+        ARGS_NO_KEY,  "disable-companding", ARGS_VAL_TYPE_NONE, 0, NULL,
+        "forcely disable companding process\n"
+        "      Note: this option forces to output 12 bits picture in case of 444/4444-16C12 profile"
+    },
     {ARGS_END_KEY, "", ARGS_VAL_TYPE_NONE, 0, NULL, ""} /* termination */
 };
 
@@ -140,6 +145,7 @@ static args_var_t *args_init_vars(args_parser_t *args)
     args_set_variable_by_key_long(opts, "max-au", &vars->max_au);
     args_set_variable_by_key_long(opts, "hash", &vars->hash);
     args_set_variable_by_key_long(opts, "disable-companding", &vars->disable_companding);
+    vars->disable_companding = 0; /* default */
     args_set_variable_by_key_long(opts, "api-set", &vars->api_set);
     args_set_variable_by_key_long(opts, "cyclic-tile-decoding", &vars->cyclic_tile_decoding);
     args_set_variable_by_key_long(opts, "verbose", &op_verbose);
@@ -346,7 +352,7 @@ static void print_stat_frm(oapvd_stat_t *stat, oapv_frms_t *frms, oapvm_t mid, a
                                  : finfo[i].pbu_type == OAPV_PBU_TYPE_PREVIEW_FRAME ? "PREVIEW"
                                  : finfo[i].pbu_type == OAPV_PBU_TYPE_DEPTH_FRAME ? "DEPTH"
                                  : finfo[i].pbu_type == OAPV_PBU_TYPE_ALPHA_FRAME ? "ALPHA"
-                                 : "UNKNOWN";
+                                 : "Unknown";
 
         const char * str_csp = finfo[i].cs == OAPV_CS_YCBCR400_10LE ? "400-10"
                              : finfo[i].cs == OAPV_CS_YCBCR422_10LE ? "422-10"
@@ -357,7 +363,6 @@ static void print_stat_frm(oapvd_stat_t *stat, oapv_frms_t *frms, oapvm_t mid, a
                              : finfo[i].cs == OAPV_CS_YCBCR4444_12LE ? "4444-12"
                              : finfo[i].cs == OAPV_CS_YCBCR4444_16LE ? "4444-16"
                              : "unknown-cs";
-
         // clang-format on
 
         logv2("- FRM %-2d GID %-5d %-11s %9d-bytes %5dx%4d %-10s",

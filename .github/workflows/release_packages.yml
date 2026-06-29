@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.3
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -23,7 +23,7 @@ jobs:
           cpack -C Release
 
       - name: 'Upload PC Linux artifacts'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: openapv-linux-${{github.event.release.tag_name}}
           path: |
@@ -32,7 +32,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Linux assets to GitHub Release
-        uses: xresloader/upload-to-github-release@v1
+        uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.3
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -63,7 +63,7 @@ jobs:
           cpack -C Release
 
       - name: 'Upload ARM artifacts'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: openapv-arm-${{github.event.release.tag_name}}
           path: |
@@ -72,7 +72,7 @@ jobs:
           retention-days: 7
 
       - name: Upload ARM assets to GitHub Release
-        uses: xresloader/upload-to-github-release@v1
+        uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -84,7 +84,7 @@ jobs:
   build-darwin-arm64:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
 
       - name: Build macOS ARM64 (Apple Silicon)
         run: |
@@ -93,7 +93,7 @@ jobs:
           cd ${{github.workspace}}/build-darwin
           cpack -C Release -G TGZ
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: openapv-darwin-${{github.event.release.tag_name}}
           path: |
@@ -101,7 +101,7 @@ jobs:
             ${{ github.workspace }}/build-darwin/*.md5
           retention-days: 7
 
-      - uses: xresloader/upload-to-github-release@v1
+      - uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -113,7 +113,7 @@ jobs:
   build-darwin-universal:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
 
       - name: Build macOS Universal (ARM64 + AMD64)
         run: |
@@ -122,7 +122,7 @@ jobs:
           cd ${{github.workspace}}/build
           cpack -C Release -G DragNDrop
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: openapv-universal-${{github.event.release.tag_name}}
           path: |
@@ -130,7 +130,7 @@ jobs:
             ${{ github.workspace }}/build/*.md5
           retention-days: 7
 
-      - uses: xresloader/upload-to-github-release@v1
+      - uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -143,7 +143,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.3
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -161,7 +161,7 @@ jobs:
           cpack -G ZIP -C Release
 
       - name: 'Upload PC Windows artifacts'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: openapv-windows-${{github.event.release.tag_name}}
           path: |
@@ -170,7 +170,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Windows assets to GitHub Release
-        uses: xresloader/upload-to-github-release@v1
+        uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

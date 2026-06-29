@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.3
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -25,7 +25,7 @@ jobs:
         run: tar -cvf build-pc.tar .
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: build-PC-artifacts
           path: build-pc.tar
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.3
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.3
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -71,7 +71,7 @@ jobs:
   build-darwin-arm64:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
       - name: Build macOS ARM64 (Apple Silicon)
         run: |
           cmake -S ${{github.workspace}} -B ${{github.workspace}}/build-darwin -DUNIVERSAL=FALSE -DCMAKE_OSX_ARCHITECTURES=arm64 -DARM=1 -DCMAKE_BUILD_TYPE=Release
@@ -80,7 +80,7 @@ jobs:
   build-darwin-universal:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
       - name: Build macOS Universal (ARM64 + AMD64)
         run: |
           cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -DCMAKE_TOOLCHAIN_FILE=macos_universal_toolchain.cmake -DUNIVERSAL=1 -DCMAKE_BUILD_TYPE=Release
@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.3
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -114,13 +114,13 @@ jobs:
           lcov --list ${{github.workspace}}/build/coverage.info
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: ${{github.workspace}}/build/coverage.info
 
       - name: Upload test results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: LastTest.log
           path: ${{github.workspace}}/build/Testing/Temporary/LastTest.log

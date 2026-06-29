@@ -133,38 +133,38 @@ static int meta_verify_mdp_data(int type, int size, u8 *data)
 {
     if(type == OAPV_METADATA_ITU_T_T35) {
         if(size == 0) {
-            return OAPV_ERR_MALFORMED_BITSTREAM;
+            return OAPV_ERR_INVALID_ARGUMENT;
         }
         if(*data == 0xFF) {
             if(size == 1) {
-                return OAPV_ERR_MALFORMED_BITSTREAM;
+                return OAPV_ERR_INVALID_ARGUMENT;
             }
         }
     }
     else if(type == OAPV_METADATA_MDCV) {
         if(size != 24) {
-            return OAPV_ERR_MALFORMED_BITSTREAM;
+            return OAPV_ERR_INVALID_ARGUMENT;
         }
     }
     else if(type == OAPV_METADATA_CLL) {
         if(size != 4) {
-            return OAPV_ERR_MALFORMED_BITSTREAM;
+            return OAPV_ERR_INVALID_ARGUMENT;
         }
     }
     else if(type == OAPV_METADATA_USER_DEFINED) {
         if(size < 16) {
-            return OAPV_ERR_MALFORMED_BITSTREAM;
+            return OAPV_ERR_INVALID_ARGUMENT;
         }
     }
     else if(type == OAPV_METADATA_FILLER) {
         for(int i = 0; i < size; i++) {
             if(data[i] != 0xFF) {
-                return OAPV_ERR_MALFORMED_BITSTREAM;
+                return OAPV_ERR_INVALID_ARGUMENT;
             }
         }
     }
     else {
-        return OAPV_OK;
+        return OAPV_OK; // undefined payload type
     }
     return OAPV_OK;
 }
