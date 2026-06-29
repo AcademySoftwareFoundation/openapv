@@ -407,16 +407,16 @@ static int imgb_read(FILE *fp, oapv_imgb_t *img, int width, int height, int is_y
     }
 
     /* reading YUV format */
-    int chroma_format = OAPV_CS_GET_FORMAT(img->cs);
+    int color_format = OAPV_CS_GET_FORMAT(img->cs);
     int bit_depth = OAPV_CS_GET_BIT_DEPTH(img->cs);
-    int w_shift = (chroma_format == OAPV_CF_YCBCR420) || ((chroma_format == OAPV_CF_YCBCR422) || (chroma_format == OAPV_CF_PLANAR2)) ? 1 : 0;
-    int h_shift = chroma_format == OAPV_CF_YCBCR420 ? 1 : 0;
+    int w_shift = (color_format == OAPV_CF_YCBCR420) || ((color_format == OAPV_CF_YCBCR422) || (color_format == OAPV_CF_PLANAR2)) ? 1 : 0;
+    int h_shift = color_format == OAPV_CF_YCBCR420 ? 1 : 0;
 
     if(bit_depth == 8) {
         f_w = width;
         f_h = height;
     }
-    else if(bit_depth >= 10 && bit_depth <= 14) {
+    else if(bit_depth >= 10 && bit_depth <= 16) {
         f_w = width * sizeof(short);
         f_h = height;
     }
@@ -433,7 +433,7 @@ static int imgb_read(FILE *fp, oapv_imgb_t *img, int width, int height, int is_y
         p8 += img->s[0];
     }
 
-    if(chroma_format == OAPV_CF_PLANAR2) {
+    if(color_format == OAPV_CF_PLANAR2) {
         p8 = (unsigned char *)img->a[1];
         for(int j = 0; j < f_h; j++) {
             if(fread(p8, 1, f_w, fp) != (unsigned)f_w) {
@@ -442,7 +442,7 @@ static int imgb_read(FILE *fp, oapv_imgb_t *img, int width, int height, int is_y
             p8 += img->s[1];
         }
     }
-    else if(chroma_format != OAPV_CF_YCBCR400) {
+    else if(color_format != OAPV_CF_YCBCR400) {
         f_w = f_w >> w_shift;
         f_h = f_h >> h_shift;
 
@@ -463,7 +463,7 @@ static int imgb_read(FILE *fp, oapv_imgb_t *img, int width, int height, int is_y
         }
     }
 
-    if(chroma_format == OAPV_CF_YCBCR4444) {
+    if(color_format == OAPV_CF_YCBCR4444) {
         f_w = f_w >> w_shift;
         f_h = f_h >> h_shift;
 
@@ -497,7 +497,7 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
                           chroma_format == OAPV_CF_YCBCR444 || chroma_format == OAPV_CF_YCBCR4444)) {
         bd = 1;
     }
-    else if(bit_depth >= 10 && bit_depth <= 14 && (chroma_format == OAPV_CF_YCBCR400 || chroma_format == OAPV_CF_YCBCR420 || chroma_format == OAPV_CF_YCBCR422 || chroma_format == OAPV_CF_YCBCR444 || chroma_format == OAPV_CF_YCBCR4444)) {
+    else if(bit_depth >= 10 && bit_depth <= 16 && (chroma_format == OAPV_CF_YCBCR400 || chroma_format == OAPV_CF_YCBCR420 || chroma_format == OAPV_CF_YCBCR422 || chroma_format == OAPV_CF_YCBCR444 || chroma_format == OAPV_CF_YCBCR4444)) {
         bd = 2;
     }
     else if(bit_depth >= 10 && chroma_format == OAPV_CF_PLANAR2) {
@@ -697,7 +697,7 @@ static void measure_psnr(oapv_imgb_t *org, oapv_imgb_t *rec, double psnr[4], int
                 r += rec->s[i];
             }
             mse[i] = sum[i] / (org->w[i] * org->h[i]);
-            psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((255 * 255) / mse[i])));
+            psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((255.f * 255.f) / mse[i])));
         }
     }
     else {
@@ -723,7 +723,7 @@ static void measure_psnr(oapv_imgb_t *org, oapv_imgb_t *rec, double psnr[4], int
                 r = (unsigned short *)((unsigned char *)r + rec->s[i]);
             }
             mse[i] = sum[i] / (org->w[i] * org->h[i]);
-            psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((255 * 255 * factor) / mse[i])));
+            psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((255.f * 255.f * factor) / mse[i])));
         }
     }
 }

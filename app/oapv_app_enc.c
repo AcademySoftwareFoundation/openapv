@@ -81,7 +81,7 @@ static const args_opt_t enc_args_opts[] = {
         'q',  "qp", ARGS_VAL_TYPE_STRING, 0, NULL,
         "QP value: 0 ~ (63 + (bitdepth - 10)*6) \n"
         "      - 10bit input: 0 ~ 63\n"
-        "      - 12bit input: 0 ~ 75\n"
+        "      - 12bit input and 12C16bit: 0 ~ 75\n"
         "      - 'auto' means that the value is internally determined"
     },
     {
@@ -99,7 +99,7 @@ static const args_opt_t enc_args_opts[] = {
     },
     {
         'd',  "input-depth", ARGS_VAL_TYPE_INTEGER, 0, NULL,
-        "input bit depth (8, 10-12)\n"
+        "input bit depth (8, 10-12, 16)\n"
         "      - Note: 8bit input will be converted to 10bit"
     },
     {
@@ -127,10 +127,11 @@ static const args_opt_t enc_args_opts[] = {
         "profile string\n"
         "      - 422-10: YCbCr422 10bit (default)\n"
         "      - 422-12: YCbCr422 12bit\n"
-        "      - 444-10: YCbCr444 10bit\n"
-        "      - 444-12: YCbCr444 12bit\n"
-        "      - 4444-10: YCbCr4444 10bit\n"
-        "      - 4444-12: YCbCr4444 12bit\n"
+        "      - 444-10: YCbCr(RGB)444 10bit\n"
+        "      - 444-12: YCbCr(RGB)444 12bit\n"
+        "      - 4444-10: YCbCrX(RGBA)4444 10bit\n"
+        "      - 4444-12: YCbCrX(RGBA)4444 12bit\n"
+        "      - 4444-16C12: YCbCrX(RGBA)4444 16bit companded to 12bit\n"
         "      - 400-10: YCbCr400 (monochrome) 10bit\n"
         "      Note: Color space and bit depth of input video will be converted\n"
         "            automatically to support the given profile, if needs\n"
@@ -1032,7 +1033,7 @@ int main(int argc, const char **argv)
 
     if(strlen(args_var->fname_rec) > 0) {
         ret = check_file_name_type(args_var->fname_rec);
-        if(ret > 0) {
+        if(ret > 0 && args_var->input_csp != 16) {
             is_rec_y4m = 1;
         }
         else if(ret == 0) {
@@ -1100,7 +1101,8 @@ int main(int argc, const char **argv)
         param->profile_idc == OAPV_PROFILE_4444_10) ? 10 : (
         param->profile_idc == OAPV_PROFILE_422_12 ||
         param->profile_idc == OAPV_PROFILE_444_12 ||
-        param->profile_idc == OAPV_PROFILE_4444_12) ? 12 : 0;
+        param->profile_idc == OAPV_PROFILE_4444_12) ? 12 : (
+        param->profile_idc == OAPV_PROFILE_4444_16C12) ? 16 : 0;
 
     if (codec_depth == 0) {
         logerr("ERR: invalid profile\n");
@@ -1281,7 +1283,7 @@ int main(int argc, const char **argv)
             bitrate_tot, psnr_avg[FRM_IDX][0]);
     }
     else if(cfmt == OAPV_CF_YCBCR4444) { // 4-channel
-        logv3("  -----------------: bitrate(kbps)\tPSNR-Y\tPSNR-U\tPSNR-V\tPSNR-T\n");
+        logv3("  -----------------: bitrate(kbps)\tPSNR-Y\tPSNR-U\tPSNR-V\tPSNR-X\n");
         logv3("  Summary          : %-4.4f\t%-5.4f\t%-5.4f\t%-5.4f\t%-5.4f\n",
               bitrate_tot, psnr_avg[FRM_IDX][0], psnr_avg[FRM_IDX][1], psnr_avg[FRM_IDX][2], psnr_avg[FRM_IDX][3]);
     }

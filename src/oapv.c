@@ -123,178 +123,16 @@ static void imgb_pad_p210(oapv_imgb_t *imgb, int aw, int ah, int comp_sft[N_C][2
     }
 }
 
-static void imgb_to_blk(oapv_imgb_t *imgb, int c, int x_l, int y_l, int w_l, int h_l, s16 *blk, int bd)
-{
-    u8 *src, *dst;
-    int i, sft_hor, sft_ver;
-    int byte_depth = (bd + 7) >> 3;
-
-    if(c == 0) {
-        sft_hor = sft_ver = 0;
-    }
-    else {
-        u8 cfi = color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb->cs));
-        sft_hor = get_chroma_sft_w(cfi);
-        sft_ver = get_chroma_sft_h(cfi);
-    }
-
-    src = ((u8 *)imgb->a[c]) + ((y_l >> sft_ver) * imgb->s[c]) + ((x_l * byte_depth) >> sft_hor);
-    dst = (u8 *)blk;
-
-    for(i = 0; i < (h_l); i++) {
-        oapv_mcpy(dst, src, (w_l) * byte_depth);
-
-        src += imgb->s[c];
-        dst += (w_l) * byte_depth;
-    }
-}
-
-static void imgb_to_blk_16(void *src, int blk_w, int blk_h, int s_src, int offset_src, int s_dst, void *dst, int bd)
-{
-    const int mid_val = (1 << (bd - 1));
-    s16      *s = (s16 *)src;
-    s16      *d = (s16 *)dst;
-
-    for(int h = 0; h < blk_h; h++) {
-        for(int w = 0; w < blk_w; w++) {
-            d[w] = s[w] - mid_val;
-        }
-        s = (s16 *)(((u8 *)s) + s_src);
-        d = (s16 *)(((u8 *)d) + s_dst);
-    }
-}
-
-static void imgb_to_blk_p21x_y(void *src, int blk_w, int blk_h, int s_src, int offset_src, int s_dst, void *dst, int bd)
-{
-    const int mid_val = (1 << (bd - 1));
-    u16      *s = (u16 *)src;
-    s16      *d = (s16 *)dst;
-    int       shift_pic_bits = 16 - bd;
-
-    for(int h = 0; h < blk_h; h++) {
-        for(int w = 0; w < blk_w; w++) {
-            d[w] = (s16)(s[w] >> shift_pic_bits) - mid_val;
-        }
-        s = (u16 *)(((u8 *)s) + s_src);
-        d = (s16 *)(((u8 *)d) + s_dst);
-    }
-}
-
-static void imgb_to_blk_p21x_uv(void *src, int blk_w, int blk_h, int s_src, int offset_src, int s_dst, void *dst, int bd)
-{
-    const int mid_val = (1 << (bd - 1));
-    u16      *s = (u16 *)src + offset_src;
-    s16      *d = (s16 *)dst;
-    int       shift_pic_bits = 16 - bd;
-
-    for(int h = 0; h < blk_h; h++) {
-        for(int w = 0; w < blk_w; w++) {
-            d[w] = (s16)(s[w * 2] >> shift_pic_bits) - mid_val;
-        }
-        s = (u16 *)(((u8 *)s) + s_src);
-        d = (s16 *)(((u8 *)d) + s_dst);
-    }
-}
-
-static void imgb_to_blk_p21x(oapv_imgb_t *imgb, int c, int x_l, int y_l, int w_l, int h_l, s16 *block, int bd)
-{
-    u16 *src, *dst;
-    int  sft_hor, sft_ver, s_src;
-    int  size_scale = 1;
-    int  tc = c;
-    int  shift_pic_bits = 16 - bd;
-
-    if(c == 0) {
-        sft_hor = sft_ver = 0;
-    }
-    else {
-        u8 cfi = color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb->cs));
-        sft_hor = get_chroma_sft_w(cfi);
-        sft_ver = get_chroma_sft_h(cfi);
-        size_scale = 2;
-        tc = 1;
-    }
-
-    s_src = imgb->s[tc] >> (bd > 1 ? 1 : 0);
-    src = ((u16 *)imgb->a[tc]) + ((y_l >> sft_ver) * s_src) + ((x_l * size_scale) >> sft_hor);
-    dst = (u16 *)block;
-
-    for(int i = 0; i < (h_l); i++) {
-        for(int j = 0; j < (w_l); j++) {
-            dst[j] = (src[j * size_scale + (c >> 1)] >> shift_pic_bits);
-        }
-        src += s_src;
-        dst += w_l;
-    }
-}
-
-static void blk_to_imgb_16(void *src, int blk_w, int blk_h, int s_src, int offset_dst, int s_dst, void *dst, int bd)
-{
-    const int max_val = (1 << bd) - 1;
-    const int mid_val = (1 << (bd - 1));
-    s16      *s = (s16 *)src;
-    u16      *d = (u16 *)dst;
-
-    for(int h = 0; h < blk_h; h++) {
-        for(int w = 0; w < blk_w; w++) {
-            d[w] = oapv_clip3(0, max_val, s[w] + mid_val);
-        }
-        s = (s16 *)(((u8 *)s) + s_src);
-        d = (u16 *)(((u8 *)d) + s_dst);
-    }
-}
-
-static void blk_to_imgb_p21x_y(void *src, int blk_w, int blk_h, int s_src, int offset_dst, int s_dst, void *dst, int bd)
-{
-    const int max_val = (1 << bd) - 1;
-    const int mid_val = (1 << (bd - 1));
-    s16      *s = (s16 *)src;
-    u16      *d = (u16 *)dst;
-    int       shift_pic_bits = 16 - bd;
-
-    for(int h = 0; h < blk_h; h++) {
-        for(int w = 0; w < blk_w; w++) {
-            d[w] = oapv_clip3(0, max_val, s[w] + mid_val) << shift_pic_bits;
-        }
-        s = (s16 *)(((u8 *)s) + s_src);
-        d = (u16 *)(((u8 *)d) + s_dst);
-    }
-}
-
-static void blk_to_imgb_p21x_uv(void *src, int blk_w, int blk_h, int s_src, int x_pel, int s_dst, void *dst, int bd)
-{
-    const int max_val = (1 << bd) - 1;
-    const int mid_val = (1 << (bd - 1));
-    s16      *s = (s16 *)src;
-    int       shift_pic_bits = 16 - bd;
-
-    // x_pel is x-offset value from left boundary of picture in unit of pixel.
-    // the 'dst' address has calculated by
-    // dst = (s16*)((u8*)origin + y_pel*s_dst) + x_pel;
-    // in case of P210 color format,
-    // since 's_dst' is byte size of stride including all U and V pixel values,
-    // y-offset calculation is correct.
-    // however, the adding only x_pel is not enough to address the correct pixel
-    // position of U or V because U & V use the same buffer plane
-    // in interleaved way,
-    // so, the 'dst' address should be increased by 'x_pel' to address pixel
-    // position correctly.
-    u16      *d = (u16 *)dst + x_pel; // p210 pixel value needs 0~65535 range
-
-    for(int h = 0; h < blk_h; h++) {
-        for(int w = 0; w < blk_w; w++) {
-            d[w * 2] = ((u16)oapv_clip3(0, max_val, s[w] + mid_val)) << shift_pic_bits;
-        }
-        s = (s16 *)(((u8 *)s) + s_src);
-        d = (u16 *)(((u8 *)d) + s_dst);
-    }
-}
-
 static void fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_t *finfo)
 {
     finfo->w = (int)fi->frame_width; // casting to 'int' would be fine here
     finfo->h = (int)fi->frame_height; // casting to 'int' would be fine here
-    finfo->cs = OAPV_CS_SET(chroma_format_idc_to_color_format(fi->chroma_format_idc), fi->bit_depth, 0);
+    if(fi->profile_idc == OAPV_PROFILE_444_16C12 || fi->profile_idc == OAPV_PROFILE_4444_16C12) {
+        finfo->cs = OAPV_CS_SET(chroma_format_idc_to_color_format(fi->chroma_format_idc), 16, 0);
+    }
+    else {
+        finfo->cs = OAPV_CS_SET(chroma_format_idc_to_color_format(fi->chroma_format_idc), fi->bit_depth, 0);
+    }
     finfo->pbu_type = pbu_type;
     finfo->group_id = group_id;
     finfo->profile_idc = fi->profile_idc;
@@ -303,6 +141,7 @@ static void fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info
     finfo->chroma_format_idc = fi->chroma_format_idc;
     finfo->bit_depth = fi->bit_depth;
     finfo->capture_time_distance = fi->capture_time_distance;
+    finfo->use_companding = fi->use_companding;
 }
 
 static void fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo)
@@ -771,37 +610,37 @@ ERR:
     return ret;
 }
 
-static int enc_tile_comp(oapv_bs_t *bs, oapve_tile_t *tile, oapve_ctx_t *ctx, oapve_core_t *core, int c, int s_org, void *org, int s_rec, void *rec)
+static int enc_tile_comp(oapv_bs_t *bs, oapve_tile_t *tile, oapve_ctx_t *ctx, oapve_core_t *core, int c, int org_s, void *org, int rec_s, void *rec)
 {
-    int  mb_h, mb_w, mb_y, mb_x, blk_x, blk_y;
-    s16 *o16 = NULL, *r16 = NULL;
+    int  mb_h, mb_w, y, x, i, j;
+    s16 *pic = NULL, *rec_t = NULL;
 
     u8  *bs_cur = oapv_bsw_sink(bs);
     oapv_assert_rv(bsw_is_align8(bs), OAPV_ERR_MALFORMED_BITSTREAM);
 
-    mb_w = OAPV_MB_W >> ctx->comp_sft[c][0];
-    mb_h = OAPV_MB_H >> ctx->comp_sft[c][1];
+    mb_w = OAPV_MB_W >> ctx->c_sft[c][0];
+    mb_h = OAPV_MB_H >> ctx->c_sft[c][1];
 
-    int tile_le = tile->x >> ctx->comp_sft[c][0];
-    int tile_ri = (tile->w >> ctx->comp_sft[c][0]) + tile_le;
-    int tile_to = tile->y >> ctx->comp_sft[c][1];
-    int tile_bo = (tile->h >> ctx->comp_sft[c][1]) + tile_to;
+    int le = tile->x >> ctx->c_sft[c][0];
+    int ri = (tile->w >> ctx->c_sft[c][0]) + le;
+    int to = tile->y >> ctx->c_sft[c][1];
+    int bo = (tile->h >> ctx->c_sft[c][1]) + to;
 
-    for(mb_y = tile_to; mb_y < tile_bo; mb_y += mb_h) {
-        for(mb_x = tile_le; mb_x < tile_ri; mb_x += mb_w) {
-            for(blk_y = mb_y; blk_y < (mb_y + mb_h); blk_y += OAPV_BLK_H) {
-                for(blk_x = mb_x; blk_x < (mb_x + mb_w); blk_x += OAPV_BLK_W) {
-                    o16 = (s16 *)((u8 *)org + blk_y * s_org) + blk_x;
-                    ctx->fn_imgb_to_blk[c](o16, OAPV_BLK_W, OAPV_BLK_H, s_org, blk_x, (OAPV_BLK_W << 1), core->coef, ctx->bit_depth);
+    for(y = to; y < bo; y += mb_h) {
+        for(x = le; x < ri; x += mb_w) {
+            for(j = y; j < (y + mb_h); j += OAPV_BLK_H) {
+                for(i = x; i < (x + mb_w); i += OAPV_BLK_W) {
+                    pic = (s16 *)((u8 *)org + j * org_s) + i;
+                    ctx->fn_blk_from_pic[c](OAPV_BLK_W, OAPV_BLK_H, pic, i, org_s, core->coef, (OAPV_BLK_W << 1), ctx->bit_depth, (1 << (ctx->bit_depth - 1)));
 
                     ctx->fn_enc_blk(ctx, core, OAPV_LOG2_BLK_W, OAPV_LOG2_BLK_H, c);
                     oapve_vlc_dc_coef(bs, core->dc_diff, &core->kparam_dc[c]);
                     oapve_vlc_ac_coef(bs, core->coef, &core->kparam_ac[c]);
-                    DUMP_COEF(core->dc_diff, core->coef + 1, OAPV_BLK_D - 1, blk_x, blk_y, c);
+                    DUMP_COEF(core->dc_diff, core->coef + 1, OAPV_BLK_D - 1, i, j, c);
 
                     if(rec != NULL) {
-                        r16 = (s16 *)((u8 *)rec + blk_y * s_rec) + blk_x;
-                        ctx->fn_blk_to_imgb[c](core->coef_rec, OAPV_BLK_W, OAPV_BLK_H, (OAPV_BLK_W << 1), blk_x, s_rec, r16, ctx->bit_depth);
+                        rec_t = (s16 *)((u8 *)rec + j * rec_s) + i;
+                        ctx->fn_blk_to_pic[c](OAPV_BLK_W, OAPV_BLK_H, core->coef_rec, (OAPV_BLK_W << 1), rec_t, i, rec_s, ctx->bit_depth);
                     }
                 }
             }
@@ -839,7 +678,7 @@ static int enc_tile(oapve_ctx_t *ctx, oapve_core_t *core, oapve_tile_t *tile)
     oapve_set_tile_header(ctx, &tile->th, core->tile_idx, qp);
     oapve_vlc_tile_header(ctx, &bs, &tile->th);
 
-    for(int c = 0; c < ctx->num_comp; c++) {
+    for(int c = 0; c < ctx->num_c; c++) {
         int cnt = 0;
         core->qp[c] = tile->th.tile_qp[c];
         int qscale = oapv_quant_scale[core->qp[c] % 6];
@@ -867,44 +706,44 @@ static int enc_tile(oapve_ctx_t *ctx, oapve_core_t *core, oapve_tile_t *tile)
         }
     }
 
-    for(int c = 0; c < ctx->num_comp; c++) {
+    for(int c = 0; c < ctx->num_c; c++) {
         core->kparam_dc[c] = OAPV_KPARAM_DC_MAX;
         core->kparam_ac[c] = OAPV_KPARAM_AC_MIN;
         core->prev_dc[c] = 0;
 
-        int  tc, s_org, s_rec;
+        int  tc, org_s, rec_s;
         s16 *org, *rec;
 
         if(OAPV_CS_GET_FORMAT(ctx->imgb_i->cs) == OAPV_CF_PLANAR2) {
             tc = c > 0 ? 1 : 0;
             org = ctx->imgb_i->a[tc];
             org += (c > 1) ? 1 : 0;
-            s_org = ctx->imgb_i->s[tc];
+            org_s = ctx->imgb_i->s[tc];
 
             if(ctx->imgb_r) {
                 rec = ctx->imgb_r->a[tc];
                 rec += (c > 1) ? 1 : 0;
-                s_rec = ctx->imgb_i->s[tc];
+                rec_s = ctx->imgb_i->s[tc];
             }
             else {
                 rec = NULL;
-                s_rec = 0;
+                rec_s = 0;
             }
         }
         else {
             org = ctx->imgb_i->a[c];
-            s_org = ctx->imgb_i->s[c];
+            org_s = ctx->imgb_i->s[c];
             if(ctx->imgb_r) {
                 rec = ctx->imgb_r->a[c];
-                s_rec = ctx->imgb_i->s[c];
+                rec_s = ctx->imgb_i->s[c];
             }
             else {
                 rec = NULL;
-                s_rec = 0;
+                rec_s = 0;
             }
         }
 
-        tile->th.tile_data_size[c] = enc_tile_comp(&bs, tile, ctx, core, c, s_org, org, s_rec, rec);
+        tile->th.tile_data_size[c] = enc_tile_comp(&bs, tile, ctx, core, c, org_s, org, rec_s, rec);
     }
 
     u32 remained_bs_size = (int)((u8*)oapv_bsw_sink(&bs) - bs.beg);
@@ -968,6 +807,7 @@ static int enc_profile_spec[][5] = {
     {OAPV_PROFILE_4444_10, 2, 4, 10, 10},
     {OAPV_PROFILE_4444_12, 2, 4, 10, 12},
     {OAPV_PROFILE_400_10, 0, 0, 10, 10},
+    {OAPV_PROFILE_4444_16C12, 3, 4, 16, 16},
     {0, 0, 0, 0, 0} // termination
 };
 
@@ -1029,43 +869,58 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     }
     // color information
     ctx->cfi = color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb_i->cs));
-    ctx->bit_depth = OAPV_CS_GET_BIT_DEPTH(imgb_i->cs);
-    ctx->num_comp = get_num_comp(ctx->cfi);
+    ctx->bit_depth_inp = OAPV_CS_GET_BIT_DEPTH(imgb_i->cs);
+    ctx->num_c = get_num_comp(ctx->cfi);
 
     // check whether input frame type is suitable to profile definition
-    ret = enc_check_profile(param->profile_idc, ctx->cfi, ctx->bit_depth);
+    ret = enc_check_profile(param->profile_idc, ctx->cfi, ctx->bit_depth_inp);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
+    // check internal bit-depth and companding option
+    if(param->profile_idc == OAPV_PROFILE_4444_16C12 && ctx->bit_depth_inp == 16) {
+        ctx->bit_depth = 12; // use 12bit internal bit-depth
+        ctx->use_companding = 1;
+    }
+    else {
+        ctx->bit_depth = ctx->bit_depth_inp;
+        ctx->use_companding = 0;
+    }
+
     // shift parameter for each color component
-    ctx->comp_sft[Y_C][0] = 0;
-    ctx->comp_sft[Y_C][1] = 0;
-    for(i = 1; i < ctx->num_comp; i++) {
-        ctx->comp_sft[i][0] = get_chroma_sft_w(ctx->cfi);
-        ctx->comp_sft[i][1] = get_chroma_sft_h(ctx->cfi);
+    ctx->c_sft[Y_C][0] = 0;
+    ctx->c_sft[Y_C][1] = 0;
+    for(i = 1; i < ctx->num_c; i++) {
+        ctx->c_sft[i][0] = get_chroma_sft_w(ctx->cfi);
+        ctx->c_sft[i][1] = get_chroma_sft_h(ctx->cfi);
     }
 
     if(OAPV_CS_GET_FORMAT(imgb_i->cs) == OAPV_CF_PLANAR2) {
-        ctx->fn_imgb_to_blk_rc = imgb_to_blk_p21x;
+        ctx->fn_blk_from_pic[Y_C] = oapv_blk_from_pic_p21x_y;
+        ctx->fn_blk_from_pic[U_C] = oapv_blk_from_pic_p21x_uv;
+        ctx->fn_blk_from_pic[V_C] = oapv_blk_from_pic_p21x_uv;
 
-        ctx->fn_imgb_to_blk[Y_C] = imgb_to_blk_p21x_y;
-        ctx->fn_imgb_to_blk[U_C] = imgb_to_blk_p21x_uv;
-        ctx->fn_imgb_to_blk[V_C] = imgb_to_blk_p21x_uv;
-
-        ctx->fn_blk_to_imgb[Y_C] = blk_to_imgb_p21x_y;
-        ctx->fn_blk_to_imgb[U_C] = blk_to_imgb_p21x_uv;
-        ctx->fn_blk_to_imgb[V_C] = blk_to_imgb_p21x_uv;
+        ctx->fn_blk_to_pic[Y_C] = oapv_blk_to_pic_p21x_y;
+        ctx->fn_blk_to_pic[U_C] = oapv_blk_to_pic_p21x_uv;
+        ctx->fn_blk_to_pic[V_C] = oapv_blk_to_pic_p21x_uv;
         ctx->fn_imgb_pad = imgb_pad_p210;
     }
     else {
-        ctx->fn_imgb_to_blk_rc = imgb_to_blk;
-        for(int i = 0; i < ctx->num_comp; i++) {
-            ctx->fn_imgb_to_blk[i] = imgb_to_blk_16;
-            ctx->fn_blk_to_imgb[i] = blk_to_imgb_16;
+        if(ctx->use_companding){
+            for(int i = 0; i < ctx->num_c; i++) {
+                ctx->fn_blk_from_pic[i] = oapv_blk_from_pic_16C12;
+                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_12E16;
+            }
+        }
+        else{
+            for(int i = 0; i < ctx->num_c; i++) {
+                ctx->fn_blk_from_pic[i] = oapv_blk_from_pic_16;
+                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+            }
         }
         ctx->fn_imgb_pad = imgb_pad;
     }
     // padding input picture, if needs
-    ctx->fn_imgb_pad(imgb_i, ctx->w, ctx->h, ctx->comp_sft);
+    ctx->fn_imgb_pad(imgb_i, ctx->w, ctx->h, ctx->c_sft);
 
     // calculate tile info
     ret = enc_set_tile_info(ctx->tile, ctx->w, ctx->h, param->tile_w, param->tile_h, &ctx->num_tile_cols, &ctx->num_tile_rows, &ctx->num_tiles);
@@ -1085,7 +940,7 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     }
     // reconstruction picture
     if(imgb_r != NULL) {
-        for(int c = 0; c < ctx->num_comp; c++) {
+        for(int c = 0; c < ctx->num_c; c++) {
             imgb_r->w[c] = imgb_i->w[c];
             imgb_r->h[c] = imgb_i->h[c];
             imgb_r->x[c] = imgb_i->x[c];
@@ -1146,7 +1001,7 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
             ctx->rc_param.qp = ctx->param->qp;
         }
 
-        for(int c = 0; c < ctx->num_comp; c++) {
+        for(int c = 0; c < ctx->num_c; c++) {
             ctx->qp[c] = oapv_clip3(MIN_QUANT, MAX_QUANT(10), ctx->rc_param.qp + ctx->qp_offset[c]);
         }
     }
@@ -1561,26 +1416,46 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
 
     ctx->bit_depth = ctx->fh.fi.bit_depth;
     ctx->cfi = ctx->fh.fi.chroma_format_idc;
-    ctx->num_comp = get_num_comp(ctx->cfi);
-    ctx->comp_sft[Y_C][0] = 0;
-    ctx->comp_sft[Y_C][1] = 0;
+    ctx->num_c = get_num_comp(ctx->cfi);
+    ctx->c_sft[Y_C][0] = 0;
+    ctx->c_sft[Y_C][1] = 0;
 
-    for(int c = 1; c < ctx->num_comp; c++) {
-        ctx->comp_sft[c][0] = get_chroma_sft_w(color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb->cs)));
-        ctx->comp_sft[c][1] = get_chroma_sft_h(color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb->cs)));
+    for(int c = 1; c < ctx->num_c; c++) {
+        ctx->c_sft[c][0] = get_chroma_sft_w(color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb->cs)));
+        ctx->c_sft[c][1] = get_chroma_sft_h(color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb->cs)));
     }
 
     ctx->w = oapv_align_value(ctx->fh.fi.frame_width, OAPV_MB_W);
     ctx->h = oapv_align_value(ctx->fh.fi.frame_height, OAPV_MB_H);
 
+    if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
+        ctx->disable_companding = 0;
+    }
+
+
+
     if(OAPV_CS_GET_FORMAT(imgb->cs) == OAPV_CF_PLANAR2) {
-        ctx->fn_block_to_imgb[Y_C] = blk_to_imgb_p21x_y;
-        ctx->fn_block_to_imgb[U_C] = blk_to_imgb_p21x_uv;
-        ctx->fn_block_to_imgb[V_C] = blk_to_imgb_p21x_uv;
+        ctx->fn_blk_to_pic[Y_C] = oapv_blk_to_pic_p21x_y;
+        ctx->fn_blk_to_pic[U_C] = oapv_blk_to_pic_p21x_uv;
+        ctx->fn_blk_to_pic[V_C] = oapv_blk_to_pic_p21x_uv;
     }
     else {
-        for(int c = 0; c < ctx->num_comp; c++) {
-            ctx->fn_block_to_imgb[c] = blk_to_imgb_16;
+        if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
+            if(ctx->disable_companding){
+                for(int i = 0; i < ctx->num_c; i++) {
+                    ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+                }
+            }
+            else{
+                for(int i = 0; i < ctx->num_c; i++) {
+                    ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_12E16;
+                }
+            }
+        }
+        else{
+            for(int i = 0; i < ctx->num_c; i++) {
+                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+            }
         }
     }
 
@@ -1612,25 +1487,25 @@ static void dec_frm_finish(oapvd_ctx_t *ctx)
     ctx->imgb = NULL;
 }
 
-static int dec_tile_comp(oapvd_tile_t *tile, oapvd_ctx_t *ctx, oapvd_core_t *core, oapv_bs_t *bs, int c, int s_dst, void *dst)
+static int dec_tile_comp(oapvd_tile_t *tile, oapvd_ctx_t *ctx, oapvd_core_t *core, oapv_bs_t *bs, int c, int pic_s, void *pic)
 {
-    int  mb_h, mb_w, mb_y, mb_x, blk_y, blk_x;
+    int  mb_h, mb_w, y, x, j, i;
     int  le, ri, to, bo;
     int  ret;
-    s16 *d16;
+    s16 *pic_t;
 
-    mb_h = OAPV_MB_H >> ctx->comp_sft[c][1];
-    mb_w = OAPV_MB_W >> ctx->comp_sft[c][0];
+    mb_h = OAPV_MB_H >> ctx->c_sft[c][1];
+    mb_w = OAPV_MB_W >> ctx->c_sft[c][0];
 
-    le = tile->x >> ctx->comp_sft[c][0];        // left position of tile
-    ri = (tile->w >> ctx->comp_sft[c][0]) + le; // right pixel position of tile
-    to = tile->y >> ctx->comp_sft[c][1];        // top pixel position of tile
-    bo = (tile->h >> ctx->comp_sft[c][1]) + to; // bottom pixel position of tile
+    le = tile->x >> ctx->c_sft[c][0];        // left position of tile
+    ri = (tile->w >> ctx->c_sft[c][0]) + le; // right pixel position of tile
+    to = tile->y >> ctx->c_sft[c][1];        // top pixel position of tile
+    bo = (tile->h >> ctx->c_sft[c][1]) + to; // bottom pixel position of tile
 
-    for(mb_y = to; mb_y < bo; mb_y += mb_h) {
-        for(mb_x = le; mb_x < ri; mb_x += mb_w) {
-            for(blk_y = mb_y; blk_y < (mb_y + mb_h); blk_y += OAPV_BLK_H) {
-                for(blk_x = mb_x; blk_x < (mb_x + mb_w); blk_x += OAPV_BLK_W) {
+    for(y = to; y < bo; y += mb_h) {
+        for(x = le; x < ri; x += mb_w) {
+            for(j = y; j < (y + mb_h); j += OAPV_BLK_H) {
+                for(i = x; i < (x + mb_w); i += OAPV_BLK_W) {
                     // clear coefficient buffers in a macroblock
                     oapv_mset_x128(core->coef, 0, sizeof(s16)*OAPV_MB_D);
 
@@ -1641,15 +1516,15 @@ static int dec_tile_comp(oapvd_tile_t *tile, oapvd_ctx_t *ctx, oapvd_core_t *cor
                     // parse AC coefficient
                     ret = oapvd_vlc_ac_coef(bs, core->coef, &core->kparam_ac[c]);
                     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
-                    DUMP_COEF(core->dc_diff, core->coef + 1, OAPV_BLK_D - 1, blk_x, blk_y, c);
+                    DUMP_COEF(core->dc_diff, core->coef + 1, OAPV_BLK_D - 1, i, j, c);
 
                     // decode a block
                     ret = dec_block(ctx, core, OAPV_LOG2_BLK_W, OAPV_LOG2_BLK_H, c);
                     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
                     // copy decoded block to image buffer
-                    d16 = (s16 *)((u8 *)dst + blk_y * s_dst) + blk_x;
-                    ctx->fn_block_to_imgb[c](core->coef, OAPV_BLK_W, OAPV_BLK_H, (OAPV_BLK_W << 1), blk_x, s_dst, d16, ctx->bit_depth);
+                    pic_t = (s16 *)((u8 *)pic + j * pic_s) + i;
+                    ctx->fn_blk_to_pic[c](OAPV_BLK_W, OAPV_BLK_H, core->coef, (OAPV_BLK_W << 1), pic_t, i, pic_s, ctx->bit_depth);
                 }
             }
         }
@@ -1670,10 +1545,10 @@ static int dec_tile(oapvd_core_t *core, oapvd_tile_t *tile)
     oapv_bs_t    bs; // bs for 'tile()' syntax
 
     oapv_bsr_init(&bs, tile->bs_beg + OAPV_TILE_SIZE_LEN, tile->tile_size, NULL);
-    ret = oapvd_vlc_tile_header(&bs, ctx->num_comp, &tile->th, tile->tile_size);
+    ret = oapvd_vlc_tile_header(&bs, ctx->num_c, &tile->th, tile->tile_size);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
-    for(c = 0; c < ctx->num_comp; c++) {
+    for(c = 0; c < ctx->num_c; c++) {
         core->qp[c] = tile->th.tile_qp[c];
         u8 dq_scale = oapv_tbl_dq_scale[core->qp[c] % 6];
         core->dq_shift[c] = ctx->bit_depth - 2 - (core->qp[c] / 6);
@@ -1690,25 +1565,25 @@ static int dec_tile(oapvd_core_t *core, oapvd_tile_t *tile)
         }
     }
 
-    for(c = 0; c < ctx->num_comp; c++) {
-        int  tc, s_dst;
-        s16 *dst;
+    for(c = 0; c < ctx->num_c; c++) {
+        int  tc, pic_s;
+        s16 *pic;
         oapv_bs_t bsc; // bs for 'tile_data()' syntax
 
         oapv_bsr_init(&bsc, BSR_GET_CUR(&bs), tile->th.tile_data_size[c], NULL);
 
         if(OAPV_CS_GET_FORMAT(ctx->imgb->cs) == OAPV_CF_PLANAR2) {
             tc = c > 0 ? 1 : 0;
-            dst = ctx->imgb->a[tc];
-            dst += (c > 1) ? 1 : 0;
-            s_dst = ctx->imgb->s[tc];
+            pic = ctx->imgb->a[tc];
+            pic += (c > 1) ? 1 : 0;
+            pic_s = ctx->imgb->s[tc];
         }
         else {
-            dst = ctx->imgb->a[c];
-            s_dst = ctx->imgb->s[c];
+            pic = ctx->imgb->a[c];
+            pic_s = ctx->imgb->s[c];
         }
 
-        ret = dec_tile_comp(tile, ctx, core, &bsc, c, s_dst, dst);
+        ret = dec_tile_comp(tile, ctx, core, &bsc, c, pic_s, pic);
         oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
         // move bs buffer to next 'tile_data()' component
@@ -2077,6 +1952,9 @@ int oapvd_config(oapvd_t did, int cfg, void *buf, int *size)
         ctx->use_frm_hash = (*((int *)buf)) ? 1 : 0;
         break;
 
+    case OAPV_CFG_SET_DISABLE_COMPANDING:
+        ctx->disable_companding = (*((int *)buf)) ? 1 : 0;
+        break;
     default:
         oapv_assert_rv(0, OAPV_ERR_UNSUPPORTED);
     }

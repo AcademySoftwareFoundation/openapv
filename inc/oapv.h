@@ -164,6 +164,7 @@ extern "C" {
 #define OAPV_CS_YCBCR422_12LE           OAPV_CS_SET(OAPV_CF_YCBCR422, 12, 0)
 #define OAPV_CS_YCBCR444_12LE           OAPV_CS_SET(OAPV_CF_YCBCR444, 12, 0)
 #define OAPV_CS_YCBCR4444_12LE          OAPV_CS_SET(OAPV_CF_YCBCR4444, 12, 0)
+#define OAPV_CS_YCBCR4444_16LE          OAPV_CS_SET(OAPV_CF_YCBCR4444, 16, 0)
 #define OAPV_CS_P210                    OAPV_CS_SET(OAPV_CF_PLANAR2, 10, 0)
 
 /* max number of color channel: ex) YCbCr4444 -> 4 channels */
@@ -180,6 +181,7 @@ extern "C" {
 #define OAPV_CFG_SET_QP_MAX             (209)
 #define OAPV_CFG_SET_USE_FRM_HASH       (301)
 #define OAPV_CFG_SET_AU_BS_FMT          (302)
+#define OAPV_CFG_SET_DISABLE_COMPANDING (400)
 #define OAPV_CFG_GET_QP_MIN             (600)
 #define OAPV_CFG_GET_QP_MAX             (601)
 #define OAPV_CFG_GET_QP                 (602)
@@ -240,6 +242,9 @@ extern "C" {
 #define OAPV_PROFILE_4444_10            (77)
 #define OAPV_PROFILE_4444_12            (88)
 #define OAPV_PROFILE_400_10             (99)
+#define OAPV_PROFILE_444_16C12          (140)
+#define OAPV_PROFILE_4444_16C12         (144)
+
 
 /*****************************************************************************
  * family
@@ -405,6 +410,8 @@ typedef struct oapv_frm_info oapv_frm_info_t;
 struct oapv_frm_info {
     int           w;
     int           h;
+    // output frame's color space
+    // 16bit color space will be set if the profile is 444/4444-16C12
     int           cs;
     int           pbu_type;
     int           group_id;
@@ -414,6 +421,7 @@ struct oapv_frm_info {
     int           chroma_format_idc;
     int           bit_depth;
     int           capture_time_distance;
+    int           use_companding;
     // flag for custom quantization matrix
     int           use_q_matrix;
     // q_matrix is meaningful if use_q_matrix is true
@@ -451,6 +459,7 @@ static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
     {"4444-10", OAPV_PROFILE_4444_10},
     {"4444-12", OAPV_PROFILE_4444_12},
     {"400-10", OAPV_PROFILE_400_10},
+    {"4444-16C12", OAPV_PROFILE_4444_16C12},
     {"", 0} // termination
 };
 
