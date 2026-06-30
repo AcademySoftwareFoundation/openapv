@@ -1409,7 +1409,16 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_
 {
     int i;
 
-    if (imgb->w[0] < ctx->fh.fi.frame_width || imgb->h[0] < ctx->fh.fi.frame_height) {
+    // the input image buffer must match the frame format signaled in the
+    // bitstream; a mismatch (e.g. caused by a resolution change without
+    // reallocation) is rejected as an invalid argument
+    if (imgb->w[0] != ctx->fh.fi.frame_width || imgb->h[0] != ctx->fh.fi.frame_height) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
+    // the color space of the input buffer must correspond to the bitstream's
+    // chroma format (note: OAPV_CF_PLANAR2 maps to chroma_format_idc 2 so the
+    // YCbCr422 -> P210 output path is accepted)
+    if (color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb->cs)) != ctx->fh.fi.chroma_format_idc) {
         return OAPV_ERR_INVALID_ARGUMENT;
     }
 

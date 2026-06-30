@@ -191,25 +191,61 @@ ERR:
         free(args_var);
 }
 
-static int read_au_size(FILE *fp)
+/* read 4-byte access unit size.
+ * return values:
+ *   1  : success, *au_size holds the parsed size
+ *   0  : clean end of file (no byte was read before EOF)
+ *  -1  : read error or partial read (1~3 bytes read then EOF/error)
+ */
+static int read_au_size(FILE *fp, unsigned int *au_size)
 {
     unsigned char buf[4];
+    size_t        n;
 
-   for(int i = 0; i < 4; i++) {
-        if(1 != fread(&buf[i], 1, 1, fp))
+    for(int i = 0; i < 4; i++) {
+        n = fread(&buf[i], 1, 1, fp);
+        if(n != 1) {
+            if(i == 0 && feof(fp)) {
+                return 0; /* clean EOF at an access unit boundary */
+            }
+            /* partial read (truncated size field) or read error */
+            if(ferror(fp)) {
+                logerr("ERR: file read error at byte %d of au_size field\n", i);
+            } else {
+                logerr("ERR: truncated au_size field (read %d/4 bytes before EOF)\n", i);
+            }
             return -1;
+        }
     }
-    return ((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | (buf[3]));
+    *au_size = ((unsigned int)buf[0] << 24) | ((unsigned int)buf[1] << 16) |
+               ((unsigned int)buf[2] << 8) | ((unsigned int)buf[3]);
+    return 1;
 }
 
 static int read_bitstream(FILE *fp, unsigned char *bs_buf, int *bs_buf_size)
 {
-    int           au_size, read_size = 0;
+    unsigned int  au_size;
+    int           read_size = 0;
     unsigned char b = 0;
+    int           ret;
     if(!fseek(fp, 0, SEEK_CUR)) {
         /* read size first */
-        au_size = read_au_size(fp);
+        ret = read_au_size(fp, &au_size);
+        if(ret == 0) {
+            logv2_line("");
+            logv2("End of file\n");
+            return 0;
+        }
+        else if(ret < 0) {
+            logerr("Cannot read bitstream size!\n");
+            return -1;
+        }
         if(au_size > 0) {
+            /* check if bitstream size exceeds MAX_BS_BUF */
+            if(au_size > MAX_BS_BUF) {
+                logerr("ERR: bitstream size (%u bytes) exceeds maximum buffer size (%d bytes)\n", au_size, MAX_BS_BUF);
+                return -1;
+            }
             while(au_size > 0) {
                 /* read byte */
                 if(1 != fread(&b, 1, 1, fp)) {
@@ -223,15 +259,9 @@ static int read_bitstream(FILE *fp, unsigned char *bs_buf, int *bs_buf_size)
             *bs_buf_size = read_size;
         }
         else {
-            if(feof(fp)) {
-                logv2_line("");
-                logv2("End of file\n");
-                return 0;
-            }
-            else {
-                logerr("Cannot read bitstream size!\n")
-                return -1;
-            };
+            /* size field present but zero: malformed bitstream */
+            logerr("Cannot read bitstream size!\n");
+            return -1;
         }
     }
     else {
@@ -407,6 +437,7 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     oapv_clk_t       clk_beg, clk_end, clk_tot;
     int              au_cnt, frm_cnt[OAPV_MAX_NUM_FRAMES];
     int              read_size, bs_buf_size = 0;
+    int              prev_frm_w = -1, prev_frm_h = -1;
 
     memset(frm_cnt, 0, sizeof(int) * OAPV_MAX_NUM_FRAMES);
     memset(&aui, 0, sizeof(oapv_au_info_t));
@@ -469,6 +500,15 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             goto ERR;
         }
 
+        /* check frame resolution change */
+        if(au_cnt > 0 && aui.num_frms > 0) {
+            finfo = &aui.frm_info[0];
+            if((prev_frm_w != -1 && prev_frm_w != finfo->w) || (prev_frm_h != -1 && prev_frm_h != finfo->h)) {
+                logv2("WARNING: frame resolution changed from (%dx%d) to (%dx%d) at AU %d\n",
+                      prev_frm_w, prev_frm_h, finfo->w, finfo->h, au_cnt);
+            }
+        }
+
         /* create decoding frame buffers */
         ofrms.num_frms = aui.num_frms;
         for(i = 0; i < ofrms.num_frms; i++) {
@@ -493,6 +533,11 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                     ret = -1;
                     goto ERR;
                 }
+            }
+            /* update previous frame resolution */
+            if(IS_NON_AUX_FRM(finfo)) {
+                prev_frm_w = finfo->w;
+                prev_frm_h = finfo->h;
             }
         }
 
@@ -559,6 +604,11 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             frm = &ofrms.frm[i];
             if(ofrms.num_frms > 0) {
                 if(OAPV_CS_GET_BIT_DEPTH(frm->imgb->cs) != args_var->output_depth && args_var->output_csp != OUTPUT_CSP_P210) {
+                    /* check if imgb_w needs to be reallocated due to resolution change */
+                    if(imgb_w != NULL && (imgb_w->w[0] != frm->imgb->w[0] || imgb_w->h[0] != frm->imgb->h[0])) {
+                        imgb_w->release(imgb_w);
+                        imgb_w = NULL;
+                    }
                     if(imgb_w == NULL) {
                         imgb_w = imgb_create(frm->imgb->w[0], frm->imgb->h[0],
                                              OAPV_CS_SET(OAPV_CS_GET_FORMAT(frm->imgb->cs), args_var->output_depth, 0));
@@ -632,15 +682,31 @@ ERR:
     return 0;
 }
 
+/* read a 4-byte big-endian unsigned integer.
+ * return values:
+ *   0  : success, *val holds the parsed value
+ *  -1  : EOF or read error or partial read
+ */
 static int read_u32(FILE *fp, unsigned int * val)
 {
     unsigned char buf[4];
+    size_t        n;
 
     for(int i = 0; i < 4; i++) {
-        if(1 != fread(&buf[i], 1, 1, fp))
+        n = fread(&buf[i], 1, 1, fp);
+        if(n != 1) {
+            if(i == 0 && feof(fp)) {
+                /* clean EOF at 4-byte boundary - normal termination */
+            } else if(ferror(fp)) {
+                logerr("ERR: file read error at byte %d of u32 field\n", i);
+            } else {
+                logerr("ERR: truncated u32 field (read %d/4 bytes before EOF)\n", i);
+            }
             return -1;
+        }
     }
-    *val = ((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | (buf[3]));
+    *val = ((unsigned int)buf[0] << 24) | ((unsigned int)buf[1] << 16) |
+           ((unsigned int)buf[2] << 8) | ((unsigned int)buf[3]);
     return 0;
 }
 
@@ -686,6 +752,7 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     int               primary_frm_cnt = 0; // number of decoded primary frame
     int               primary_frm_gid = -1; // group id of primary frame
     unsigned char    *pbu = NULL;
+    int               prev_frm_w = -1, prev_frm_h = -1;
 
     // create bitstream buffer
     pbu = malloc(MAX_BS_BUF);
@@ -734,15 +801,9 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         /* read access unit size */
         unsigned int au_size;
         if(read_u32(fp_bs, &au_size) < 0) {
-            if(feof(fp_bs)) {
-                logv2_line("");
-                logv2("End of file\n");
-                ret = 0; goto END;
-            }
-            else {
-                logerr("ERR: cannot read au_size\n");
-                ret = -1; goto ERR;
-            }
+            logv2_line("");
+            logv2("End of file\n");
+            ret = 0; goto END;
         }
         /* check signature ('aPv1') */
         unsigned int signature = 0;
@@ -751,12 +812,12 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             ret = -1; goto ERR;
         }
         if(signature != 0x61507631) {
-            logerr("ERR: signature mismatch")
+            logerr("ERR: signature mismatch (0x%08X)\n", signature);
             ret = -1;  goto ERR;
         }
         au_size -= 4; /* byte size of signature syntax */
 
-        logv3("AU(%d byte)\n", au_size);
+        logv3("AU[%03d] (%d byte)\n", au_cnt, au_size);
 
         /* PBU loop **********************************************************/
         int rsize = 0;
@@ -770,6 +831,12 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 ret = -1; goto ERR;
             }
             rsize += 4; /* byte size of pbu_size syntax */
+
+            /* check if PBU size exceeds MAX_BS_BUF */
+            if(pbu_size > MAX_BS_BUF) {
+                logerr("ERR: PBU size (%u bytes) exceeds maximum buffer size (%d bytes)\n", pbu_size, MAX_BS_BUF);
+                ret = -1; goto ERR;
+            }
 
             /* read a PBU */
             if(read_pbu(fp_bs, pbu, pbu_size) < 0) {
@@ -804,6 +871,14 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 if(OAPV_FAILED(ret)) {
                     logerr("ERR: failed to get frame information (ret = %d)\n", ret);
                     ret = -1; goto ERR;
+                }
+
+                /* check frame resolution change */
+                if(primary_frm_cnt > 0) {
+                    if((prev_frm_w != -1 && prev_frm_w != finfo.w) || (prev_frm_h != -1 && prev_frm_h != finfo.h)) {
+                        logv2("WARNING: frame resolution changed from (%dx%d) to (%dx%d) at frame %d\n",
+                              prev_frm_w, prev_frm_h, finfo.w, finfo.h, primary_frm_cnt);
+                    }
                 }
 
                 // create decoding frame buffers if needs
@@ -862,6 +937,11 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
                 /* write decoded frames into files */
                 if(OAPV_CS_GET_BIT_DEPTH(imgb_dec->cs) != args_var->output_depth && args_var->output_csp != OUTPUT_CSP_P210) {
+                    /* check if imgb_tmp needs to be reallocated due to resolution change */
+                    if(imgb_tmp != NULL && (imgb_tmp->w[0] != imgb_dec->w[0] || imgb_tmp->h[0] != imgb_dec->h[0])) {
+                        imgb_tmp->release(imgb_tmp);
+                        imgb_tmp = NULL;
+                    }
                     if(imgb_tmp == NULL) {
                         imgb_tmp = imgb_create(imgb_dec->w[0], imgb_dec->h[0],
                                              OAPV_CS_SET(OAPV_CS_GET_FORMAT(imgb_dec->cs), args_var->output_depth, 0));
@@ -892,6 +972,9 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                         goto ERR;
                     }
                 }
+                /* update previous frame resolution */
+                prev_frm_w = finfo.w;
+                prev_frm_h = finfo.h;
                 primary_frm_cnt++;
                 fflush(stdout);
                 fflush(stderr);
@@ -910,6 +993,7 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             }
             rsize += pbu_size;
         }
+        au_cnt++;
     }
 
 END:
