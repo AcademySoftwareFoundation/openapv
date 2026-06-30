@@ -50,7 +50,7 @@ typedef enum _STATES {
 /* define various command line options as a table */
 static const args_opt_t enc_args_opts[] = {
     {
-        'v',  "verbose", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        'v',  "verbose", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "verbose (log) level\n"
         "      - 0: no message\n"
         "      - 1: only error message\n"
@@ -58,52 +58,52 @@ static const args_opt_t enc_args_opts[] = {
         "      - 3: frame-level messages"
     },
     {
-        'i', "input", ARGS_VAL_TYPE_STRING | ARGS_VAL_TYPE_MANDATORY, 0, NULL,
+        'i', "input", ARGS_VAL_TYPE_STRING | ARGS_VAL_TYPE_MANDATORY, 0, NULL, 0,
         "file name of input video"
     },
     {
-        'o', "output", ARGS_VAL_TYPE_STRING, 0, NULL,
+        'o', "output", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "file name of output bitstream"
     },
     {
-        'r', "recon", ARGS_VAL_TYPE_STRING, 0, NULL,
+        'r', "recon", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "file name of reconstructed video"
     },
     {
-        'w',  "width", ARGS_VAL_TYPE_STRING, 0, NULL,
+        'w',  "width", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "pixel width of input video"
     },
     {
-        'h',  "height", ARGS_VAL_TYPE_STRING, 0, NULL,
+        'h',  "height", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "pixel height of input video"
     },
     {
-        'q',  "qp", ARGS_VAL_TYPE_STRING, 0, NULL,
+        'q',  "qp", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "QP value: 0 ~ (63 + (bitdepth - 10)*6) \n"
         "      - 10bit input: 0 ~ 63\n"
         "      - 12bit input and 12C16bit: 0 ~ 75\n"
         "      - 'auto' means that the value is internally determined"
     },
     {
-        'z',  "fps", ARGS_VAL_TYPE_STRING, 0, NULL,
+        'z',  "fps", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "frame rate (frames per second)"
     },
     {
-        'm',  "threads", ARGS_VAL_TYPE_STRING, 0, NULL,
+        'm',  "threads", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "force use of a specific number of threads\n"
         "      - 'auto' means that the value is internally determined"
     },
     {
-        ARGS_NO_KEY,  "preset", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "preset", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "encoder preset [fastest, fast, medium, slow, placebo]"
     },
     {
-        'd',  "input-depth", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        'd',  "input-depth", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "input bit depth (8, 10-12, 16)\n"
         "      - Note: 8bit input will be converted to 10bit"
     },
     {
-        ARGS_NO_KEY,  "input-csp", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        ARGS_NO_KEY,  "input-csp", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "input color space (chroma format)\n"
         "      - 0: 400\n"
         "      - 2: 422\n"
@@ -112,7 +112,7 @@ static const args_opt_t enc_args_opts[] = {
         "      - 5: P2(Planar Y, Combined CbCr, 422)"
     },
     {
-        ARGS_NO_KEY,  "family", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "family", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "family name for bitrate setting\n"
         "      - 422-LQ: YCbCr422 low quality\n"
         "      - 422-SQ: YCbCr422 standard quality\n"
@@ -123,7 +123,7 @@ static const args_opt_t enc_args_opts[] = {
         "            color space, if they coexists."
     },
     {
-        ARGS_NO_KEY,  "profile", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "profile", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "profile string\n"
         "      - 422-10: YCbCr422 10bit (default)\n"
         "      - 422-12: YCbCr422 12bit\n"
@@ -139,67 +139,67 @@ static const args_opt_t enc_args_opts[] = {
         "            color space, if they coexists."
     },
     {
-        ARGS_NO_KEY,  "level", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "level", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "level setting (1, 1.1, 2, 2.1, 3, 3.1, 4, 4.1, 5, 5.1, 6, 6.1, 7, 7.1)\n"
         "      - 'auto' means that the value is internally determined"
     },
     {
-        ARGS_NO_KEY,  "band", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "band", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "band setting (0, 1, 2, 3)\n"
         "      - 'auto' means that the value is internally determined"
     },
     {
-        ARGS_NO_KEY,  "max-au", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        ARGS_NO_KEY,  "max-au", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "maximum number of access units to be encoded"
     },
     {
-        ARGS_NO_KEY,  "seek", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        ARGS_NO_KEY,  "seek", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "number of skipped access units before encoding"
     },
     {
-        ARGS_NO_KEY,  "qp-offset-c1", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "qp-offset-c1", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "QP offset value for Component 1 (Cb)"
     },
     {
-        ARGS_NO_KEY,  "qp-offset-c2", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "qp-offset-c2", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "QP offset value for Component 2 (Cr)"
     },
     {
-        ARGS_NO_KEY,  "qp-offset-c3", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "qp-offset-c3", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "QP offset value for Component 3"
     },
     {
-        ARGS_NO_KEY,  "tile-w", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "tile-w", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "width of tile in units of pixels"
     },
     {
-        ARGS_NO_KEY,  "tile-h", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "tile-h", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "height of tile in units of pixels"
     },
     {
-        ARGS_NO_KEY,  "bitrate", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "bitrate", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "enable ABR rate control\n"
         "      bitrate in terms of kbits per second: Kbps(none,K,k), Mbps(M,m)\n"
         "      ex) 100 = 100K = 0.1M"
     },
     {
-        ARGS_NO_KEY,  "q-matrix-c0", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "q-matrix-c0", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "custom quantization matrix for component 0 (Y) \"q1 q2 ... q63 q64\""
     },
     {
-        ARGS_NO_KEY,  "q-matrix-c1", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "q-matrix-c1", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "custom quantization matrix for component 1 (Cb) \"q1 q2 ... q63 q64\""
     },
     {
-        ARGS_NO_KEY,  "q-matrix-c2", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "q-matrix-c2", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "custom quantization matrix for component 2 (Cr) \"q1 q2 ... q63 q64\""
     },
     {
-        ARGS_NO_KEY,  "q-matrix-c3", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "q-matrix-c3", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "custom quantization matrix for component 3 \"q1 q2 ... q63 q64\""
     },
     {
-        ARGS_NO_KEY,  "color-primaries", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        ARGS_NO_KEY,  "color-primaries", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "ColourPrimaries value defined in ITU-T H.273\n"
         "      - 1: bt709\n"
         "      - 2: unspecified\n"
@@ -218,7 +218,7 @@ static const args_opt_t enc_args_opts[] = {
         "            and 'color-range' should all be set."
     },
     {
-        ARGS_NO_KEY,  "color-transfer", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        ARGS_NO_KEY,  "color-transfer", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "TransferCharacteristics value defined in ITU-T H.273\n"
         "      - 1: bt709\n"
         "      - 2: unspecified\n"
@@ -243,7 +243,7 @@ static const args_opt_t enc_args_opts[] = {
 
     },
     {
-        ARGS_NO_KEY,  "color-matrix", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        ARGS_NO_KEY,  "color-matrix", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "MatrixCoefficients value defined in ITU-T H.273\n"
         "      - 0: gbr\n"
         "      - 1: bt709\n"
@@ -264,7 +264,7 @@ static const args_opt_t enc_args_opts[] = {
         "            and 'color-range' should all be set."
     },
     {
-        ARGS_NO_KEY,  "color-range", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        ARGS_NO_KEY,  "color-range", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "Color range\n"
         "      - 0: limited color range ('tv' color range) \n"
         "      - 1: full color range ('pc' color range)\n"
@@ -273,18 +273,18 @@ static const args_opt_t enc_args_opts[] = {
         "            and 'color-range' should all be set."
     },
     {
-        ARGS_NO_KEY,  "hash", ARGS_VAL_TYPE_NONE, 0, NULL,
+        ARGS_NO_KEY,  "hash", ARGS_VAL_TYPE_NONE, 0, NULL, 0,
         "embed frame hash value for conformance checking in decoding"
     },
     {
-        ARGS_NO_KEY,  "master-display", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "master-display", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "mastering display color volume metadata"
     },
     {
-        ARGS_NO_KEY,  "max-cll", ARGS_VAL_TYPE_STRING, 0, NULL,
+        ARGS_NO_KEY,  "max-cll", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "content light level information metadata"
     },
-    {ARGS_END_KEY, "", ARGS_VAL_TYPE_NONE, 0, NULL, ""} /* termination */
+    {ARGS_END_KEY, "", ARGS_VAL_TYPE_NONE, 0, NULL, 0, ""} /* termination */
 };
 
 // clang-format on
@@ -350,63 +350,63 @@ static args_var_t *args_init_vars(args_parser_t *args, oapve_param_t *param)
 
     vars->param = param;
 
-    /*args_set_variable_by_key_long(opts, "config", args->fname_cfg);*/
-    args_set_variable_by_key_long(opts, "input", vars->fname_inp);
-    args_set_variable_by_key_long(opts, "output", vars->fname_out);
-    args_set_variable_by_key_long(opts, "recon", vars->fname_rec);
-    args_set_variable_by_key_long(opts, "max-au", &vars->max_au);
-    args_set_variable_by_key_long(opts, "hash", &vars->hash);
-    args_set_variable_by_key_long(opts, "verbose", &op_verbose);
+    /*args_set_variable_by_key_long(opts, "config", args->fname_cfg, 0);*/
+    args_set_variable_by_key_long(opts, "input", vars->fname_inp, sizeof(vars->fname_inp));
+    args_set_variable_by_key_long(opts, "output", vars->fname_out, sizeof(vars->fname_out));
+    args_set_variable_by_key_long(opts, "recon", vars->fname_rec, sizeof(vars->fname_rec));
+    args_set_variable_by_key_long(opts, "max-au", &vars->max_au, 0);
+    args_set_variable_by_key_long(opts, "hash", &vars->hash, 0);
+    args_set_variable_by_key_long(opts, "verbose", &op_verbose, 0);
     op_verbose = VERBOSE_SIMPLE; /* default */
-    args_set_variable_by_key_long(opts, "input-depth", &vars->input_depth);
+    args_set_variable_by_key_long(opts, "input-depth", &vars->input_depth, 0);
     vars->input_depth = 10; /* default */
-    args_set_variable_by_key_long(opts, "input-csp", &vars->input_csp);
+    args_set_variable_by_key_long(opts, "input-csp", &vars->input_csp, 0);
     vars->input_csp = -1;
-    args_set_variable_by_key_long(opts, "seek", &vars->seek);
-    args_set_variable_by_key_long(opts, "profile", vars->profile);
+    args_set_variable_by_key_long(opts, "seek", &vars->seek, 0);
+    args_set_variable_by_key_long(opts, "profile", vars->profile, sizeof(vars->profile));
     strcpy(vars->profile, "422-10");
-    args_set_variable_by_key_long(opts, "level", vars->level);
+    args_set_variable_by_key_long(opts, "level", vars->level, sizeof(vars->level));
     strcpy(vars->level, "auto"); /* default */
-    args_set_variable_by_key_long(opts, "band", vars->band);
+    args_set_variable_by_key_long(opts, "band", vars->band, sizeof(vars->band));
     strcpy(vars->band, "auto"); /* default */
 
-    args_set_variable_by_key_long(opts, "width", vars->width);
-    args_set_variable_by_key_long(opts, "height", vars->height);
-    args_set_variable_by_key_long(opts, "fps", vars->fps);
+    args_set_variable_by_key_long(opts, "width", vars->width, sizeof(vars->width));
+    args_set_variable_by_key_long(opts, "height", vars->height, sizeof(vars->height));
+    args_set_variable_by_key_long(opts, "fps", vars->fps, sizeof(vars->fps));
 
-    args_set_variable_by_key_long(opts, "qp", vars->qp);
+    args_set_variable_by_key_long(opts, "qp", vars->qp, sizeof(vars->qp));
     strcpy(vars->qp, "auto"); /* default */
-    args_set_variable_by_key_long(opts, "qp_offset_c1", vars->qp_offset_c1);
-    args_set_variable_by_key_long(opts, "qp_offset_c2", vars->qp_offset_c2);
-    args_set_variable_by_key_long(opts, "qp_offset_c3", vars->qp_offset_c3);
+    args_set_variable_by_key_long(opts, "qp_offset_c1", vars->qp_offset_c1, sizeof(vars->qp_offset_c1));
+    args_set_variable_by_key_long(opts, "qp_offset_c2", vars->qp_offset_c2, sizeof(vars->qp_offset_c2));
+    args_set_variable_by_key_long(opts, "qp_offset_c3", vars->qp_offset_c3, sizeof(vars->qp_offset_c3));
 
-    args_set_variable_by_key_long(opts, "family", vars->family);
-    args_set_variable_by_key_long(opts, "bitrate", vars->bitrate);
+    args_set_variable_by_key_long(opts, "family", vars->family, sizeof(vars->family));
+    args_set_variable_by_key_long(opts, "bitrate", vars->bitrate, sizeof(vars->bitrate));
 
-    args_set_variable_by_key_long(opts, "q-matrix-c0", vars->q_matrix_c0);
-    args_set_variable_by_key_long(opts, "q-matrix-c1", vars->q_matrix_c1);
-    args_set_variable_by_key_long(opts, "q-matrix-c2", vars->q_matrix_c2);
-    args_set_variable_by_key_long(opts, "q-matrix-c3", vars->q_matrix_c3);
+    args_set_variable_by_key_long(opts, "q-matrix-c0", vars->q_matrix_c0, sizeof(vars->q_matrix_c0));
+    args_set_variable_by_key_long(opts, "q-matrix-c1", vars->q_matrix_c1, sizeof(vars->q_matrix_c1));
+    args_set_variable_by_key_long(opts, "q-matrix-c2", vars->q_matrix_c2, sizeof(vars->q_matrix_c2));
+    args_set_variable_by_key_long(opts, "q-matrix-c3", vars->q_matrix_c3, sizeof(vars->q_matrix_c3));
 
-    args_set_variable_by_key_long(opts, "threads", vars->threads);
+    args_set_variable_by_key_long(opts, "threads", vars->threads, sizeof(vars->threads));
     strcpy(vars->threads, "auto");
 
-    args_set_variable_by_key_long(opts, "tile-w", vars->tile_w);
-    args_set_variable_by_key_long(opts, "tile-h", vars->tile_h);
+    args_set_variable_by_key_long(opts, "tile-w", vars->tile_w, sizeof(vars->tile_w));
+    args_set_variable_by_key_long(opts, "tile-h", vars->tile_h, sizeof(vars->tile_h));
 
-    args_set_variable_by_key_long(opts, "preset", vars->preset);
+    args_set_variable_by_key_long(opts, "preset", vars->preset, sizeof(vars->preset));
 
-    args_set_variable_by_key_long(opts, "color-primaries", &vars->color_primaries);
+    args_set_variable_by_key_long(opts, "color-primaries", &vars->color_primaries, 0);
     vars->color_primaries = -1; /* unset */
-    args_set_variable_by_key_long(opts, "color-transfer", &vars->color_transfer);
+    args_set_variable_by_key_long(opts, "color-transfer", &vars->color_transfer, 0);
     vars->color_transfer = -1; /* unset */
-    args_set_variable_by_key_long(opts, "color-matrix", &vars->color_matrix);
+    args_set_variable_by_key_long(opts, "color-matrix", &vars->color_matrix, 0);
     vars->color_matrix = -1; /* unset */
-    args_set_variable_by_key_long(opts, "color-range", &vars->color_range);
+    args_set_variable_by_key_long(opts, "color-range", &vars->color_range, 0);
     vars->color_range = -1; /* unset */
 
-    args_set_variable_by_key_long(opts, "master-display", vars->master_display);
-    args_set_variable_by_key_long(opts, "max-cll", vars->max_cll);
+    args_set_variable_by_key_long(opts, "master-display", vars->master_display, sizeof(vars->master_display));
+    args_set_variable_by_key_long(opts, "max-cll", vars->max_cll, sizeof(vars->max_cll));
 
     return vars;
 }
@@ -1017,7 +1017,14 @@ int main(int argc, const char **argv)
         cdesc.threads = OAPV_CDESC_THREADS_AUTO;
     }
     else {
-        cdesc.threads = atoi(args_var->threads);
+        char *endptr;
+        long threads_val = strtol(args_var->threads, &endptr, 10);
+        if(endptr == args_var->threads || threads_val <= 0 || threads_val > INT_MAX) {
+            logerr("ERR: invalid threads value: %s\n", args_var->threads);
+            ret = -1;
+            goto ERR;
+        }
+        cdesc.threads = (int)threads_val;
     }
 
     if(check_conf(&cdesc, args_var)) {

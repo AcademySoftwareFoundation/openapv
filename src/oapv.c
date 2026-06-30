@@ -1422,6 +1422,23 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_
         return OAPV_ERR_INVALID_ARGUMENT;
     }
 
+    // validate buffer capacity for each component
+    // calculate required buffer size based on frame header information
+    int aligned_w = oapv_align_value(ctx->fh.fi.frame_width, OAPV_MB_W);
+    int aligned_h = oapv_align_value(ctx->fh.fi.frame_height, OAPV_MB_H);
+    int byte_depth = (ctx->fh.fi.bit_depth + 7) / 8; // bytes per pixel
+
+    for(int c = 0; c < imgb->np; c++) {
+        int comp_w = aligned_w >> (c > 0 ? get_chroma_sft_w(ctx->fh.fi.chroma_format_idc) : 0);
+        int comp_h = aligned_h >> (c > 0 ? get_chroma_sft_h(ctx->fh.fi.chroma_format_idc) : 0);
+        int required_stride = comp_w * byte_depth;
+        int required_bsize = required_stride * comp_h;
+
+        if(imgb->bsize[c] < required_bsize) {
+            return OAPV_ERR_INVALID_ARGUMENT;
+        }
+    }
+
     ctx->imgb = imgb;
     imgb_addref(ctx->imgb); // increase reference count
 

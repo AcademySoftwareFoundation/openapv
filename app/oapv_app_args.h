@@ -35,6 +35,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
+#include <errno.h>
 #include "oapv.h"
 
 #define ARGS_VAL_TYPE_MANDATORY      (1 << 0) /* mandatory or not */
@@ -57,6 +59,7 @@ typedef struct args_opt {
     int   val_type;                    /* value type */
     int   flag;                        /* flag to setting or not */
     void *val;                         /* actual value */
+    int   val_size;                    /* size of value buffer for STRING type (0 for non-STRING) */
     char  desc[1024];                   /* description of option */
 } args_opt_t;
 
@@ -120,11 +123,25 @@ static int args_read_value(args_opt_t *ops, const char *argv)
 
     switch(ARGS_GET_CMD_OPT_VAL_TYPE(ops->val_type)) {
     case ARGS_VAL_TYPE_INTEGER:
-        *((int *)ops->val) = atoi(argv);
+        {
+            char *endptr;
+            long val;
+            errno = 0;
+            val = strtol(argv, &endptr, 10);
+            if(endptr == argv || *endptr != '\0' || errno == ERANGE || val < INT_MIN || val > INT_MAX) {
+                return -1;
+            }
+            *((int *)ops->val) = (int)val;
+        }
         break;
 
     case ARGS_VAL_TYPE_STRING:
-        strcpy((char *)ops->val, argv);
+        if(ops->val_size > 0) {
+            strncpy((char *)ops->val, argv, ops->val_size - 1);
+            ((char *)ops->val)[ops->val_size - 1] = '\0';
+        } else {
+            strcpy((char *)ops->val, argv);
+        }
         break;
 
     default:
@@ -175,6 +192,8 @@ static int args_parse_int_x_int(char *str, int *num0, int *num1)
     char  str0_t[64];
     int   i, cnt0 = 0, cnt1;
     char *str0, *str1 = NULL;
+    char *endptr;
+    long  tmp_val;
 
     str0 = str;
     cnt1 = (int)strlen(str);
@@ -205,8 +224,19 @@ static int args_parse_int_x_int(char *str, int *num0, int *num1)
     strncpy(str0_t, str0, cnt0);
     str0_t[cnt0] = '\0';
 
-    *num0 = atoi(str0_t);
-    *num1 = atoi(str1);
+    /* parse first number using strtol with overflow check */
+    tmp_val = strtol(str0_t, &endptr, 10);
+    if(endptr == str0_t || tmp_val < INT_MIN || tmp_val > INT_MAX) {
+        return -1; /* conversion failed or overflow */
+    }
+    *num0 = (int)tmp_val;
+
+    /* parse second number using strtol with overflow check */
+    tmp_val = strtol(str1, &endptr, 10);
+    if(endptr == str1 || tmp_val < INT_MIN || tmp_val > INT_MAX) {
+        return -1; /* conversion failed or overflow */
+    }
+    *num1 = (int)tmp_val;
 
     return 0;
 }
@@ -314,7 +344,7 @@ ERR:
     return -1;
 }
 
-static int args_set_variable_by_key_long(args_opt_t *opts, char *key_long, void *var)
+static int args_set_variable_by_key_long(args_opt_t *opts, char *key_long, void *var, size_t size)
 {
     int   idx;
     char  buf[ARGS_MAX_KEY_LONG];
@@ -337,6 +367,7 @@ static int args_set_variable_by_key_long(args_opt_t *opts, char *key_long, void 
     if(idx < 0)
         return -1;
     opts[idx].val = var;
+    opts[idx].val_size = (int)size;
     return 0;
 }
 

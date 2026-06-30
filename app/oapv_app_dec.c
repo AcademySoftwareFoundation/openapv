@@ -49,7 +49,7 @@
 /* define various command line options as a table */
 static const args_opt_t dec_args_opts[] = {
     {
-        'v',  "verbose", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        'v',  "verbose", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "verbose (log) level\n"
         "      - 0: no message\n"
         "      - 1: only error message\n"
@@ -57,60 +57,60 @@ static const args_opt_t dec_args_opts[] = {
         "      - 3: frame-level messages"
     },
     {
-        'i', "input", ARGS_VAL_TYPE_STRING | ARGS_VAL_TYPE_MANDATORY, 0, NULL,
+        'i', "input", ARGS_VAL_TYPE_STRING | ARGS_VAL_TYPE_MANDATORY, 0, NULL, 0,
         "file name of input bitstream"
     },
     {
-        'o', "output", ARGS_VAL_TYPE_STRING, 0, NULL,
+        'o', "output", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "file name of decoded output"
     },
     {
-        ARGS_NO_KEY,  "max-au", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        ARGS_NO_KEY,  "max-au", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "maximum number of access units to be decoded"
     },
     {
-        'm',  "threads", ARGS_VAL_TYPE_STRING, 0, NULL,
+        'm',  "threads", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "force use of a specific number of threads\n"
         "      - 'auto' means that the value is internally determined"
     },
     {
-        'd',  "output-depth", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        'd',  "output-depth", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "output bit depth (8, 10, 12)\n"
         "      Note: This is option does not support 444/4444-16C12 profile."
     },
     {
-        ARGS_NO_KEY,  "hash", ARGS_VAL_TYPE_NONE, 0, NULL,
+        ARGS_NO_KEY,  "hash", ARGS_VAL_TYPE_NONE, 0, NULL, 0,
         "parse frame hash value for conformance checking in decoding"
     },
     {
-        ARGS_NO_KEY,  "output-csp", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        ARGS_NO_KEY,  "output-csp", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "output color space (chroma format)\n"
         "      - 0: coded CSP\n"
         "      - 1: convert to P210 in case of YCbCr422"
     },
     {
-        ARGS_NO_KEY,  "disable-companding", ARGS_VAL_TYPE_NONE, 0, NULL,
+        ARGS_NO_KEY,  "disable-companding", ARGS_VAL_TYPE_NONE, 0, NULL, 0,
         "forcely disable companding process\n"
         "      Note: this option forces to output 12 bits picture in case of 444-16C12\n"
         "            and 4444-16C12 profile"
     },
     {
-        ARGS_NO_KEY,  "api-set", ARGS_VAL_TYPE_INTEGER, 0, NULL,
+        ARGS_NO_KEY,  "api-set", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
         "testing with specific API set (0 or 1)\n"
         "      Note: API set 1 only supports 1.x or higher library version"
     },
     {
-        ARGS_NO_KEY,  "cyclic-tile-decoding", ARGS_VAL_TYPE_NONE, 0, NULL,
+        ARGS_NO_KEY,  "cyclic-tile-decoding", ARGS_VAL_TYPE_NONE, 0, NULL, 0,
         "testing using tile-based decoding in cyclic way\n"
         "      Note: this option is just for testing tile-based decoding method and\n"
         "            API set 1 option is required to support this"
     },
     {
-        ARGS_NO_KEY,  "disable-companding", ARGS_VAL_TYPE_NONE, 0, NULL,
+        ARGS_NO_KEY,  "disable-companding", ARGS_VAL_TYPE_NONE, 0, NULL, 0,
         "forcely disable companding process\n"
         "      Note: this option forces to output 12 bits picture in case of 444/4444-16C12 profile"
     },
-    {ARGS_END_KEY, "", ARGS_VAL_TYPE_NONE, 0, NULL, ""} /* termination */
+    {ARGS_END_KEY, "", ARGS_VAL_TYPE_NONE, 0, NULL, 0, ""} /* termination */
 };
 
 // clang-format on
@@ -139,21 +139,21 @@ static args_var_t *args_init_vars(args_parser_t *args)
     assert_rv(vars != NULL, NULL);
     memset(vars, 0, sizeof(args_var_t));
 
-    /*args_set_variable_by_key_long(opts, "config", args->fname_cfg);*/
-    args_set_variable_by_key_long(opts, "input", vars->fname_inp);
-    args_set_variable_by_key_long(opts, "output", vars->fname_out);
-    args_set_variable_by_key_long(opts, "max-au", &vars->max_au);
-    args_set_variable_by_key_long(opts, "hash", &vars->hash);
-    args_set_variable_by_key_long(opts, "disable-companding", &vars->disable_companding);
+    /*args_set_variable_by_key_long(opts, "config", args->fname_cfg, 0);*/
+    args_set_variable_by_key_long(opts, "input", vars->fname_inp, sizeof(vars->fname_inp));
+    args_set_variable_by_key_long(opts, "output", vars->fname_out, sizeof(vars->fname_out));
+    args_set_variable_by_key_long(opts, "max-au", &vars->max_au, 0);
+    args_set_variable_by_key_long(opts, "hash", &vars->hash, 0);
+    args_set_variable_by_key_long(opts, "disable-companding", &vars->disable_companding, 0);
     vars->disable_companding = 0; /* default */
-    args_set_variable_by_key_long(opts, "api-set", &vars->api_set);
-    args_set_variable_by_key_long(opts, "cyclic-tile-decoding", &vars->cyclic_tile_decoding);
-    args_set_variable_by_key_long(opts, "verbose", &op_verbose);
+    args_set_variable_by_key_long(opts, "api-set", &vars->api_set, 0);
+    args_set_variable_by_key_long(opts, "cyclic-tile-decoding", &vars->cyclic_tile_decoding, 0);
+    args_set_variable_by_key_long(opts, "verbose", &op_verbose, 0);
     op_verbose = VERBOSE_SIMPLE; /* default */
-    args_set_variable_by_key_long(opts, "threads", vars->threads);
+    args_set_variable_by_key_long(opts, "threads", vars->threads, sizeof(vars->threads));
     strcpy(vars->threads, "auto");
-    args_set_variable_by_key_long(opts, "output-depth", &vars->output_depth);
-    args_set_variable_by_key_long(opts, "output-csp", &vars->output_csp);
+    args_set_variable_by_key_long(opts, "output-depth", &vars->output_depth, 0);
+    args_set_variable_by_key_long(opts, "output-csp", &vars->output_csp, 0);
     vars->output_csp = 0; /* default: coded CSP */
 
     return vars;
@@ -456,7 +456,14 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         cdesc.threads = OAPV_CDESC_THREADS_AUTO;
     }
     else {
-        cdesc.threads = atoi(args_var->threads);
+        char *endptr;
+        long threads_val = strtol(args_var->threads, &endptr, 10);
+        if(endptr == args_var->threads || threads_val <= 0 || threads_val > INT_MAX) {
+            logerr("ERR: invalid threads value: %s\n", args_var->threads);
+            ret = -1;
+            goto ERR;
+        }
+        cdesc.threads = (int)threads_val;
     }
     did = oapvd_create(&cdesc, &ret);
     if(did == NULL) {
@@ -496,6 +503,13 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
         if(OAPV_FAILED(oapvd_info(bs_buf, bs_buf_size, &aui))) {
             logerr("ERR: cannot get information from bitstream\n");
+            ret = -1;
+            goto ERR;
+        }
+
+        /* validate num_frms from bitstream */
+        if(aui.num_frms <= 0 || aui.num_frms > OAPV_MAX_NUM_FRAMES) {
+            logerr("ERR: invalid number of frames (%d), valid range is 1-%d\n", aui.num_frms, OAPV_MAX_NUM_FRAMES);
             ret = -1;
             goto ERR;
         }
@@ -582,8 +596,20 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 logerr("ERR: failed to read metadata\n");
                 goto END;
             }
+
+            /* validate number of metadata payloads */
+            if(num_plds < 0 || num_plds > 128) {
+                logerr("ERR: invalid number of metadata payloads (%d), valid range is 0-128\n", num_plds);
+                goto END;
+            }
+
             if(num_plds > 0) {
                 pld = malloc(sizeof(oapvm_payload_t) * num_plds);
+                if(pld == NULL) {
+                    logerr("ERR: failed to allocate memory for metadata payloads (requested: %zu bytes)\n",
+                           sizeof(oapvm_payload_t) * num_plds);
+                    goto END;
+                }
                 ret = oapvm_get_all(mid, pld, &num_plds);
                 if(OAPV_FAILED(ret)) {
                     logerr("ERR: failed to read metadata\n");
@@ -779,7 +805,14 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         cdesc.threads = OAPV_CDESC_THREADS_AUTO;
     }
     else {
-        cdesc.threads = atoi(args_var->threads);
+        char *endptr;
+        long threads_val = strtol(args_var->threads, &endptr, 10);
+        if(endptr == args_var->threads || threads_val <= 0 || threads_val > INT_MAX) {
+            logerr("ERR: invalid threads value: %s\n", args_var->threads);
+            ret = -1;
+            goto ERR;
+        }
+        cdesc.threads = (int)threads_val;
     }
     did = oapvd_create(&cdesc, &ret);
     if(did == NULL) {
