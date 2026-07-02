@@ -68,7 +68,6 @@ struct args_parser {
     void (*release)(args_parser_t *args);
     int (*parse)(args_parser_t *args, int argc, const char *argv[], char **errstr);
     int (*get_help)(args_parser_t *args, int idx, char *help);
-    int (*get_str)(args_parser_t *args, char *keyl, char *str, int *flag);
     int (*get_int)(args_parser_t *args, char *keyl, int *val, int *flag);
     int (*set_str)(args_parser_t *args, char *keyl, char *str);
     int (*set_int)(args_parser_t *args, char *keyl, int val);
@@ -140,7 +139,7 @@ static int args_read_value(args_opt_t *ops, const char *argv)
             strncpy((char *)ops->val, argv, ops->val_size - 1);
             ((char *)ops->val)[ops->val_size - 1] = '\0';
         } else {
-            strcpy((char *)ops->val, argv);
+            return -1; /* STRING option without a known buffer size: reject */
         }
         break;
 
@@ -465,17 +464,6 @@ static int args_set_flag(args_parser_t *args, char *keyl, int flag)
     return -1;
 }
 
-static int args_get_str(args_parser_t *args, char *keyl, char *str, int *flag)
-{
-    char *p = NULL;
-    if(args_get(args, keyl, (void **)&p, flag))
-        return -1;
-    if(p) {
-        if(str)
-            strcpy(str, p);
-    }
-    return 0;
-}
 
 static int args_get_int(args_parser_t *args, char *keyl, int *val, int *flag)
 {
@@ -615,7 +603,6 @@ static args_parser_t *args_create(const args_opt_t *opt_table, int num_opt)
     args->release = args_release;
     args->parse = args_parse;
     args->get_help = args_get_help;
-    args->get_str = args_get_str;
     args->get_int = args_get_int;
     args->set_str = args_set_str;
     args->set_int = args_set_int;

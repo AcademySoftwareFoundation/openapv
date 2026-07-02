@@ -34,7 +34,8 @@
 #include "oapv_app_args.h"
 #include "oapv_app_y4m.h"
 
-#define MAX_BS_BUF          128 * 1024 * 1024 /* byte */
+#define MAX_BS_BUF            128 * 1024 * 1024 /* byte */
+#define MAX_NUM_METADATA_PLDS 128 /* max number of metadata payloads per access unit */
 
 // check generic frame or not
 #define IS_NON_AUX_FRM(frm) (((frm)->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME) || ((frm)->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME))

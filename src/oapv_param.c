@@ -290,6 +290,7 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     }
     NAME_CMP("bitrate") {
         if(strlen(value) > 0) {
+            if(strlen(value) + 1 > sizeof(str_buf)) return OAPV_ERR_INVALID_ARGUMENT;
             strcpy(str_buf, value); // to maintain original value
             param->bitrate = kbps_str_to_int(str_buf); // unit: kbps
             if(param->bitrate <= 0) return OAPV_ERR_INVALID_ARGUMENT;
