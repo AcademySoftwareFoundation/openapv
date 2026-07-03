@@ -414,7 +414,7 @@ static args_var_t *args_init_vars(args_parser_t *args, oapve_param_t *param)
 static void print_usage(const char **argv)
 {
     int            i;
-    char           str[1024];
+    char           str[ARGS_HELP_BUF_SIZE];
     args_parser_t *args;
     args_var_t    *args_var = NULL;
     oapve_param_t  default_param;

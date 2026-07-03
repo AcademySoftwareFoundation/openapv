@@ -52,6 +52,12 @@
 #define ARGS_MAX_NUM_CONF_FILES      (16)
 
 #define ARGS_MAX_KEY_LONG            (32)
+#define ARGS_MAX_DESC                (1024) /* max length of an option description */
+/* upper bound of the fixed prefix of a help line: key/key_long, value type,
+ * "(optional)", default value string and surrounding decoration */
+#define ARGS_HELP_PREFIX_MAX         (512)
+/* buffer size for a formatted help line: description plus its prefix */
+#define ARGS_HELP_BUF_SIZE           (ARGS_MAX_DESC + ARGS_HELP_PREFIX_MAX)
 
 typedef struct args_opt {
     char  key;                         /* option keyword. ex) -f */
@@ -60,7 +66,7 @@ typedef struct args_opt {
     int   flag;                        /* flag to setting or not */
     void *val;                         /* actual value */
     int   val_size;                    /* size of value buffer for STRING type (0 for non-STRING) */
-    char  desc[1024];                   /* description of option */
+    char  desc[ARGS_MAX_DESC];          /* description of option */
 } args_opt_t;
 
 typedef struct args_parser args_parser_t;
@@ -146,43 +152,6 @@ static int args_read_value(args_opt_t *ops, const char *argv)
     default:
         return -1;
     }
-    return 0;
-}
-
-static int args_get_arg(args_opt_t *ops, int idx, char *result)
-{
-    char        vtype[32];
-    char        value[512];
-    args_opt_t *o = ops + idx;
-
-    switch(ARGS_GET_CMD_OPT_VAL_TYPE(o->val_type)) {
-    case ARGS_VAL_TYPE_INTEGER:
-        strncpy(vtype, "INTEGER", sizeof(vtype) - 1);
-        sprintf(value, "%d", *((int *)o->val));
-        break;
-
-    case ARGS_VAL_TYPE_STRING:
-        strncpy(vtype, "STRING", sizeof(vtype) - 1);
-        sprintf(value, "%s", (char *)o->val);
-        break;
-
-    case ARGS_VAL_TYPE_NONE:
-    default:
-        strncpy(vtype, "FLAG", sizeof(vtype) - 1);
-        sprintf(value, "%d", *((int *)o->val));
-        break;
-    }
-
-    if(o->flag) {
-        strcat(value, " (SET)");
-    }
-    else {
-        strcat(value, " (DEFAULT)");
-    }
-
-    sprintf(result, "  -%c(--%s) = %s\n    : %s", o->key, o->key_long,
-            value, o->desc);
-
     return 0;
 }
 
@@ -413,7 +382,12 @@ static int args_set_str(args_parser_t *args, char *keyl, char *str)
 
     idx = args_search_long_key(args->opts, keyl);
     if(idx >= 0) {
-        sprintf((char *)(args->opts[idx].val), "%s", str);
+        if(args->opts[idx].val_size > 0) {
+            snprintf((char *)(args->opts[idx].val), args->opts[idx].val_size, "%s", str);
+        }
+        else {
+            return -1; /* STRING option without a known buffer size: reject */
+        }
         args->opts[idx].flag = 1;
         return 0;
     }
@@ -535,7 +509,7 @@ static int args_get_help(args_parser_t *args, int idx, char *help)
     case ARGS_VAL_TYPE_STRING:
         strncpy(vtype, "STRING", sizeof(vtype) - 1);
         if(o->val != NULL)
-            sprintf(default_value, " [%s]", strlen((char *)(o->val)) == 0 ? "None" : (char *)(o->val));
+            snprintf(default_value, sizeof(default_value), " [%s]", strlen((char *)(o->val)) == 0 ? "None" : (char *)(o->val));
         break;
     case ARGS_VAL_TYPE_NONE:
     default:
@@ -547,11 +521,11 @@ static int args_get_help(args_parser_t *args, int idx, char *help)
     optional = !(o->val_type & ARGS_VAL_TYPE_MANDATORY);
 
     if(o->key != ARGS_NO_KEY) {
-        sprintf(help, "  -%c, --%s [%s]%s%s\n    : %s", o->key, o->key_long,
+        snprintf(help, ARGS_HELP_BUF_SIZE, "  -%c, --%s [%s]%s%s\n    : %s", o->key, o->key_long,
                 vtype, (optional) ? " (optional)" : "", (optional) ? default_value : "", o->desc);
     }
     else {
-        sprintf(help, "  --%s [%s]%s%s\n    : %s", o->key_long,
+        snprintf(help, ARGS_HELP_BUF_SIZE, "  --%s [%s]%s%s\n    : %s", o->key_long,
                 vtype, (optional) ? " (optional)" : "", (optional) ? default_value : "", o->desc);
     }
 

@@ -163,7 +163,7 @@ static args_var_t *args_init_vars(args_parser_t *args)
 static void print_usage(const char **argv)
 {
     int            i;
-    char           str[1024];
+    char           str[ARGS_HELP_BUF_SIZE];
     args_var_t    *args_var = NULL;
     args_parser_t *args;
 
