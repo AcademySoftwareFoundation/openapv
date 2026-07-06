@@ -328,10 +328,27 @@ struct oapve_ctx {
 // start of decoder code
 #if ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
-#define DEC_TILE_STAT_NOT_DECODED 0
-#define DEC_TILE_STAT_ON_DECODING 1
-#define DEC_TILE_STAT_DECODED     2
-#define DEC_TILE_STAT_SIZE_ERROR  -1
+
+#define DEC_TILE_STAT_DECODE          (1 << 0)
+#define DEC_TILE_STAT_SKIP            (1 << 1)
+
+#define DEC_TILE_STAT_IS_DECODE(stat) ((stat) & DEC_TILE_STAT_DECODE)
+#define DEC_TILE_STAT_IS_SKIP(stat)   ((stat) & DEC_TILE_STAT_SKIP)
+
+#define DEC_TILE_STAT_FLAG_DO         (1 << 4)
+#define DEC_TILE_STAT_FLAG_ON         (1 << 5)
+#define DEC_TILE_STAT_FLAG_DONE       (1 << 6)
+#define DEC_TILE_STAT_FLAG_ERR        (1 << 7)
+
+#define DEC_TILE_STAT_DO(stat)        (((stat) & 0x0F) | DEC_TILE_STAT_FLAG_DO)
+#define DEC_TILE_STAT_ON(stat)        (((stat) & 0x0F) | DEC_TILE_STAT_FLAG_ON)
+#define DEC_TILE_STAT_DONE(stat)      (((stat) & 0x0F) | DEC_TILE_STAT_FLAG_DONE)
+#define DEC_TILE_STAT_ERR(stat)       (((stat) & 0x0F) | DEC_TILE_STAT_FLAG_ERR)
+
+#define DEC_TILE_STAT_IS_DO(stat)     ((stat) & DEC_TILE_STAT_FLAG_DO)
+#define DEC_TILE_STAT_IS_ON(stat)     ((stat) & DEC_TILE_STAT_FLAG_ON)
+#define DEC_TILE_STAT_IS_DONE(stat)   ((stat) & DEC_TILE_STAT_FLAG_DONE)
+
 
 typedef struct oapvd_tile oapvd_tile_t;
 struct oapvd_tile {
@@ -343,9 +360,9 @@ struct oapvd_tile {
     int          h;         /* tile height in unit of pixel */
     u32          tile_size; /* tile data size (byte size of tile(tileIdx) syntax) */
 
-    u8          *bs_beg; /* start position of tile in input bistream */
-    u8          *bs_end; /* end position of tile() in input bistream */
-    volatile s32 stat;   // decoding status
+    u8          *bs_beg;    /* start position of tile in input bistream */
+    u8          *bs_end;    /* end position of tile() in input bistream */
+    volatile s32 stat;      /* decoding status */
 };
 
 typedef struct oapvd_core oapvd_core_t;
@@ -408,8 +425,8 @@ struct oapvd_ctx {
 #endif // ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
 
-#define OAPV_FRAME_INFO_BYTE (112)
-#define OAPV_PBU_HEADER_BYTE (32)
+#define OAPV_PBU_HEADER_BYTE (4)
+#define OAPV_FRAME_INFO_BYTE (12)
 
 #include "oapv_metadata.h"
 #include "oapv_vlc.h"

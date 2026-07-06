@@ -56,8 +56,9 @@ int oapve_rc_get_tile_cost(oapve_ctx_t* ctx, oapve_core_t* core, oapve_tile_t* t
 
         for (int y = 0; y < tile->h; y += step_h) {
             for (int x = 0; x < tile->w; x += step_w) {
-                int tx = tile->x + x;
-                int ty = tile->y + y;
+                int tx = (tile->x + x) >> ctx->c_sft[c][0];
+                int ty = (tile->y + y) >> ctx->c_sft[c][1];
+
                 pic = (s16*)((u8*)org + ty * org_s) + tx;
                 ctx->fn_blk_from_pic[c](OAPV_BLK_W, OAPV_BLK_H, pic, 0, org_s, core->coef, (OAPV_BLK_W << 1), ctx->bit_depth, 0);
                 sum += ctx->fn_had8x8(core->coef, 8);

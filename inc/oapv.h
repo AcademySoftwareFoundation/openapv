@@ -55,8 +55,8 @@ extern "C" {
 #define OAPV_VER_GET_PATCH(v)           (((v) >>  0) & 0xFF)
 
 /* version numbers (should be changed in case of new release) */
-#define OAPV_VER_APISET                 (0)
-#define OAPV_VER_MAJOR                  (3)
+#define OAPV_VER_APISET                 (1)
+#define OAPV_VER_MAJOR                  (0)
 #define OAPV_VER_MINOR                  (0)
 #define OAPV_VER_PATCH                  (0)
 
@@ -222,6 +222,9 @@ extern "C" {
 #define OAPV_PBU_NUMS                   (10)
 
 #define OAPV_PBU_FRAME_TYPE_NUM         (5)
+#define OAPV_PBU_TYPE_IS_FRAME(pbu_type)   \
+    ((pbu_type)==1 || (pbu_type)==2 || ((pbu_type)>=25 && (pbu_type)<=27))
+
 
 /*****************************************************************************
  * metadata types
@@ -442,8 +445,23 @@ struct oapv_au_info {
     oapv_frm_info_t frm_info[OAPV_MAX_NUM_FRAMES];
 };
 
+typedef struct oapv_tile_pos oapv_tile_pos_t;
+struct oapv_tile_pos {
+    int idx; /* tile index in raster scan order */
+    int x_mb; /* x-position in MB unit */
+    int y_mb; /* y-position in MB unit */
+    int w_mb; /* width in MB unit */
+    int h_mb; /* height in MB unit */
+};
+
+typedef struct oapv_tile_info oapv_tile_info_t;
+struct oapv_tile_info {
+    int             num_tiles;
+    oapv_tile_pos_t pos_tiles[OAPV_MAX_TILES];
+};
+
 /*****************************************************************************
- * constant string values for oapve_param_parse() and command-line options
+ * constant string and value pairs
  *****************************************************************************/
 typedef struct oapv_dict_str_int oapv_dict_str_int_t; // dictionary type
 struct oapv_dict_str_int {
@@ -451,15 +469,27 @@ struct oapv_dict_str_int {
     const int    val;
 };
 
+static const oapv_dict_str_int_t oapv_dict_pbu_type[] = {
+    {"primary frame",           OAPV_PBU_TYPE_PRIMARY_FRAME},
+    {"non-primary frame",       OAPV_PBU_TYPE_NON_PRIMARY_FRAME},
+    {"preview frame",           OAPV_PBU_TYPE_PREVIEW_FRAME},
+    {"depth frame",             OAPV_PBU_TYPE_DEPTH_FRAME},
+    {"alpha frame",             OAPV_PBU_TYPE_ALPHA_FRAME},
+    {"access unit information", OAPV_PBU_TYPE_AU_INFO},
+    {"metadata",                OAPV_PBU_TYPE_METADATA},
+    {"filler",                  OAPV_PBU_TYPE_FILLER},
+    {"", 0} // termination
+};
+
 static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
-    {"422-10", OAPV_PROFILE_422_10},
-    {"422-12", OAPV_PROFILE_422_12},
-    {"444-10", OAPV_PROFILE_444_10},
-    {"444-12", OAPV_PROFILE_444_12},
-    {"4444-10", OAPV_PROFILE_4444_10},
-    {"4444-12", OAPV_PROFILE_4444_12},
-    {"400-10", OAPV_PROFILE_400_10},
-    {"4444-16C12", OAPV_PROFILE_4444_16C12},
+    {"422-10",      OAPV_PROFILE_422_10},
+    {"422-12",      OAPV_PROFILE_422_12},
+    {"444-10",      OAPV_PROFILE_444_10},
+    {"444-12",      OAPV_PROFILE_444_12},
+    {"4444-10",     OAPV_PROFILE_4444_10},
+    {"4444-12",     OAPV_PROFILE_4444_12},
+    {"400-10",      OAPV_PROFILE_400_10},
+    {"4444-16C12",  OAPV_PROFILE_4444_16C12},
     {"", 0} // termination
 };
 
@@ -751,6 +781,26 @@ OAPV_EXPORT int oapvd_info(void *au, int au_size, oapv_au_info_t *aui);
  * openapv version
  *****************************************************************************/
 OAPV_EXPORT const char *oapv_version(unsigned int *ver_num);
+
+/*****************************************************************************
+ * OpenAPV version 2 APIs
+ ****************************************************************************/
+/* PDU information */
+typedef struct oapv_pbu_info oapv_pbu_info_t;
+struct oapv_pbu_info {
+    int  pbu_type;
+    int  group_id;
+};
+
+OAPV_EXPORT int oapv2d_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat);
+
+OAPV_EXPORT int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_info);
+OAPV_EXPORT int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info, oapv_tile_info_t *tile_info);
+
+OAPV_EXPORT int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui);
+OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat, oapv_tile_info_t * part);
+
+
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -63,11 +63,11 @@ void oapv_trace0(char *filename, int line, const char *fmt, ...)
     char str[1024] = { '\0' };
 
     if(filename != NULL && line >= 0) {
-        sprintf(str, "[%s:%d] ", filename, line);
+        snprintf(str, sizeof(str), "[%s:%d] ", filename, line);
     }
     va_list args;
     va_start(args, fmt);
-    vsprintf(str + strlen(str), fmt, args);
+    vsnprintf(str + strlen(str), sizeof(str) - strlen(str), fmt, args);
     va_end(args);
     printf("%s", str);
 }
@@ -79,7 +79,7 @@ void oapv_trace_line(char *pre)
     int       len = (pre == NULL) ? 0 : (int)strlen(pre);
 
     if(len > 0) {
-        sprintf(str, "%s ", pre);
+        snprintf(str, sizeof(str), "%s ", pre);
         len = (int)strlen(str);
     }
     for(int i = len; i < chars; i++) {

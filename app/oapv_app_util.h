@@ -54,15 +54,19 @@
 #define VERBOSE_SIMPLE 2
 #define VERBOSE_FRAME  3
 
+/* max image resolution supported by imgb (32K: 2x of 8192x4320) */
+#define IMGB_MAX_W     16384
+#define IMGB_MAX_H     8640
+
 /* logging functions */
 static void log_msg(char *filename, int line, const char *fmt, ...)
 {
     char str[1024] = { '\0' };
     if(filename != NULL && line >= 0)
-        sprintf(str, "[%s:%d] ", filename, line);
+        snprintf(str, sizeof(str), "[%s:%d] ", filename, line);
     va_list args;
     va_start(args, fmt);
-    vsprintf(str + strlen(str), fmt, args);
+    vsnprintf(str + strlen(str), sizeof(str) - strlen(str), fmt, args);
     va_end(args);
     printf("%s", str);
 }
@@ -79,7 +83,7 @@ static void log_line(char *pre)
 
     len = (pre == NULL) ? 0 : (int)strlen(pre);
     if(len > 0) {
-        sprintf(str + 3, " %s ", pre);
+        snprintf(str + 3, sizeof(str) - 3, " %s ", pre);
         len = (int)strlen(str);
     }
 
@@ -315,6 +319,12 @@ oapv_imgb_t *imgb_create(int w, int h, int cs)
     memset(imgb, 0, sizeof(oapv_imgb_t));
 
     bd = OAPV_CS_GET_BYTE_DEPTH(cs); /* byte unit */
+
+    /* reject invalid or out-of-range resolution */
+    if(w <= 0 || h <= 0 || w > IMGB_MAX_W || h > IMGB_MAX_H || bd <= 0) {
+        logerr("invalid image parameter (w=%d, h=%d, byte-depth=%d)\n", w, h, bd);
+        goto ERR;
+    }
 
     imgb->w[0] = w;
     imgb->h[0] = h;
@@ -672,6 +682,14 @@ static void imgb_cpy(oapv_imgb_t *dst, oapv_imgb_t *src)
         dst->w[i] = src->w[i];
         dst->h[i] = src->h[i];
         dst->ts[i] = src->ts[i];
+    }
+}
+
+void imgb_clear(oapv_imgb_t *imgb)
+{
+    int i;
+    for(i = 0; i < imgb->np; i++) {
+        memset(imgb->a[i], 0, imgb->bsize[i]);
     }
 }
 

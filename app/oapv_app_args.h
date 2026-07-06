@@ -35,6 +35,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
+#include <errno.h>
 #include "oapv.h"
 
 #define ARGS_VAL_TYPE_MANDATORY      (1 << 0) /* mandatory or not */
@@ -50,6 +52,12 @@
 #define ARGS_MAX_NUM_CONF_FILES      (16)
 
 #define ARGS_MAX_KEY_LONG            (32)
+#define ARGS_MAX_DESC                (1024) /* max length of an option description */
+/* upper bound of the fixed prefix of a help line: key/key_long, value type,
+ * "(optional)", default value string and surrounding decoration */
+#define ARGS_HELP_PREFIX_MAX         (512)
+/* buffer size for a formatted help line: description plus its prefix */
+#define ARGS_HELP_BUF_SIZE           (ARGS_MAX_DESC + ARGS_HELP_PREFIX_MAX)
 
 typedef struct args_opt {
     char  key;                         /* option keyword. ex) -f */
@@ -57,7 +65,8 @@ typedef struct args_opt {
     int   val_type;                    /* value type */
     int   flag;                        /* flag to setting or not */
     void *val;                         /* actual value */
-    char  desc[1024];                   /* description of option */
+    int   val_size;                    /* size of value buffer for STRING type (0 for non-STRING) */
+    char  desc[ARGS_MAX_DESC];          /* description of option */
 } args_opt_t;
 
 typedef struct args_parser args_parser_t;
@@ -65,7 +74,6 @@ struct args_parser {
     void (*release)(args_parser_t *args);
     int (*parse)(args_parser_t *args, int argc, const char *argv[], char **errstr);
     int (*get_help)(args_parser_t *args, int idx, char *help);
-    int (*get_str)(args_parser_t *args, char *keyl, char *str, int *flag);
     int (*get_int)(args_parser_t *args, char *keyl, int *val, int *flag);
     int (*set_str)(args_parser_t *args, char *keyl, char *str);
     int (*set_int)(args_parser_t *args, char *keyl, int val);
@@ -120,11 +128,25 @@ static int args_read_value(args_opt_t *ops, const char *argv)
 
     switch(ARGS_GET_CMD_OPT_VAL_TYPE(ops->val_type)) {
     case ARGS_VAL_TYPE_INTEGER:
-        *((int *)ops->val) = atoi(argv);
+        {
+            char *endptr;
+            long val;
+            errno = 0;
+            val = strtol(argv, &endptr, 10);
+            if(endptr == argv || *endptr != '\0' || errno == ERANGE || val < INT_MIN || val > INT_MAX) {
+                return -1;
+            }
+            *((int *)ops->val) = (int)val;
+        }
         break;
 
     case ARGS_VAL_TYPE_STRING:
-        strcpy((char *)ops->val, argv);
+        if(ops->val_size > 0) {
+            strncpy((char *)ops->val, argv, ops->val_size - 1);
+            ((char *)ops->val)[ops->val_size - 1] = '\0';
+        } else {
+            return -1; /* STRING option without a known buffer size: reject */
+        }
         break;
 
     default:
@@ -133,48 +155,13 @@ static int args_read_value(args_opt_t *ops, const char *argv)
     return 0;
 }
 
-static int args_get_arg(args_opt_t *ops, int idx, char *result)
-{
-    char        vtype[32];
-    char        value[512];
-    args_opt_t *o = ops + idx;
-
-    switch(ARGS_GET_CMD_OPT_VAL_TYPE(o->val_type)) {
-    case ARGS_VAL_TYPE_INTEGER:
-        strncpy(vtype, "INTEGER", sizeof(vtype) - 1);
-        sprintf(value, "%d", *((int *)o->val));
-        break;
-
-    case ARGS_VAL_TYPE_STRING:
-        strncpy(vtype, "STRING", sizeof(vtype) - 1);
-        sprintf(value, "%s", (char *)o->val);
-        break;
-
-    case ARGS_VAL_TYPE_NONE:
-    default:
-        strncpy(vtype, "FLAG", sizeof(vtype) - 1);
-        sprintf(value, "%d", *((int *)o->val));
-        break;
-    }
-
-    if(o->flag) {
-        strcat(value, " (SET)");
-    }
-    else {
-        strcat(value, " (DEFAULT)");
-    }
-
-    sprintf(result, "  -%c(--%s) = %s\n    : %s", o->key, o->key_long,
-            value, o->desc);
-
-    return 0;
-}
-
 static int args_parse_int_x_int(char *str, int *num0, int *num1)
 {
     char  str0_t[64];
     int   i, cnt0 = 0, cnt1;
     char *str0, *str1 = NULL;
+    char *endptr;
+    long  tmp_val;
 
     str0 = str;
     cnt1 = (int)strlen(str);
@@ -205,8 +192,19 @@ static int args_parse_int_x_int(char *str, int *num0, int *num1)
     strncpy(str0_t, str0, cnt0);
     str0_t[cnt0] = '\0';
 
-    *num0 = atoi(str0_t);
-    *num1 = atoi(str1);
+    /* parse first number using strtol with overflow check */
+    tmp_val = strtol(str0_t, &endptr, 10);
+    if(endptr == str0_t || tmp_val < INT_MIN || tmp_val > INT_MAX) {
+        return -1; /* conversion failed or overflow */
+    }
+    *num0 = (int)tmp_val;
+
+    /* parse second number using strtol with overflow check */
+    tmp_val = strtol(str1, &endptr, 10);
+    if(endptr == str1 || tmp_val < INT_MIN || tmp_val > INT_MAX) {
+        return -1; /* conversion failed or overflow */
+    }
+    *num1 = (int)tmp_val;
 
     return 0;
 }
@@ -314,7 +312,7 @@ ERR:
     return -1;
 }
 
-static int args_set_variable_by_key_long(args_opt_t *opts, char *key_long, void *var)
+static int args_set_variable_by_key_long(args_opt_t *opts, char *key_long, void *var, size_t size)
 {
     int   idx;
     char  buf[ARGS_MAX_KEY_LONG];
@@ -337,6 +335,7 @@ static int args_set_variable_by_key_long(args_opt_t *opts, char *key_long, void 
     if(idx < 0)
         return -1;
     opts[idx].val = var;
+    opts[idx].val_size = (int)size;
     return 0;
 }
 
@@ -383,7 +382,12 @@ static int args_set_str(args_parser_t *args, char *keyl, char *str)
 
     idx = args_search_long_key(args->opts, keyl);
     if(idx >= 0) {
-        sprintf((char *)(args->opts[idx].val), "%s", str);
+        if(args->opts[idx].val_size > 0) {
+            snprintf((char *)(args->opts[idx].val), args->opts[idx].val_size, "%s", str);
+        }
+        else {
+            return -1; /* STRING option without a known buffer size: reject */
+        }
         args->opts[idx].flag = 1;
         return 0;
     }
@@ -434,17 +438,6 @@ static int args_set_flag(args_parser_t *args, char *keyl, int flag)
     return -1;
 }
 
-static int args_get_str(args_parser_t *args, char *keyl, char *str, int *flag)
-{
-    char *p = NULL;
-    if(args_get(args, keyl, (void **)&p, flag))
-        return -1;
-    if(p) {
-        if(str)
-            strcpy(str, p);
-    }
-    return 0;
-}
 
 static int args_get_int(args_parser_t *args, char *keyl, int *val, int *flag)
 {
@@ -516,7 +509,7 @@ static int args_get_help(args_parser_t *args, int idx, char *help)
     case ARGS_VAL_TYPE_STRING:
         strncpy(vtype, "STRING", sizeof(vtype) - 1);
         if(o->val != NULL)
-            sprintf(default_value, " [%s]", strlen((char *)(o->val)) == 0 ? "None" : (char *)(o->val));
+            snprintf(default_value, sizeof(default_value), " [%s]", strlen((char *)(o->val)) == 0 ? "None" : (char *)(o->val));
         break;
     case ARGS_VAL_TYPE_NONE:
     default:
@@ -528,11 +521,11 @@ static int args_get_help(args_parser_t *args, int idx, char *help)
     optional = !(o->val_type & ARGS_VAL_TYPE_MANDATORY);
 
     if(o->key != ARGS_NO_KEY) {
-        sprintf(help, "  -%c, --%s [%s]%s%s\n    : %s", o->key, o->key_long,
+        snprintf(help, ARGS_HELP_BUF_SIZE, "  -%c, --%s [%s]%s%s\n    : %s", o->key, o->key_long,
                 vtype, (optional) ? " (optional)" : "", (optional) ? default_value : "", o->desc);
     }
     else {
-        sprintf(help, "  --%s [%s]%s%s\n    : %s", o->key_long,
+        snprintf(help, ARGS_HELP_BUF_SIZE, "  --%s [%s]%s%s\n    : %s", o->key_long,
                 vtype, (optional) ? " (optional)" : "", (optional) ? default_value : "", o->desc);
     }
 
@@ -584,7 +577,6 @@ static args_parser_t *args_create(const args_opt_t *opt_table, int num_opt)
     args->release = args_release;
     args->parse = args_parse;
     args->get_help = args_get_help;
-    args->get_str = args_get_str;
     args->get_int = args_get_int;
     args->set_str = args_set_str;
     args->set_int = args_set_int;

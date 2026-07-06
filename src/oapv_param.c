@@ -95,18 +95,46 @@ static int kbps_str_to_int(const char *str)
     char *s = (char *)str;
     if(strchr(s, 'K') || strchr(s, 'k')) {
         char *tmp = strtok(s, "Kk ");
-        kbps = (int)(atof(tmp));
+        char *endptr;
+        float fval;
+        errno = 0;
+        fval = strtof(tmp, &endptr);
+        if(endptr == tmp || *endptr != '\0' || errno == ERANGE) {
+            return -1;
+        }
+        kbps = (int)fval;
     }
     else if(strchr(s, 'M') || strchr(s, 'm')) {
         char *tmp = strtok(s, "Mm ");
-        kbps = (int)(atof(tmp) * 1000);
+        char *endptr;
+        float fval;
+        errno = 0;
+        fval = strtof(tmp, &endptr);
+        if(endptr == tmp || *endptr != '\0' || errno == ERANGE) {
+            return -1;
+        }
+        kbps = (int)(fval * 1000);
     }
     else if(strchr(s, 'G') || strchr(s, 'g')) {
         char *tmp = strtok(s, "Gg ");
-        kbps = (int)(atof(tmp) * 1000000);
+        char *endptr;
+        float fval;
+        errno = 0;
+        fval = strtof(tmp, &endptr);
+        if(endptr == tmp || *endptr != '\0' || errno == ERANGE) {
+            return -1;
+        }
+        kbps = (int)(fval * 1000000);
     }
     else {
-        kbps = atoi(s);
+        char *endptr;
+        long val;
+        errno = 0;
+        val = strtol(s, &endptr, 10);
+        if(endptr == s || *endptr != '\0' || errno == ERANGE || val < INT_MIN || val > INT_MAX) {
+            return -1;
+        }
+        kbps = (int)val;
     }
     return kbps;
 }
@@ -262,6 +290,7 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     }
     NAME_CMP("bitrate") {
         if(strlen(value) > 0) {
+            if(strlen(value) + 1 > sizeof(str_buf)) return OAPV_ERR_INVALID_ARGUMENT;
             strcpy(str_buf, value); // to maintain original value
             param->bitrate = kbps_str_to_int(str_buf); // unit: kbps
             if(param->bitrate <= 0) return OAPV_ERR_INVALID_ARGUMENT;
