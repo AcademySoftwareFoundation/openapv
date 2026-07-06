@@ -54,6 +54,10 @@
 #define VERBOSE_SIMPLE 2
 #define VERBOSE_FRAME  3
 
+/* max image resolution supported by imgb (32K: 2x of 8192x4320) */
+#define IMGB_MAX_W     16384
+#define IMGB_MAX_H     8640
+
 /* logging functions */
 static void log_msg(char *filename, int line, const char *fmt, ...)
 {
@@ -315,6 +319,12 @@ oapv_imgb_t *imgb_create(int w, int h, int cs)
     memset(imgb, 0, sizeof(oapv_imgb_t));
 
     bd = OAPV_CS_GET_BYTE_DEPTH(cs); /* byte unit */
+
+    /* reject invalid or out-of-range resolution */
+    if(w <= 0 || h <= 0 || w > IMGB_MAX_W || h > IMGB_MAX_H || bd <= 0) {
+        logerr("invalid image parameter (w=%d, h=%d, byte-depth=%d)\n", w, h, bd);
+        goto ERR;
+    }
 
     imgb->w[0] = w;
     imgb->h[0] = h;
