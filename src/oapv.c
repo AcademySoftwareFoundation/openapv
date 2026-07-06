@@ -1100,6 +1100,12 @@ oapve_t oapve_create(oapve_cdesc_t *cdesc, int *err)
     int          ret;
 
     DUMP_CREATE(1);
+
+    if(!((cdesc->threads > 0 && cdesc->threads <= OAPV_MAX_THREADS) || cdesc->threads == OAPV_CDESC_THREADS_AUTO)) {
+        if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
+        return NULL;
+    }
+
     /* memory allocation for ctx and core structure */
     ctx = (oapve_ctx_t *)enc_ctx_alloc();
     if(ctx != NULL) {
@@ -1407,7 +1413,7 @@ static int dec_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_
 
 static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_t *imgb)
 {
-    int i;
+    int i, ret;
 
     // the input image buffer must match the frame format signaled in the
     // bitstream; a mismatch (e.g. caused by a resolution change without
@@ -1490,9 +1496,10 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_
 
     ctx->num_tile_cols = (ctx->w + (tile_w - 1)) / tile_w;
     ctx->num_tile_rows = (ctx->h + (tile_h - 1)) / tile_h;
-    ctx->num_tiles = ctx->num_tile_cols * ctx->num_tile_rows;
 
-    oapv_assert_rv((ctx->num_tile_cols <= OAPV_MAX_TILE_COLS) && (ctx->num_tile_rows <= OAPV_MAX_TILE_ROWS), OAPV_ERR_MALFORMED_BITSTREAM);
+    ret = oapv_validate_tile_topology(ctx->num_tile_cols, ctx->num_tile_rows, &ctx->num_tiles);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
     dec_set_tile_info(ctx->tile, ctx->w, ctx->h, tile_w, tile_h, ctx->num_tile_cols, ctx->num_tiles);
 
     for(i = 0; i < ctx->num_tiles; i++) {
@@ -1505,7 +1512,9 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_
             ctx->tile[i].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_SKIP); /* bypass decoding */
         }
         for(i = 0; i < part->num_tiles; i++) {
-            ctx->tile[part->pos_tiles[i].idx].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_DECODE);
+            int idx = part->pos_tiles[i].idx;
+            oapv_assert_rv(idx >= 0 && idx < ctx->num_tiles, OAPV_ERR_MALFORMED_BITSTREAM);
+            ctx->tile[idx].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_DECODE);
         }
     }
     else {
@@ -1816,8 +1825,10 @@ oapvd_t oapvd_create(oapvd_cdesc_t *cdesc, int *err)
     DUMP_CREATE(0);
     ctx = NULL;
 
-    /* check if any decoder argument is correctly set */
-    oapv_assert_gv((cdesc->threads > 0 && cdesc->threads <= OAPV_MAX_THREADS) || cdesc->threads == OAPV_CDESC_THREADS_AUTO , ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
+    if(!((cdesc->threads > 0 && cdesc->threads <= OAPV_MAX_THREADS) || cdesc->threads == OAPV_CDESC_THREADS_AUTO)) {
+        if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
+        return NULL;
+    }
 
     /* memory allocation for ctx and core structure */
     ctx = (oapvd_ctx_t *)dec_ctx_alloc();
@@ -1866,6 +1877,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
     oapv_pbuh_t  pbuh;
     int          ret = OAPV_OK;
     u32          pbu_size;
+    u32          signature;
     u32          cur_read_size = 0;
     int          nfrms = 0;
 
@@ -1875,7 +1887,8 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
 
     // read signature ('aPv1')
     oapv_assert_rv(bitb->ssize > 4, OAPV_ERR_MALFORMED_BITSTREAM);
-    u32 signature = oapv_bsr_read_direct(bitb->addr, 32);
+    ret = oapv_bsr_read_direct(bitb->addr, 32, &signature);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
     oapv_assert_rv(signature == 0x61507631, OAPV_ERR_MALFORMED_BITSTREAM);
     cur_read_size += 4;
     stat->read += 4;
@@ -2001,6 +2014,7 @@ int oapvd_config(oapvd_t did, int cfg, void *buf, int *size)
 int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
 {
     int ret, frm_count = 0;
+    u32 signature;
     u32 cur_read_size = 0;
     oapv_bs_t bs;
 
@@ -2008,7 +2022,8 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
 
     // read signature ('aPv1')
     oapv_assert_rv(au_size > 4, OAPV_ERR_MALFORMED_BITSTREAM);
-    u32 signature = oapv_bsr_read_direct(au, 32);
+    ret = oapv_bsr_read_direct(au, 32, &signature);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
     oapv_assert_rv(signature == 0x61507631, OAPV_ERR_MALFORMED_BITSTREAM);
     cur_read_size += 4;
 
@@ -2110,6 +2125,9 @@ int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info, oapv_ti
 
         tile_cols = (pic_w + (tile_w - 1)) / tile_w;
         tile_rows = (pic_h + (tile_h - 1)) / tile_h;
+
+        ret = oapv_validate_tile_topology(tile_cols, tile_rows, NULL);
+        oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
         oapv_tile_pos_t * tpos = tile_info->pos_tiles;
 

@@ -74,6 +74,35 @@
 
 #define oapv_align_value(val, align) ((((val) + (align) - 1) / (align)) * (align))
 
+// validate tile topology and compute number of tiles (overflow-safe).
+// returns OAPV_OK and sets *num_tiles on success, error otherwise.
+static inline int oapv_validate_tile_topology(int tile_cols, int tile_rows, int *num_tiles)
+{
+    if(tile_cols < 1 || tile_cols > OAPV_MAX_TILE_COLS)
+        return OAPV_ERR_MALFORMED_BITSTREAM;
+    if(tile_rows < 1 || tile_rows > OAPV_MAX_TILE_ROWS)
+        return OAPV_ERR_MALFORMED_BITSTREAM;
+    // both operands are bounded by 20, so the product cannot overflow int
+    int n = tile_cols * tile_rows;
+    if(n > OAPV_MAX_TILES)
+        return OAPV_ERR_MALFORMED_BITSTREAM;
+    if(num_tiles)
+        *num_tiles = n;
+    return OAPV_OK;
+}
+
+// validate that (header + payload) fits within remaining bytes without
+// integer wrap. operands are promoted to u64 so a crafted u32 payload
+// size cannot bypass the check via overflow.
+static inline int oapv_validate_payload_bounds(u64 remaining, u64 header, u64 payload)
+{
+    if(remaining < header)
+        return OAPV_ERR_MALFORMED_BITSTREAM;
+    if(payload > remaining - header)
+        return OAPV_ERR_MALFORMED_BITSTREAM;
+    return OAPV_OK;
+}
+
 static inline int chroma_format_idc_to_color_format(int chroma_format_idc)
 {
     return ((chroma_format_idc == 0)   ? OAPV_CF_YCBCR400

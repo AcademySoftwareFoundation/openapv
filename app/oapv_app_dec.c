@@ -34,8 +34,7 @@
 #include "oapv_app_args.h"
 #include "oapv_app_y4m.h"
 
-#define MAX_BS_BUF            128 * 1024 * 1024 /* byte */
-#define MAX_NUM_METADATA_PLDS 128 /* max number of metadata payloads per access unit */
+#define MAX_BS_BUF 128 * 1024 * 1024 /* byte */
 
 // check generic frame or not
 #define IS_NON_AUX_FRM(frm) (((frm)->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME) || ((frm)->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME))
@@ -599,8 +598,8 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             }
 
             /* validate number of metadata payloads */
-            if(num_plds < 0 || num_plds > MAX_NUM_METADATA_PLDS) {
-                logerr("ERR: invalid number of metadata payloads (%d), valid range is 0-%d\n", num_plds, MAX_NUM_METADATA_PLDS);
+            if(num_plds < 0 || num_plds > OAPV_MAX_NUM_META_PAYLOADS) {
+                logerr("ERR: invalid number of metadata payloads (%d), valid range is 0-%d\n", num_plds, OAPV_MAX_NUM_META_PAYLOADS);
                 goto END;
             }
 

@@ -774,6 +774,7 @@ static int dec_vlc_q_matrix(oapv_bs_t *bs, oapv_fh_t *fh)
 
 static int dec_vlc_tile_info(oapv_bs_t *bs, oapv_fh_t *fh)
 {
+    int ret;
     int pic_w, pic_h, tile_w, tile_h, tile_cols, tile_rows;
 
     fh->tile_width_in_mbs = oapv_bsr_read(bs, 20);
@@ -794,7 +795,8 @@ static int dec_vlc_tile_info(oapv_bs_t *bs, oapv_fh_t *fh)
     tile_cols = (pic_w + (tile_w - 1)) / tile_w;
     tile_rows = (pic_h + (tile_h - 1)) / tile_h;
 
-    oapv_assert_rv(tile_cols <= OAPV_MAX_TILE_COLS && tile_rows <= OAPV_MAX_TILE_ROWS, OAPV_ERR_MALFORMED_BITSTREAM)
+    ret = oapv_validate_tile_topology(tile_cols, tile_rows, NULL);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     fh->tile_size_present_in_fh_flag = oapv_bsr_read1(bs);
     DUMP_HLS(fh->tile_size_present_in_fh_flag, fh->tile_size_present_in_fh_flag);
@@ -825,6 +827,9 @@ int oapvd_vlc_dc_coef(oapv_bs_t *bs, int *dc_diff, int *kparam_dc)
         *dc_diff = 0;
         *kparam_dc = OAPV_KPARAM_DC_MIN;
     }
+
+    if(BSR_IS_UNEXPECTED_EOB(bs))
+        return OAPV_ERR_MALFORMED_BITSTREAM;
     return OAPV_OK;
 }
 
@@ -909,6 +914,9 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
             break;
         }
     } while(1);
+
+    if(BSR_IS_UNEXPECTED_EOB(bs))
+        return OAPV_ERR_MALFORMED_BITSTREAM;
     return OAPV_OK;
 }
 
@@ -917,6 +925,7 @@ int oapvd_vlc_au_size(oapv_bs_t *bs, u32 *au_size)
     u32 size;
     size = oapv_bsr_read(bs, 32);
     oapv_assert_rv(size > 0 && size < 0xFFFFFFFF, OAPV_ERR_MALFORMED_BITSTREAM);
+    oapv_assert_rv(!BSR_IS_UNEXPECTED_EOB(bs), OAPV_ERR_MALFORMED_BITSTREAM);
     *au_size = size;
     return OAPV_OK;
 }
@@ -927,6 +936,7 @@ int oapvd_vlc_pbu_size(oapv_bs_t *bs, u32 *pbu_size)
     size = oapv_bsr_read(bs, 32);
     DUMP_HLS(pbu_size, size);
     oapv_assert_rv(size > 0 && size < 0xFFFFFFFF, OAPV_ERR_MALFORMED_BITSTREAM);
+    oapv_assert_rv(!BSR_IS_UNEXPECTED_EOB(bs), OAPV_ERR_MALFORMED_BITSTREAM);
     *pbu_size = size;
     return OAPV_OK;
 }
@@ -948,6 +958,8 @@ int oapvd_vlc_pbu_header(oapv_bs_t *bs, oapv_pbuh_t *pbuh)
     reserved_zero = oapv_bsr_read(bs, 8);
     DUMP_HLS(reserved_zero, reserved_zero);
     oapv_assert_rv(reserved_zero == 0, OAPV_ERR_MALFORMED_BITSTREAM);
+
+    oapv_assert_rv(!BSR_IS_UNEXPECTED_EOB(bs), OAPV_ERR_MALFORMED_BITSTREAM);
     return OAPV_OK;
 }
 
@@ -1005,6 +1017,7 @@ int oapvd_vlc_frame_info(oapv_bs_t *bs, oapv_fi_t *fi)
         oapv_assert_rv((fi->frame_width & 0x1) == 0, OAPV_ERR_INVALID_WIDTH);
     }
 
+    oapv_assert_rv(!BSR_IS_UNEXPECTED_EOB(bs), OAPV_ERR_MALFORMED_BITSTREAM);
     return OAPV_OK;
 }
 
@@ -1030,6 +1043,9 @@ int oapvd_vlc_au_info(oapv_bs_t *bs, oapv_aui_t *aui)
     reserved_zero_8bits = oapv_bsr_read(bs, 8);
     DUMP_HLS(reserved_zero_8bits, reserved_zero_8bits);
     oapv_assert_rv(reserved_zero_8bits == 0, OAPV_ERR_MALFORMED_BITSTREAM);
+
+    oapv_assert_rv(!BSR_IS_UNEXPECTED_EOB(bs), OAPV_ERR_MALFORMED_BITSTREAM);
+
     /* byte align */
     oapv_bsr_align8(bs);
     return OAPV_OK;
@@ -1078,6 +1094,8 @@ int oapvd_vlc_frame_header(oapv_bs_t *bs, oapv_fh_t *fh)
     DUMP_HLS(reserved_zero, reserved_zero);
     oapv_assert_rv(reserved_zero == 0, OAPV_ERR_MALFORMED_BITSTREAM);
 
+    oapv_assert_rv(!BSR_IS_UNEXPECTED_EOB(bs), OAPV_ERR_MALFORMED_BITSTREAM);
+
     /* byte align */
     oapv_bsr_align8(bs);
 
@@ -1100,6 +1118,7 @@ int oapvd_vlc_tile_size(oapv_bs_t *bs, u32 *tile_size)
     u32 size = oapv_bsr_read(bs, 32);
     DUMP_HLS(tile_size, size);
     oapv_assert_rv(size > 0, OAPV_ERR_MALFORMED_BITSTREAM);
+    oapv_assert_rv(!BSR_IS_UNEXPECTED_EOB(bs), OAPV_ERR_MALFORMED_BITSTREAM);
     *tile_size = size;
     return OAPV_OK;
 }
@@ -1121,7 +1140,8 @@ int oapvd_vlc_tile_header(oapv_bs_t *bs, int num_comp, oapv_th_t *th, u32 tile_s
     for(int c = 0; c < num_comp; c++) {
         th->tile_data_size[c] = oapv_bsr_read(bs, 32);
         DUMP_HLS(th->tile_data_size, th->tile_data_size[c]);
-        oapv_assert_rv((tile_size - read_size) >= th->tile_data_size[c], OAPV_ERR_MALFORMED_BITSTREAM);
+        int ret = oapv_validate_payload_bounds(tile_size, read_size, th->tile_data_size[c]);
+        oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
         read_size += th->tile_data_size[c];
     }
     for(int c = 0; c < num_comp; c++) {
@@ -1130,10 +1150,12 @@ int oapvd_vlc_tile_header(oapv_bs_t *bs, int num_comp, oapv_th_t *th, u32 tile_s
     }
     th->reserved_zero_8bits = oapv_bsr_read(bs, 8);
     DUMP_HLS(th->reserved_zero_8bits, th->reserved_zero_8bits);
+    oapv_assert_rv(th->reserved_zero_8bits == 0, OAPV_ERR_MALFORMED_BITSTREAM);
+
+    oapv_assert_rv(!BSR_IS_UNEXPECTED_EOB(bs), OAPV_ERR_MALFORMED_BITSTREAM);
+
     /* byte align */
     oapv_bsr_align8(bs);
-
-    oapv_assert_rv(th->reserved_zero_8bits == 0, OAPV_ERR_MALFORMED_BITSTREAM);
     return OAPV_OK;
 }
 
@@ -1141,6 +1163,8 @@ int oapvd_vlc_tile_dummy_data(oapv_bs_t *bs)
 {
     while(BSR_GET_LEFT_BYTE(bs) > 0) {
         oapv_bsr_read(bs, 8);
+        if(BSR_IS_UNEXPECTED_EOB(bs))
+            return OAPV_ERR_MALFORMED_BITSTREAM;
     }
     return OAPV_OK;
 }
@@ -1161,6 +1185,7 @@ int oapvd_vlc_metadata(oapv_bs_t *bs, u32 pbu_size, oapvm_t mid, int group_id)
         t0 = 0;
         do {
             t0 = oapv_bsr_read(bs, 8);
+            oapv_assert_gv(!BSR_IS_UNEXPECTED_EOB(bs), ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
             DUMP_HLS(payload_type, t0);
             oapv_assert_gv(metadata_size > 0, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
             metadata_size -= 1;
@@ -1173,6 +1198,7 @@ int oapvd_vlc_metadata(oapv_bs_t *bs, u32 pbu_size, oapvm_t mid, int group_id)
         t0 = 0;
         do {
             t0 = oapv_bsr_read(bs, 8);
+            oapv_assert_gv(!BSR_IS_UNEXPECTED_EOB(bs), ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
             DUMP_HLS(payload_size, t0);
             oapv_assert_gv(metadata_size > 0, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
             metadata_size -= 1;
@@ -1216,9 +1242,10 @@ int oapvd_vlc_filler(oapv_bs_t *bs, u32 filler_size)
     int val;
     while(filler_size > 0) {
         val = oapv_bsr_read(bs, 8);
-        if(val != 0xFF) {
+        if(BSR_IS_UNEXPECTED_EOB(bs))
             return OAPV_ERR_MALFORMED_BITSTREAM;
-        }
+        if(val != 0xFF)
+            return OAPV_ERR_MALFORMED_BITSTREAM;
         filler_size--;
     }
     return OAPV_OK;

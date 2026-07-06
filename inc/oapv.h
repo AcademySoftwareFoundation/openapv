@@ -376,6 +376,7 @@ struct oapv_frm {
 
 #define OAPV_MAX_NUM_FRAMES (16) // max number of frames in an access unit
 #define OAPV_MAX_NUM_METAS  (16) // max number of metadata in an access unit
+#define OAPV_MAX_NUM_META_PAYLOADS (128) // max number of metadata payloads per access unit
 
 typedef struct oapv_frms oapv_frms_t;
 struct oapv_frms {

@@ -174,6 +174,7 @@ static int bsr_flush(oapv_bs_t *bs, int byte)
     if(byte <= 0) {
         bs->code = 0;
         bs->leftbits = 0;
+        bs->is_eob = 1;
         return -1;
     }
 
@@ -198,6 +199,7 @@ void oapv_bsr_init(oapv_bs_t *bs, u8 *buf, u32 size, oapv_bs_fn_flush_t fn_flush
     bs->end = buf + size;
     bs->code = 0;
     bs->leftbits = 0;
+    bs->is_eob = 0;
     bs->fn_flush = (fn_flush == NULL) ? bsr_flush : fn_flush;
 }
 
@@ -218,12 +220,10 @@ void oapv_bsr_align8(oapv_bs_t *bs)
 
 void oapv_bsr_skip(oapv_bs_t *bs, int size)
 {
-    oapv_assert(size > 0 && size <= 32);
-
     if(bs->leftbits < size) {
         size -= bs->leftbits;
         if(bs->fn_flush(bs, 8)) {
-            // oapv_trace("already reached the end of bitstream\n");  /* should be updated */
+            // fn_flush set is_eob flag on error; caller must check it
             return;
         }
     }
@@ -250,13 +250,11 @@ u32 oapv_bsr_read(oapv_bs_t *bs, int size)
 {
     u32 code = 0;
 
-    oapv_assert(size > 0);
-
     if(bs->leftbits < size) {
         code = bs->code >> (64 - size);
         size -= bs->leftbits;
         if(bs->fn_flush(bs, 8)) {
-            oapv_trace("already reached the end of bitstream\n"); /* should be updated */
+            // fn_flush set is_eob flag on error; return (u32)(-1) with is_eob marker
             return (u32)(-1);
         }
     }
@@ -272,7 +270,7 @@ int oapv_bsr_read1(oapv_bs_t *bs)
     int code;
     if(bs->leftbits == 0) {
         if(bs->fn_flush(bs, 8)) {
-            oapv_trace("already reached the end of bitstream\n"); /* should be updated */
+            // fn_flush set is_eob flag on error; return -1 with is_eob marker
             return -1;
         }
     }
@@ -284,14 +282,15 @@ int oapv_bsr_read1(oapv_bs_t *bs)
     return code;
 }
 
-u32 oapv_bsr_read_direct(void *addr, int len)
+int oapv_bsr_read_direct(const void *addr, int len, u32 *out)
 {
     u32 code = 0;
     int shift = 24;
-    u8 *p = (u8 *)addr;
+    const u8 *p = (const u8 *)addr;
     int byte = (len + 7) >> 3;
 
-    oapv_assert(len <= 32);
+    if(!addr || !out || len <= 0 || len > 32)
+        return OAPV_ERR_INVALID_ARGUMENT;
 
     while(byte) {
         code |= *(p) << shift;
@@ -299,7 +298,8 @@ u32 oapv_bsr_read_direct(void *addr, int len)
         byte--;
         p++;
     }
-    return (code >> (32 - len));
+    *out = (code >> (32 - len));
+    return OAPV_OK;
 }
 
 

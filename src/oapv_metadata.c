@@ -386,6 +386,8 @@ int oapvm_get_all(oapvm_t mid, oapvm_payload_t *pld, int *num_plds)
         int num_payload = 0;
         for(int i = 0; i < ctx->num; i++) {
             num_payload += ctx->md_arr[i].mdp_num;
+            if(num_payload > OAPV_MAX_NUM_META_PAYLOADS || num_payload < 0)
+                return OAPV_ERR_REACHED_MAX;
         }
         *num_plds = num_payload;
         return OAPV_OK;
@@ -396,7 +398,8 @@ int oapvm_get_all(oapvm_t mid, oapvm_payload_t *pld, int *num_plds)
         int         group_id = cur_md->group_id;
         oapv_mdp_t *mdp = cur_md->md_payload;
         while(mdp != NULL) {
-            oapv_assert_rv(pld_cnt < *num_plds, OAPV_ERR_REACHED_MAX);
+            if(pld_cnt >= *num_plds)
+                return OAPV_ERR_REACHED_MAX;
             pld[pld_cnt].group_id = group_id;
             pld[pld_cnt].size = mdp->pld_size;
             pld[pld_cnt].data = mdp->pld_data;
