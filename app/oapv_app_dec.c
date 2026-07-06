@@ -599,8 +599,8 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             }
 
             /* validate number of metadata payloads */
-            if(num_plds < 0 || num_plds > 128) {
-                logerr("ERR: invalid number of metadata payloads (%d), valid range is 0-128\n", num_plds);
+            if(num_plds < 0 || num_plds > MAX_NUM_METADATA_PLDS) {
+                logerr("ERR: invalid number of metadata payloads (%d), valid range is 0-%d\n", num_plds, MAX_NUM_METADATA_PLDS);
                 goto END;
             }
 
