@@ -70,6 +70,8 @@ option(OAPV_BUILD_SHARED_LIB "Build oapv shared library" ON)
 
 option(ENABLE_COVERAGE "Enable code coverage measurement" OFF)
 
+option(OAPV_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+
 if(OAPV_BUILD_APPS AND OAPV_APP_STATIC_BUILD AND NOT OAPV_BUILD_STATIC_LIB)
   message(FATAL_ERROR "Cannot build static apps without static lib.")
 endif()
@@ -129,6 +131,12 @@ elseif(UNIX OR MINGW)
     if(ENABLE_COVERAGE)
       set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
       set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+    endif()
+
+    if(OAPV_ENABLE_SANITIZERS)
+      # -fno-omit-frame-pointer overrides the earlier -fomit-frame-pointer
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address,undefined -fno-omit-frame-pointer")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address,undefined")
     endif()
 else()
     message("Unknown compiler")

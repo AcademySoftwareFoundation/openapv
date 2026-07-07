@@ -705,6 +705,9 @@ ERR:
     if(imgb_w != NULL)
         imgb_w->release(imgb_w);
 
+    if(bs_buf != NULL)
+        free(bs_buf);
+
     return 0;
 }
 
