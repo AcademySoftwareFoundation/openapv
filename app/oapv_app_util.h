@@ -657,6 +657,11 @@ static void imgb_cpy(oapv_imgb_t *dst, oapv_imgb_t *src)
     bd_src = OAPV_CS_GET_BIT_DEPTH(src->cs);
     bd_dst = OAPV_CS_GET_BIT_DEPTH(dst->cs);
 
+    if(bd_src < 8 || bd_src > 16 || bd_dst < 8 || bd_dst > 16) {
+        logerr("ERROR: unsupported bit depth in image copy\n");
+        return;
+    }
+
     if(src->cs == dst->cs) {
         imgb_cpy_plane(dst, src);
     }
