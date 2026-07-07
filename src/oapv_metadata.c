@@ -299,7 +299,7 @@ int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size)
 
     oapv_md_t *md = meta_find_md(ctx, group_id);
     if(md == NULL) {
-        oapv_assert_rv(ctx->num < OAPV_MAX_NUM_METAS, OAPV_ERR_REACHED_MAX);
+        oapv_assert_gv(ctx->num < OAPV_MAX_NUM_METAS, ret, OAPV_ERR_REACHED_MAX, ERR);
         md = &ctx->md_arr[ctx->num];
         md->group_id = group_id;
         md->mdp_num = 0;
