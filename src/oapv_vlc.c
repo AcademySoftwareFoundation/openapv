@@ -871,7 +871,7 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
             run = dec_vlc_read(bs, k_run);
         }
 
-        oapv_assert_rv(run >= 0, OAPV_ERR_MALFORMED_BITSTREAM);
+        oapv_assert_rv(run >= 0 && run <= OAPV_BLK_D - scan_pos_offset, OAPV_ERR_MALFORMED_BITSTREAM);
 
         // here, no need to set 'zero-run' in coef; it's already initialized to zero.
 
