@@ -1590,7 +1590,7 @@ static int dec_tile(oapvd_core_t *core, oapvd_tile_t *tile)
     oapv_bs_t    bs; // bs for 'tile()' syntax
 
     oapv_bsr_init(&bs, tile->bs_beg + OAPV_TILE_SIZE_LEN, tile->tile_size, NULL);
-    ret = oapvd_vlc_tile_header(&bs, ctx->num_c, &tile->th, tile->tile_size);
+    ret = oapvd_vlc_tile_header(&bs, ctx->num_c, &tile->th, tile->tile_size, ctx->bit_depth);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     for(c = 0; c < ctx->num_c; c++) {

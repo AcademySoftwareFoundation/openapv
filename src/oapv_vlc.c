@@ -1123,7 +1123,7 @@ int oapvd_vlc_tile_size(oapv_bs_t *bs, u32 *tile_size)
     return OAPV_OK;
 }
 
-int oapvd_vlc_tile_header(oapv_bs_t *bs, int num_comp, oapv_th_t *th, u32 tile_size)
+int oapvd_vlc_tile_header(oapv_bs_t *bs, int num_comp, oapv_th_t *th, u32 tile_size, int bit_depth)
 {
     u32 read_size = 0;
 
@@ -1146,6 +1146,8 @@ int oapvd_vlc_tile_header(oapv_bs_t *bs, int num_comp, oapv_th_t *th, u32 tile_s
     }
     for(int c = 0; c < num_comp; c++) {
         th->tile_qp[c] = oapv_bsr_read(bs, 8);
+        oapv_assert_rv(th->tile_qp[c] >= MIN_QUANT && th->tile_qp[c] <= MAX_QUANT(bit_depth),
+                       OAPV_ERR_MALFORMED_BITSTREAM);
         DUMP_HLS(th->tile_qp, th->tile_qp[c]);
     }
     th->reserved_zero_8bits = oapv_bsr_read(bs, 8);
