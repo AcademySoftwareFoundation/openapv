@@ -1735,7 +1735,9 @@ static void dec_flush(oapvd_ctx_t *ctx)
         }
     }
 
-    oapv_tpool_sync_obj_delete(&(ctx->sync_obj));
+    if(ctx->sync_obj != NULL) {
+        oapv_tpool_sync_obj_delete(&(ctx->sync_obj));
+    }
 
     for(int i = 0; i < ctx->threads; i++) {
         dec_core_free(ctx->core[i]);

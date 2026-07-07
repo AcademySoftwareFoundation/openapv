@@ -308,6 +308,7 @@ tpool_result_t oapv_tpool_sync_obj_delete(oapv_sync_obj_t *sobj)
 {
 
     thread_mutex_t *imutex = (thread_mutex_t *)(*sobj);
+    if(imutex == NULL) return TPOOL_SUCCESS; // nothing to delete
 
     // delete the mutex
     pthread_mutex_destroy(&imutex->lmutex);
@@ -612,6 +613,7 @@ oapv_sync_obj_t oapv_tpool_sync_obj_create()
 tpool_result_t oapv_tpool_sync_obj_delete(oapv_sync_obj_t *sobj)
 {
     thread_mutex_t *imutex = (thread_mutex_t *)(*sobj);
+    if(imutex == NULL) return TPOOL_SUCCESS; // nothing to delete
 #if WINDOWS_MUTEX_SYNC
     // release the mutex
     CloseHandle(imutex->lmutex);
