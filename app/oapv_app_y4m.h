@@ -321,9 +321,9 @@ static int check_file_name_type(char * fname)
         return -1;
     }
     strncpy(fext, fname + strlen(fname) - 3, sizeof(fext) - 1);
-    fext[0] = toupper(fext[0]);
-    fext[1] = toupper(fext[1]);
-    fext[2] = toupper(fext[2]);
+    fext[0] = toupper((unsigned char)fext[0]);
+    fext[1] = toupper((unsigned char)fext[1]);
+    fext[2] = toupper((unsigned char)fext[2]);
 
     if(strcmp(fext, "YUV") == 0) {
         return 0;
