@@ -706,7 +706,7 @@ static int family_to_bitrate(char * family, oapve_param_t *param)
 #define UPDATE_A_PARAM_W_KEY_VAL(param, key, val) \
     if(strlen(val) > 0) { \
         if(OAPV_FAILED(oapve_param_parse(param, key, val))) { \
-            logerr("input value (%s) of %s is invalid\n", val, key); \
+            logerr("ERR: input value (%s) of %s is invalid\n", val, key); \
             return -1; \
         } \
     }
@@ -782,7 +782,7 @@ static int parse_master_display(const char* data_string, oapvm_payload_mdcv_t *m
     // Check if sscanf successfully assigned all expected fields (10 numerical values).
     const int expected_fields = 10;
     if (assigned_fields != expected_fields) {
-        logerr("Parsing error: master display color volume information");
+        logerr("ERR: Parsing error: master display color volume information");
         return -1;
     }
     return 0; // Success

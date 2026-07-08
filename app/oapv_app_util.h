@@ -322,7 +322,7 @@ oapv_imgb_t *imgb_create(int w, int h, int cs)
 
     /* reject invalid or out-of-range resolution */
     if(w <= 0 || h <= 0 || w > IMGB_MAX_W || h > IMGB_MAX_H || bd <= 0) {
-        logerr("invalid image parameter (w=%d, h=%d, byte-depth=%d)\n", w, h, bd);
+        logerr("ERR: invalid image parameter (w=%d, h=%d, byte-depth=%d)\n", w, h, bd);
         goto ERR;
     }
 
@@ -385,7 +385,7 @@ oapv_imgb_t *imgb_create(int w, int h, int cs)
     return imgb;
 
 ERR:
-    logerr("cannot create image buffer\n");
+    logerr("ERR: cannot create image buffer\n");
     if(imgb) {
         for(int i = 0; i < OAPV_MAX_CC; i++) {
             if(imgb->a[i])
@@ -407,11 +407,11 @@ static int imgb_read(FILE *fp, oapv_imgb_t *img, int width, int height, int is_y
         if(6 != fread(t_buf, 1, 6, fp))
             return -1;
         if(memcmp(t_buf, "FRAME", 5)) {
-            logerr("Loss of framing in Y4M input data\n");
+            logerr("ERR: Loss of framing in Y4M input data\n");
             return -1;
         }
         if(t_buf[5] != '\n') {
-            logerr("Error parsing Y4M frame header\n");
+            logerr("ERR: parsing Y4M frame header\n");
             return -1;
         }
     }
@@ -431,7 +431,7 @@ static int imgb_read(FILE *fp, oapv_imgb_t *img, int width, int height, int is_y
         f_h = height;
     }
     else {
-        logerr("unsupported bit-depth (%d)\n", bit_depth);
+        logerr("ERR: unsupported bit-depth (%d)\n", bit_depth);
         return -1;
     }
 
@@ -500,7 +500,7 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
 
     fp = fopen(fname, "ab");
     if(fp == NULL) {
-        logerr("cannot open file = %s\n", fname);
+        logerr("ERR: cannot open file = %s\n", fname);
         return -1;
     }
     if(bit_depth == 8 && (chroma_format == OAPV_CF_YCBCR400 || chroma_format == OAPV_CF_YCBCR420 || chroma_format == OAPV_CF_YCBCR422 ||
@@ -514,7 +514,7 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
         bd = 2;
     }
     else {
-        logerr("cannot support the color space\n");
+        logerr("ERR: cannot support the color space\n");
         fclose(fp);
         return -1;
     }
@@ -658,7 +658,7 @@ static void imgb_cpy(oapv_imgb_t *dst, oapv_imgb_t *src)
     bd_dst = OAPV_CS_GET_BIT_DEPTH(dst->cs);
 
     if(bd_src < 8 || bd_src > 16 || bd_dst < 8 || bd_dst > 16) {
-        logerr("ERROR: unsupported bit depth in image copy\n");
+        logerr("ERR: unsupported bit depth in image copy\n");
         return;
     }
 
@@ -757,7 +757,7 @@ static int write_data(char *fname, unsigned char *data, int size)
 
     fp = fopen(fname, "ab");
     if(fp == NULL) {
-        logerr("cannot open the output file=%s\n", fname);
+        logerr("ERR: cannot open the output file=%s\n", fname);
         return -1;
     }
     fwrite(data, 1, size, fp);
@@ -770,7 +770,7 @@ static int clear_data(char *fname)
     FILE *fp;
     fp = fopen(fname, "wb");
     if(fp == NULL) {
-        logerr("cannot remove file (%s)\n", fname);
+        logerr("ERR: cannot remove file (%s)\n", fname);
         return -1;
     }
     fclose(fp);
