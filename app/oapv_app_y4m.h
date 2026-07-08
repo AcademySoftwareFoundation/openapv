@@ -84,19 +84,27 @@ static int y4m_parse_tags(y4m_params_t *y4m, char *tags)
         switch(p[0]) {
         case 'W': {
             if(sscanf(p + 1, "%d", &y4m->w) != 1)
-                return OAPV_ERR;
+                return -1;
+            if(y4m->w <= 0 || y4m->w > IMGB_MAX_W) {
+                logerr("ERROR: y4m frame width %d is out of range (1..%d)\n", y4m->w, IMGB_MAX_W);
+                return -1;
+            }
             found_w = 1;
             break;
         }
         case 'H': {
             if(sscanf(p + 1, "%d", &y4m->h) != 1)
-                return OAPV_ERR;
+                return -1;
+            if(y4m->h <= 0 || y4m->h > IMGB_MAX_H) {
+                logerr("ERROR: y4m frame height %d is out of range (1..%d)\n", y4m->h, IMGB_MAX_H);
+                return -1;
+            }
             found_h = 1;
             break;
         }
         case 'F': {
             if(sscanf(p + 1, "%d:%d", &fps_n, &fps_d) != 2)
-                return OAPV_ERR;
+                return -1;
             y4m->fps_num = fps_n;
             y4m->fps_den = fps_d;
             break;
@@ -107,12 +115,12 @@ static int y4m_parse_tags(y4m_params_t *y4m, char *tags)
         }
         case 'A': {
             if(sscanf(p + 1, "%d:%d", &pix_ratio_n, &pix_ratio_d) != 2)
-                return OAPV_ERR;
+                return -1;
             break;
         }
         case 'C': {
             if(q - p > 16)
-                return OAPV_ERR;
+                return -1;
             memcpy(colorspace, p + 1, q - p - 1);
             colorspace[q - p - 1] = '\0';
             found_cf = 1;
@@ -124,7 +132,7 @@ static int y4m_parse_tags(y4m_params_t *y4m, char *tags)
 
     if(!(found_w == 1 && found_h == 1)) {
         logerr("Mandatory width and height values were not found in y4m header");
-        return OAPV_ERR;
+        return -1;
     }
 
     if(!found_cf) {
@@ -177,7 +185,7 @@ static int y4m_parse_tags(y4m_params_t *y4m, char *tags)
         y4m->color_format = OAPV_CF_UNKNOWN;
         y4m->bit_depth = -1;
     }
-    return OAPV_OK;
+    return 0;
 }
 
 int y4m_header_parser(FILE *ip_y4m, y4m_params_t *y4m)
