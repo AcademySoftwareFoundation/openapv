@@ -105,6 +105,10 @@ static int y4m_parse_tags(y4m_params_t *y4m, char *tags)
         case 'F': {
             if(sscanf(p + 1, "%d:%d", &fps_n, &fps_d) != 2)
                 return -1;
+            if(fps_n <= 0 || fps_d <= 0) {
+                logerr("ERROR: invalid y4m frame rate %d:%d\n", fps_n, fps_d);
+                return -1;
+            }
             y4m->fps_num = fps_n;
             y4m->fps_den = fps_d;
             break;
