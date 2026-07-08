@@ -95,6 +95,7 @@ static int kbps_str_to_int(const char *str)
     char *s = (char *)str;
     if(strchr(s, 'K') || strchr(s, 'k')) {
         char *tmp = strtok(s, "Kk ");
+        if(tmp == NULL) return -1;
         char *endptr;
         float fval;
         errno = 0;
@@ -106,6 +107,7 @@ static int kbps_str_to_int(const char *str)
     }
     else if(strchr(s, 'M') || strchr(s, 'm')) {
         char *tmp = strtok(s, "Mm ");
+        if(tmp == NULL) return -1;
         char *endptr;
         float fval;
         errno = 0;
@@ -117,6 +119,7 @@ static int kbps_str_to_int(const char *str)
     }
     else if(strchr(s, 'G') || strchr(s, 'g')) {
         char *tmp = strtok(s, "Gg ");
+        if(tmp == NULL) return -1;
         char *endptr;
         float fval;
         errno = 0;
@@ -248,7 +251,10 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     }
     NAME_CMP("fps") {
         if(strpbrk(value, "/") != NULL) {
-            sscanf(value, "%d/%d", &param->fps_num, &param->fps_den);
+            if(sscanf(value, "%d/%d", &param->fps_num, &param->fps_den) != 2 ||
+               param->fps_num <= 0 || param->fps_den <= 0) {
+                return OAPV_ERR_INVALID_ARGUMENT;
+            }
         }
         else if(strpbrk(value, ".") != NULL) {
             GET_FLOAT_OR_ERR(value, tf0, OAPV_ERR_INVALID_ARGUMENT);
