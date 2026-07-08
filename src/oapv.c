@@ -358,7 +358,7 @@ static double enc_block_rdo_slow(oapve_ctx_t *ctx, oapve_core_t *core, int log2_
                     }
                 }
 
-                s16 test_coef = org_coef + map_idx_diff[i];
+                s16 test_coef = (s16)oapv_clip3(-32768, 32767, org_coef + map_idx_diff[i]);
                 coeff[scanp[j]] = test_coef;
                 int step_diff = q_step * map_idx_diff[i];
                 ctx->fn_itx_adj[0](rec_ups, rec_tmp, j, step_diff, 9);
@@ -475,7 +475,7 @@ static double enc_block_rdo_placebo(oapve_ctx_t* ctx, oapve_core_t* core, int lo
             coef_cur.cost = best_cost;
             for(int i = 1; i < adj_rng; i++) {
                 s16 test_diff = org_coef == 0 ? (i == 1 ? 1 : -1) : (org_coef > 0 ? i : -i);
-                s16 test_coef = org_coef + test_diff;
+                s16 test_coef = (s16)oapv_clip3(-32768, 32767, org_coef + test_diff);
 
                 oapv_mcpy(coeff, best_coeff, sizeof(s16) * OAPV_BLK_D);
                 coeff[scanp[j]] = test_coef;
