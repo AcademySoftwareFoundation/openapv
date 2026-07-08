@@ -719,6 +719,11 @@ static int update_param(args_var_t *vars, oapve_param_t *param)
 
     UPDATE_A_PARAM_W_KEY_VAL(param, "width", vars->width);
     UPDATE_A_PARAM_W_KEY_VAL(param, "height", vars->height);
+    if(param->w <= 0 || param->w > IMGB_MAX_W || param->h <= 0 || param->h > IMGB_MAX_H) {
+        logerr("ERR: frame dimensions %dx%d out of range (max %dx%d)\n",
+               param->w, param->h, IMGB_MAX_W, IMGB_MAX_H);
+        return -1;
+    }
     UPDATE_A_PARAM_W_KEY_VAL(param, "fps", vars->fps);
 
     UPDATE_A_PARAM_W_KEY_VAL(param, "qp", vars->qp);
@@ -1113,13 +1118,6 @@ int main(int argc, const char **argv)
 
     if (codec_depth == 0) {
         logerr("ERR: invalid profile\n");
-        ret = -1;
-        goto ERR;
-    }
-
-    if(param->w <= 0 || param->w > IMGB_MAX_W || param->h <= 0 || param->h > IMGB_MAX_H) {
-        logerr("ERR: frame dimensions %dx%d out of range (max %dx%d)\n",
-               param->w, param->h, IMGB_MAX_W, IMGB_MAX_H);
         ret = -1;
         goto ERR;
     }
