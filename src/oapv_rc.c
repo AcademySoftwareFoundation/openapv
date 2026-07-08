@@ -33,7 +33,7 @@
 
 int oapve_rc_get_tile_cost(oapve_ctx_t* ctx, oapve_core_t* core, oapve_tile_t* tile)
 {
-    int sum = 0;
+    s64 sum = 0;
     s16* org = NULL;
     s16* pic = NULL;
     int  org_s;
