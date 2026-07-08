@@ -1415,6 +1415,8 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_
 {
     int i, ret;
 
+    oapv_assert_rv(imgb != NULL, OAPV_ERR_MALFORMED_BITSTREAM);
+
     // the input image buffer must match the frame format signaled in the
     // bitstream; a mismatch (e.g. caused by a resolution change without
     // reallocation) is rejected as an invalid argument
