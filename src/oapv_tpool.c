@@ -133,26 +133,26 @@ static oapv_thread_t tpool_create_thread(oapv_tpool_t *tp, int thread_id)
     // intialize conditional variable and mutexes
     result = pthread_mutex_init(&tctx->c_section, NULL);
     if(result) {
-        goto TERROR; // error handling
+        goto ERR_FREE; // nothing initialized yet
     }
     result = pthread_cond_init(&tctx->w_event, NULL);
     if(result) {
-        goto TERROR;
+        goto ERR_MUTEX;
     }
     result = pthread_cond_init(&tctx->r_event, NULL);
     if(result) {
-        goto TERROR;
+        goto ERR_WCOND;
     }
 
     // initialize the worker thread attribute and set the type to joinable
     result = pthread_attr_init(&tctx->tAttribute);
     if(result) {
-        goto TERROR;
+        goto ERR_RCOND;
     }
 
     result = pthread_attr_setdetachstate(&tctx->tAttribute, PTHREAD_CREATE_JOINABLE);
     if(result) {
-        goto TERROR;
+        goto ERR_ATTR;
     }
 
     tctx->task = NULL;
@@ -164,21 +164,27 @@ static oapv_thread_t tpool_create_thread(oapv_tpool_t *tp, int thread_id)
     // create the worker thread
     result = pthread_create(&tctx->t_handle, &tctx->tAttribute, tpool_worker_thread, (void *)(tctx));
     if(result) {
-        goto TERROR;
+        goto ERR_ATTR;
     }
 
     // deinit the attribue
     pthread_attr_destroy(&tctx->tAttribute);
     return (oapv_thread_t)tctx;
 
-TERROR:
-    pthread_mutex_destroy(&tctx->c_section);
-    pthread_cond_destroy(&tctx->w_event);
-    pthread_cond_destroy(&tctx->r_event);
+    // error handling: destroy only the objects that were successfully initialized,
+    // falling through to release everything created before the failing step
+ERR_ATTR:
     pthread_attr_destroy(&tctx->tAttribute);
+ERR_RCOND:
+    pthread_cond_destroy(&tctx->r_event);
+ERR_WCOND:
+    pthread_cond_destroy(&tctx->w_event);
+ERR_MUTEX:
+    pthread_mutex_destroy(&tctx->c_section);
+ERR_FREE:
     free(tctx);
 
-    return NULL; // error handling, can't create a worker thread with proper initialization
+    return NULL; // can't create a worker thread with proper initialization
 }
 
 static tpool_result_t tpool_assign_task(oapv_thread_t thread_id, oapv_fn_thread_entry_t entry, void *arg)
