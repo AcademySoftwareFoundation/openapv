@@ -1117,6 +1117,13 @@ int main(int argc, const char **argv)
         goto ERR;
     }
 
+    if(param->w <= 0 || param->w > IMGB_MAX_W || param->h <= 0 || param->h > IMGB_MAX_H) {
+        logerr("ERR: frame dimensions %dx%d out of range (max %dx%d)\n",
+               param->w, param->h, IMGB_MAX_W, IMGB_MAX_H);
+        ret = -1;
+        goto ERR;
+    }
+
     for(int i = 0; i < num_frames; i++) {
         if(args_var->input_depth == codec_depth) {
             ifrms.frm[i].imgb = imgb_create(param->w, param->h, OAPV_CS_SET(cfmt, args_var->input_depth, 0));
