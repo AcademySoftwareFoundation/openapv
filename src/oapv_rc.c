@@ -214,11 +214,17 @@ void oapve_rc_update_after_pic(oapve_ctx_t* ctx, double cost)
         double diff_lambda = (ctx->rc_param.beta) * (log((double)total_bits) - log(((double)ctx->param->bitrate * 1000 / ((double)ctx->param->fps_num / ctx->param->fps_den))));
 
         diff_lambda = oapv_clip3(-0.125, 0.125, 0.25 * diff_lambda);
-        ctx->rc_param.alpha = (ctx->rc_param.alpha) * exp(diff_lambda);
-        ctx->rc_param.beta = (ctx->rc_param.beta) + diff_lambda / ln_bpp;
+        double alpha_new = (ctx->rc_param.alpha) * exp(diff_lambda);
+        double beta_new = (ctx->rc_param.beta) + diff_lambda / ln_bpp;
 
-        ctx->rc_param.alpha = oapv_clip3(0.05, 500, ctx->rc_param.alpha);
-        ctx->rc_param.beta = oapv_clip3(0.1, 3, ctx->rc_param.beta);
+        alpha_new = oapv_clip3(0.05, 500, alpha_new);
+        beta_new = oapv_clip3(0.1, 3, beta_new);
+
+        // discard non-finite results (NaN/Inf) so they don't corrupt persistent RC state
+        if(isfinite(alpha_new) && isfinite(beta_new)) {
+            ctx->rc_param.alpha = alpha_new;
+            ctx->rc_param.beta = beta_new;
+        }
     }
     ctx->rc_param.is_updated = 1;
 }
