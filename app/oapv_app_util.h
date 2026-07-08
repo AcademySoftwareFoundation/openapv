@@ -713,7 +713,7 @@ static void measure_psnr(oapv_imgb_t *org, oapv_imgb_t *rec, double psnr[4], int
 
             for(j = 0; j < org->h[i]; j++) {
                 for(k = 0; k < org->w[i]; k++) {
-                    sum[i] += (o[k] - r[k]) * (o[k] - r[k]);
+                    sum[i] += (double)(o[k] - r[k]) * (o[k] - r[k]);
                 }
 
                 o += org->s[i];
@@ -739,7 +739,7 @@ static void measure_psnr(oapv_imgb_t *org, oapv_imgb_t *rec, double psnr[4], int
                         sum[i] += (((int)o[k] - (int)r[k]) >> 6) * (((int)o[k] - (int)r[k]) >> 6);
                     }
                     else {
-                        sum[i] += (o[k] - r[k]) * (o[k] - r[k]);
+                        sum[i] += (double)(o[k] - r[k]) * (o[k] - r[k]);
                     }
                 }
                 o = (unsigned short *)((unsigned char *)o + org->s[i]);
