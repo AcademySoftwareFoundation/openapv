@@ -189,6 +189,9 @@ void oapve_rc_get_qp(oapve_ctx_t* ctx, oapve_tile_t* tile, int frame_qp, int* qp
     double min_lambda = exp(((double)(min_qp - 0.49) - 13.7122) / 4.2005);
 
     const int LAMBDA_PREC = 1000000;
+    if(!isfinite(est_lambda)) {
+        est_lambda = min_lambda;
+    }
     est_lambda = oapv_clip3(min_lambda, max_lambda, est_lambda);
     est_lambda = (double)((s64)(est_lambda * (double)LAMBDA_PREC + 0.5)) / (double)LAMBDA_PREC;
     *qp = (int)(4.2005 * log(est_lambda) + 13.7122 + 0.5);
