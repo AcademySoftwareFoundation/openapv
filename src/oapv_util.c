@@ -259,7 +259,7 @@ static unsigned char uuid_frm_hash[16] = {
 };
 
 // checks imgb self-consistency; returns OAPV_OK or a specific error code
-int oapv_imgb_valid(oapv_imgb_t *imgb)
+int oapv_imgb_is_valid(oapv_imgb_t *imgb)
 {
     if(imgb == NULL) {
         return OAPV_ERR_INVALID_ARGUMENT;
@@ -286,7 +286,7 @@ int oapv_imgb_set_md5(oapv_imgb_t *imgb)
     oapv_md5_t md5[N_C];
     int        i, j, ret;
 
-    ret = oapv_imgb_valid(imgb);
+    ret = oapv_imgb_is_valid(imgb);
     if(OAPV_FAILED(ret)) {
         return ret;
     }
