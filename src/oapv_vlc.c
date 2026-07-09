@@ -631,9 +631,22 @@ int oapve_vlc_get_coef_rate(oapve_core_t* core, s16* coef, int c)
 // start of decoder code
 #if ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
-#define BSR_FLUSH_1BYTE(bs) {                       \
-        (bs)->code = ((u64)(*((bs)->cur++))) << 56; \
-        (bs)->leftbits = 8;                         \
+// Refill the bit buffer with one byte. On buffer end, do NOT read past it:
+// set is_eob and fill 'code' with all 1-bits on purpose. The VLC exp-golomb
+// loops terminate on a 1-bit, so 1-bits make them exit at once instead of
+// spinning on 0-bits and reading further past the end. Callers see is_eob
+// (BSR_IS_UNEXPECTED_EOB) and return OAPV_ERR_MALFORMED_BITSTREAM, so the
+// garbage value produced here is discarded.
+#define BSR_FLUSH_1BYTE(bs) {                           \
+        if((bs)->cur < (bs)->end) {                     \
+            (bs)->code = ((u64)(*((bs)->cur++))) << 56; \
+            (bs)->leftbits = 8;                         \
+        }                                               \
+        else {                                          \
+            (bs)->code = ~(u64)0;                       \
+            (bs)->leftbits = 8;                         \
+            (bs)->is_eob = 1;                           \
+        }                                               \
     }
 
 #define BSR_READ_1BIT(bs, bit) {                \
@@ -825,6 +838,8 @@ int oapvd_vlc_dc_coef(oapv_bs_t *bs, int *dc_diff, int *kparam_dc)
     int sign;
 
     abs_dc_diff = dec_vlc_read(bs, *kparam_dc);
+    if(abs_dc_diff < 0) // dec_vlc_read error sentinel
+        return OAPV_ERR_MALFORMED_BITSTREAM;
     if(abs_dc_diff) {
         if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
         BSR_READ_1BIT(bs, sign);
