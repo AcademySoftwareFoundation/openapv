@@ -1132,9 +1132,11 @@ int main(int argc, const char **argv)
             }
             else {
                 imgb_r = imgb_create(param->w, param->h, OAPV_CS_SET(cfmt, args_var->input_depth, 0));
+                if(imgb_r == NULL) { ret = -1; goto ERR; }
                 ifrms.frm[i].imgb = imgb_create(param->w, param->h, OAPV_CS_SET(cfmt, codec_depth, 0));
             }
         }
+        if(ifrms.frm[i].imgb == NULL) { ret = -1; goto ERR; }
 
         if(is_rec) {
             if(args_var->input_depth == codec_depth) {
@@ -1147,9 +1149,11 @@ int main(int argc, const char **argv)
                 else
                 {
                     imgb_w = imgb_create(param->w, param->h, OAPV_CS_SET(cfmt, args_var->input_depth, 0));
+                    if(imgb_w == NULL) { ret = -1; goto ERR; }
                     rfrms.frm[i].imgb = imgb_create(param->w, param->h, OAPV_CS_SET(cfmt, codec_depth, 0));
                 }
             }
+            if(rfrms.frm[i].imgb == NULL) { ret = -1; goto ERR; }
             rfrms.num_frms++;
         }
         ifrms.num_frms++;

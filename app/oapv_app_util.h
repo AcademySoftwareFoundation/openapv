@@ -493,10 +493,16 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
 {
     unsigned char *p8;
     int            i, j, bd;
+    int            chroma_format, bit_depth;
     FILE          *fp;
 
-    int            chroma_format = OAPV_CS_GET_FORMAT(imgb->cs);
-    int            bit_depth = OAPV_CS_GET_BIT_DEPTH(imgb->cs);
+    if(imgb == NULL) {
+        logerr("ERR: null image buffer in image write\n");
+        return -1;
+    }
+
+    chroma_format = OAPV_CS_GET_FORMAT(imgb->cs);
+    bit_depth = OAPV_CS_GET_BIT_DEPTH(imgb->cs);
 
     fp = fopen(fname, "ab");
     if(fp == NULL) {
