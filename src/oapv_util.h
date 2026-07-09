@@ -171,7 +171,8 @@ typedef struct
 } oapv_md5_t;
 
 /* MD5 Functions */
-void oapv_imgb_set_md5(oapv_imgb_t *imgb);
+int  oapv_imgb_valid(oapv_imgb_t *imgb);
+int  oapv_imgb_set_md5(oapv_imgb_t *imgb);
 void oapv_imgb_clr_md5(oapv_imgb_t *imgb);
 
 void oapv_block_copy(s16 *src, int src_stride, s16 *dst, int dst_stride, int log2_copy_w, int log2_copy_h);

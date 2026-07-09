@@ -258,12 +258,38 @@ static unsigned char uuid_frm_hash[16] = {
     0x98, 0x0d, 0x9b, 0x9e, 0x39, 0x20, 0x28, 0x49
 };
 
-void oapv_imgb_set_md5(oapv_imgb_t *imgb)
+// checks imgb self-consistency; returns OAPV_OK or a specific error code
+int oapv_imgb_valid(oapv_imgb_t *imgb)
 {
+    if(imgb == NULL) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
+    if(imgb->np < 1 || imgb->np > OAPV_MAX_CC) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
+    for(int i = 0; i < imgb->np; i++) {
+        if(imgb->a[i] == NULL) {
+            return OAPV_ERR_INVALID_ARGUMENT;
+        }
+        if(imgb->aw[i] < 0 || (s64)imgb->s[i] < (s64)imgb->aw[i] * 2) {
+            return OAPV_ERR_INVALID_WIDTH;
+        }
+        if(imgb->ah[i] < 0 || (s64)imgb->bsize[i] < (s64)imgb->ah[i] * imgb->s[i]) {
+            return OAPV_ERR_INVALID_HEIGHT;
+        }
+    }
+    return OAPV_OK;
+}
 
+int oapv_imgb_set_md5(oapv_imgb_t *imgb)
+{
     oapv_md5_t md5[N_C];
-    int        i, j;
-    oapv_assert(imgb != NULL);
+    int        i, j, ret;
+
+    ret = oapv_imgb_valid(imgb);
+    if(OAPV_FAILED(ret)) {
+        return ret;
+    }
     memset(imgb->hash, 0, sizeof(imgb->hash));
 
     for(i = 0; i < imgb->np; i++) {
@@ -275,6 +301,7 @@ void oapv_imgb_set_md5(oapv_imgb_t *imgb)
 
         md5_finish(&md5[i], imgb->hash[i]);
     }
+    return OAPV_OK;
 }
 
 void oapv_imgb_clr_md5(oapv_imgb_t *imgb)
@@ -284,14 +311,15 @@ void oapv_imgb_clr_md5(oapv_imgb_t *imgb)
 
 int oapv_set_md5_pld(oapvm_t mid, int group_id, oapv_imgb_t *rec)
 {
-    oapv_imgb_set_md5(rec);
+    int ret = oapv_imgb_set_md5(rec);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
     u8 *mdp_data = oapv_malloc((16 * rec->np) + 16);
     oapv_assert_rv(mdp_data != NULL, OAPV_ERR_OUT_OF_MEMORY);
     memcpy(mdp_data, uuid_frm_hash, 16);
     for(int i = 0; i < rec->np; i++) {
         memcpy(mdp_data + ((i + 1) * 16), rec->hash[i], 16);
     }
-    int ret = oapvm_set(mid, group_id, OAPV_METADATA_USER_DEFINED, mdp_data, 16 * rec->np + 16);
+    ret = oapvm_set(mid, group_id, OAPV_METADATA_USER_DEFINED, mdp_data, 16 * rec->np + 16);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
     oapv_mfree(mdp_data);
     return OAPV_OK;

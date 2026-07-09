@@ -1966,7 +1966,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
             /* READ FILLER HERE !!! */
 
             if(OAPV_SUCCEEDED(ret) && ctx->use_frm_hash) {
-                oapv_imgb_set_md5(ctx->imgb);
+                ret = oapv_imgb_set_md5(ctx->imgb);
             }
             else {
                 oapv_imgb_clr_md5(ctx->imgb);
@@ -2237,7 +2237,7 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
 
     /* READ FILLER HERE !!! */
     if(OAPV_SUCCEEDED(ret) && ctx->use_frm_hash) {
-        oapv_imgb_set_md5(imgb);
+        ret = oapv_imgb_set_md5(imgb);
     }
     else {
         oapv_imgb_clr_md5(imgb);
