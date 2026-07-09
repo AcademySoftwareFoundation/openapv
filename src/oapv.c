@@ -919,6 +919,20 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
         }
         ctx->fn_imgb_pad = imgb_pad;
     }
+
+    // reject caller buffers too small for the aligned padding extents
+    int is_planar2 = (OAPV_CS_GET_FORMAT(imgb_i->cs) == OAPV_CF_PLANAR2);
+    for(int c = 0; c < imgb_i->np; c++) {
+        int need_w = ctx->w >> (is_planar2 ? 0 : ctx->c_sft[c][0]);
+        int need_h = ctx->h >> (is_planar2 ? 0 : ctx->c_sft[c][1]);
+        if((s64)imgb_i->s[c] < (s64)need_w * (int)sizeof(pel)) {
+            return OAPV_ERR_INVALID_WIDTH;
+        }
+        if((s64)imgb_i->bsize[c] < (s64)need_h * imgb_i->s[c]) {
+            return OAPV_ERR_INVALID_HEIGHT;
+        }
+    }
+
     // padding input picture, if needs
     ctx->fn_imgb_pad(imgb_i, ctx->w, ctx->h, ctx->c_sft);
 
