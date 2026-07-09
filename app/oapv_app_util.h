@@ -532,6 +532,35 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
     return 0;
 }
 
+// checks src/dst are compatible and both buffers hold the copy extent
+static int imgb_cpy_is_valid(oapv_imgb_t *dst, oapv_imgb_t *src)
+{
+    if(src == NULL || dst == NULL) {
+        logerr("ERR: null image buffer in image copy\n");
+        return 0;
+    }
+    if(src->np < 1 || src->np > OAPV_MAX_CC || dst->np != src->np) {
+        logerr("ERR: mismatched plane count in image copy\n");
+        return 0;
+    }
+    int src_bytes = OAPV_CS_GET_BYTE_DEPTH(src->cs);
+    int dst_bytes = OAPV_CS_GET_BYTE_DEPTH(dst->cs);
+    for(int i = 0; i < src->np; i++) {
+        int w = src->w[i] > src->aw[i] ? src->w[i] : src->aw[i];
+        int h = src->h[i] > src->ah[i] ? src->h[i] : src->ah[i];
+        if(src->a[i] == NULL || dst->a[i] == NULL || w < 0 || h < 0) {
+            logerr("ERR: invalid plane in image copy\n");
+            return 0;
+        }
+        if((long long)(h - 1) * src->s[i] + (long long)w * src_bytes > src->bsize[i] ||
+           (long long)(h - 1) * dst->s[i] + (long long)w * dst_bytes > dst->bsize[i]) {
+            logerr("ERR: buffer too small in image copy\n");
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static void imgb_cpy_plane(oapv_imgb_t *dst, oapv_imgb_t *src)
 {
     int            i, j;
@@ -654,6 +683,9 @@ static void imgb_cpy_shift_right(oapv_imgb_t *dst, oapv_imgb_t *src, int shift)
 static void imgb_cpy(oapv_imgb_t *dst, oapv_imgb_t *src)
 {
     int i, bd_src, bd_dst;
+
+    if(!imgb_cpy_is_valid(dst, src)) return;
+
     bd_src = OAPV_CS_GET_BIT_DEPTH(src->cs);
     bd_dst = OAPV_CS_GET_BIT_DEPTH(dst->cs);
 
