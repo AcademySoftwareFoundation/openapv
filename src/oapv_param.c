@@ -185,6 +185,10 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     int   ti0;
     float tf0;
 
+    if(param == NULL || name == NULL || value == NULL) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
+
     /* normalization of name and value ***************************************/
     // pass '-- prefix' if exists
     if(name[0] == '-' && name[1] == '-') { name += 2; }
@@ -251,18 +255,28 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     }
     NAME_CMP("fps") {
         if(strpbrk(value, "/") != NULL) {
-            if(sscanf(value, "%d/%d", &param->fps_num, &param->fps_den) != 2 ||
-               param->fps_num <= 0 || param->fps_den <= 0) {
+            // parse into locals first so a bad value leaves param unchanged
+            int num, den;
+            if(sscanf(value, "%d/%d", &num, &den) != 2 || num <= 0 || den <= 0) {
                 return OAPV_ERR_INVALID_ARGUMENT;
             }
+            param->fps_num = num;
+            param->fps_den = den;
         }
         else if(strpbrk(value, ".") != NULL) {
             GET_FLOAT_OR_ERR(value, tf0, OAPV_ERR_INVALID_ARGUMENT);
-            param->fps_num = tf0 * 10000;
+            // reject values that would overflow the fixed-point fps_num
+            if(!(tf0 > 0.0f) || tf0 > (float)INT_MAX / 10000.0f) {
+                return OAPV_ERR_INVALID_ARGUMENT;
+            }
+            param->fps_num = (int)(tf0 * 10000);
             param->fps_den = 10000;
         }
         else {
             GET_INTEGER_OR_ERR(value, ti0, OAPV_ERR_INVALID_ARGUMENT);
+            if(ti0 <= 0) {
+                return OAPV_ERR_INVALID_ARGUMENT;
+            }
             param->fps_num = ti0;
             param->fps_den = 1;
         }
@@ -426,7 +440,8 @@ static int enc_update_param_level_band(oapve_param_t* param)
 {
     int w = oapv_div_round_up(param->w, OAPV_MB_W) * OAPV_MB_W;
     int h = oapv_div_round_up(param->h, OAPV_MB_H) * OAPV_MB_H;
-    double fps = (double)param->fps_num / param->fps_den;
+    // frame rate is optional (unused without rate control); guard the divisor
+    double fps = (param->fps_den > 0) ? (double)param->fps_num / param->fps_den : 0.0;
     u64 luma_sample_rate = (int)((double)w * h * fps);
     int min_level_idx = 0;
     for (int i = 0 ; i < MAX_LEVEL_NUM ; i++) {
