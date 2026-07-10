@@ -1906,6 +1906,9 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
 
     // read signature ('aPv1')
     oapv_assert_rv(bitb->ssize > 4, OAPV_ERR_MALFORMED_BITSTREAM);
+    if(bitb->bsize > 0) {
+        oapv_assert_rv(bitb->ssize <= bitb->bsize, OAPV_ERR_INVALID_ARGUMENT);
+    }
     ret = oapv_bsr_read_direct(bitb->addr, 32, &signature);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
     oapv_assert_rv(signature == 0x61507631, OAPV_ERR_MALFORMED_BITSTREAM);
@@ -2191,6 +2194,9 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
 
     oapv_bs_t   *bs;
     oapv_assert_gv((bitb->ssize >= 8), ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
+    if(bitb->bsize > 0) {
+        oapv_assert_gv((bitb->ssize <= bitb->bsize), ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
+    }
     oapv_bsr_init(&ctx->bs, (u8 *)bitb->addr, bitb->ssize, NULL);
     bs = &ctx->bs;
 
@@ -2270,6 +2276,9 @@ int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
     oapv_bs_t  bs;
     oapv_aui_t ai;
 
+    if(bitb->bsize > 0) {
+        oapv_assert_rv(bitb->ssize <= bitb->bsize, OAPV_ERR_INVALID_ARGUMENT);
+    }
     oapv_bsr_init(&bs, bitb->addr, bitb->ssize, NULL);
 
     DUMP_SET(0);
