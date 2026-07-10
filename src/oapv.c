@@ -959,7 +959,13 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
             imgb_r->h[c] = imgb_i->h[c];
             imgb_r->x[c] = imgb_i->x[c];
             imgb_r->y[c] = imgb_i->y[c];
+            // recon plane spans the aligned frame extents
+            imgb_r->aw[c] = ctx->w >> (is_planar2 ? 0 : ctx->c_sft[c][0]);
+            imgb_r->ah[c] = ctx->h >> (is_planar2 ? 0 : ctx->c_sft[c][1]);
         }
+        // reject recon buffers too small for the reconstruction picture
+        ret = oapv_imgb_is_valid(imgb_r);
+        oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
         ctx->imgb_r = imgb_r;
         imgb_addref(ctx->imgb_r);
     }
