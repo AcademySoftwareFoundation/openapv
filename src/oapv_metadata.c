@@ -185,6 +185,7 @@ int oapvm_write_mdcv(oapvm_payload_mdcv_t *mdcv, void *data, int *size)
     int i, t;
     u32 tu32;
     oapv_bs_t bs;
+    oapv_assert_rv(mdcv != NULL && data != NULL && size != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_bsw_init(&bs, data, 24, NULL); // MDCV payload has 24 bytes
 
     for(i = 0; i < 3; i++) {
@@ -222,6 +223,7 @@ int oapvm_read_mdcv(void *data, int size, oapvm_payload_mdcv_t *mdcv)
 {
     int i;
     oapv_bs_t bs;
+    oapv_assert_rv(data != NULL && mdcv != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(size >= 24, OAPV_ERR_INVALID_ARGUMENT);
     oapv_bsr_init(&bs, data, size, NULL); // MDCV payload has 24 bytes
 
@@ -243,6 +245,7 @@ int oapvm_write_cll(oapvm_payload_cll_t *cll, void *data, int *size)
 {
     int t;
     oapv_bs_t bs;
+    oapv_assert_rv(cll != NULL && data != NULL && size != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_bsw_init(&bs, data, 4, NULL); // CLL payload has 4 bytes
 
     t = cll->max_cll;
@@ -262,6 +265,7 @@ int oapvm_write_cll(oapvm_payload_cll_t *cll, void *data, int *size)
 int oapvm_read_cll(void *data, int size, oapvm_payload_cll_t *cll)
 {
     oapv_bs_t bs;
+    oapv_assert_rv(data != NULL && cll != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(size >= 4, OAPV_ERR_INVALID_ARGUMENT);
     oapv_bsr_init(&bs, data, size, NULL); // CLL payload has 4 bytes
 

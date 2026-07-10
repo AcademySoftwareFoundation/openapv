@@ -559,6 +559,9 @@ int oapve_param_update(oapve_ctx_t* ctx)
 {
     int ret = OAPV_OK;
     int min_num_tiles = OAPV_MAX_TILES;
+    // bound the frame count to the param[] array size
+    oapv_assert_rv(ctx->cdesc.max_num_frms >= 1 && ctx->cdesc.max_num_frms <= OAPV_MAX_NUM_FRAMES,
+                   OAPV_ERR_INVALID_ARGUMENT);
     for (int i = 0; i < ctx->cdesc.max_num_frms; i++) {
         ret = enc_update_param_tile(ctx, &ctx->cdesc.param[i]);
         oapv_assert_rv(ret == OAPV_OK, ret);

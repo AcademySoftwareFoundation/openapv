@@ -1182,7 +1182,10 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
     u8          *bs_pos_pbu_beg, *bs_pos_au_beg;
 
     ctx = enc_id_to_ctx(eid);
-    oapv_assert_rv(ctx != NULL && bitb->addr && bitb->bsize > 0, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(ctx != NULL && bitb != NULL && bitb->addr && bitb->bsize > 0, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(ifrms != NULL && stat != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    // bound the frame count to the frm[]/param[] array sizes
+    oapv_assert_rv(ifrms->num_frms >= 1 && ifrms->num_frms <= OAPV_MAX_NUM_FRAMES, OAPV_ERR_INVALID_ARGUMENT);
 
     bs = &bsw;
 
