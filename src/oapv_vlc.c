@@ -714,6 +714,9 @@ static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
             }
         }
     }
+
+    oapv_assert_rv(k < 32, -1); /* prevent too large (impossible) k value */
+
     if(k > 0) {
         symbol += ((u32)0xFFFFFFFF) >> (32 - k);
 
