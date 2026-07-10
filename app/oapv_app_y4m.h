@@ -199,6 +199,7 @@ int y4m_header_parser(FILE *ip_y4m, y4m_params_t *y4m)
     int       ret;
     int       i;
 
+    memset(y4m, 0, sizeof(*y4m));
     memset(buffer, 0, sizeof(char) * head_size);
 
     /*Read until newline, or 128 cols, whichever happens first.*/
@@ -226,6 +227,10 @@ int y4m_header_parser(FILE *ip_y4m, y4m_params_t *y4m)
     if(ret < 0) {
         logerr("ERR: parsing YUV4MPEG2 header.\n");
         return ret;
+    }
+    if(y4m->w <= 0 || y4m->h <= 0 || y4m->fps_num <= 0 || y4m->fps_den <= 0) {
+        logerr("ERR: Y4M header missing required width/height/frame-rate.\n");
+        return -1;
     }
     return 0;
 }

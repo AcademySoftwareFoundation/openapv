@@ -309,7 +309,7 @@ typedef struct args_var {
 
     char           width[16];
     char           height[16];
-    char           fps[16];
+    char           fps[24];
 
     char           qp[16];
     char           qp_offset_c1[16];
