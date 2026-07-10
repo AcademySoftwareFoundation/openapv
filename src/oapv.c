@@ -1903,6 +1903,8 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
 
     ctx = dec_id_to_ctx(did);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    // required in/out pointers must be valid (mid is optional)
+    oapv_assert_rv(bitb && bitb->addr && ofrms && stat, OAPV_ERR_INVALID_ARGUMENT);
     oapv_mset(stat, 0, sizeof(oapvd_stat_t));
 
     // read signature ('aPv1')
