@@ -226,6 +226,11 @@ void oapv_bsr_skip(oapv_bs_t *bs, int size)
             // fn_flush set is_eob flag on error; caller must check it
             return;
         }
+        if(bs->leftbits < size) {
+            // truncated stream: fewer bits than requested; do not underflow
+            bs->is_eob = 1;
+            return;
+        }
     }
     bsr_skip_code(bs, size);
 }
@@ -255,6 +260,11 @@ u32 oapv_bsr_read(oapv_bs_t *bs, int size)
         size -= bs->leftbits;
         if(bs->fn_flush(bs, 8)) {
             // fn_flush set is_eob flag on error; return (u32)(-1) with is_eob marker
+            return (u32)(-1);
+        }
+        if(bs->leftbits < size) {
+            // truncated stream: fewer bits than requested; do not underflow
+            bs->is_eob = 1;
             return (u32)(-1);
         }
     }
