@@ -258,24 +258,24 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
             // parse into locals first so a bad value leaves param unchanged
             int num, den;
             if(sscanf(value, "%d/%d", &num, &den) != 2 || num <= 0 || den <= 0) {
-                return OAPV_ERR_INVALID_ARGUMENT;
+                return OAPV_ERR_INVALID_FPS;
             }
             param->fps_num = num;
             param->fps_den = den;
         }
         else if(strpbrk(value, ".") != NULL) {
-            GET_FLOAT_OR_ERR(value, tf0, OAPV_ERR_INVALID_ARGUMENT);
+            GET_FLOAT_OR_ERR(value, tf0, OAPV_ERR_INVALID_FPS);
             // reject values that would overflow the fixed-point fps_num
             if(!(tf0 > 0.0f) || tf0 > (float)INT_MAX / 10000.0f) {
-                return OAPV_ERR_INVALID_ARGUMENT;
+                return OAPV_ERR_INVALID_FPS;
             }
             param->fps_num = (int)(tf0 * 10000);
             param->fps_den = 10000;
         }
         else {
-            GET_INTEGER_OR_ERR(value, ti0, OAPV_ERR_INVALID_ARGUMENT);
+            GET_INTEGER_OR_ERR(value, ti0, OAPV_ERR_INVALID_FPS);
             if(ti0 <= 0) {
-                return OAPV_ERR_INVALID_ARGUMENT;
+                return OAPV_ERR_INVALID_FPS;
             }
             param->fps_num = ti0;
             param->fps_den = 1;
@@ -626,6 +626,9 @@ static float get_key_bitrate(int w, int h)
 int oapve_family_bitrate(int family, int w, int h, int fps_num, int fps_den, int * kbps)
 {
     float key, ratio;
+
+    // frame rate is a divisor below; reject non-positive values
+    oapv_assert_rv(fps_num > 0 && fps_den > 0, OAPV_ERR_INVALID_FPS);
 
     switch(family) {
     case OAPV_FAMILY_422_LQ:
