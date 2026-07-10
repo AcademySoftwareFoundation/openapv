@@ -111,6 +111,7 @@ extern "C" {
 #define OAPV_ERR_INVALID_LEVEL          (-401)
 #define OAPV_ERR_INVALID_WIDTH          (-405) /* invalid width (like odd) */
 #define OAPV_ERR_INVALID_HEIGHT         (-406)
+#define OAPV_ERR_INVALID_FPS            (-407) /* invalid or missing frame rate */
 #define OAPV_ERR_INVALID_QP             (-410)
 #define OAPV_ERR_INVALID_FAMILY         (-501) /* invalid family number */
 #define OAPV_ERR_UNKNOWN                (-32767) /* unknown error */

@@ -440,7 +440,12 @@ static int enc_update_param_level_band(oapve_param_t* param)
 {
     int w = oapv_div_round_up(param->w, OAPV_MB_W) * OAPV_MB_W;
     int h = oapv_div_round_up(param->h, OAPV_MB_H) * OAPV_MB_H;
-    // frame rate is optional (unused without rate control); guard the divisor
+    // fps is required for rate control (ABR) and for automatic level selection;
+    // it stays optional for fixed-QP with an explicit level
+    if(param->rc_type != OAPV_RC_CQP || param->level_idc == OAPVE_PARAM_LEVEL_IDC_AUTO) {
+        oapv_assert_rv(param->fps_num > 0 && param->fps_den > 0, OAPV_ERR_INVALID_FPS);
+    }
+    // otherwise fps is optional; guard the divisor when it is left unset
     double fps = (param->fps_den > 0) ? (double)param->fps_num / param->fps_den : 0.0;
     u64 luma_sample_rate = (int)((double)w * h * fps);
     int min_level_idx = 0;
