@@ -293,7 +293,7 @@ int oapv_bsr_read_direct(const void *addr, int len, u32 *out)
         return OAPV_ERR_INVALID_ARGUMENT;
 
     while(byte) {
-        code |= *(p) << shift;
+        code |= (u32)(*(p)) << shift;
         shift -= 8;
         byte--;
         p++;

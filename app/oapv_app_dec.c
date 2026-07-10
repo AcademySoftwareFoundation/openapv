@@ -564,6 +564,7 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
         /* main decoding block */
         bitb.addr = bs_buf;
+        bitb.bsize = MAX_BS_BUF;
         bitb.ssize = bs_buf_size;
         memset(&stat, 0, sizeof(oapvd_stat_t));
 
@@ -953,6 +954,7 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
                 // start to decode a frame
                 bitb.addr = pbu;
+                bitb.bsize = pbu_size;
                 bitb.ssize = pbu_size;
 
                 clk_beg = oapv_clk_get();
