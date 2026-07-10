@@ -1001,6 +1001,8 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
     oapve_vlc_frame_header(bs, ctx, &ctx->fh);
 
     u8 *bs_tile_pos = oapv_bsw_sink(bs);
+    // sink returns NULL when the output buffer cannot hold the header
+    oapv_assert_gv(bs_tile_pos != NULL, ret, OAPV_ERR_OUT_OF_BS_BUF, ERR);
 
     /* rc init */
     u64 cost_sum = 0;
