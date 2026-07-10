@@ -605,22 +605,16 @@ static int family_info[][2] = {
 static float get_key_bitrate(int w, int h)
 {
     int idx, wh_hi, wh_lo, bit_hi, bit_lo;
-    int wh = w * h;
+    // 64-bit to avoid overflow; family_info[0] is {0,..} so idx never underflows
+    s64 wh = (s64)w * h;
     float key = 0.f;
 
     for(idx = 0; idx < NUM_FAMILY_INFO; idx++) {
         if(wh < family_info[idx][0]) {
             wh_hi  = family_info[idx][0]; // resolution of high-bound
             bit_hi = family_info[idx][1]; // Mbps for high-bound
-            if(idx == 0) {
-                // below the smallest tabulated resolution: interpolate from origin
-                wh_lo  = 0;
-                bit_lo = 0;
-            }
-            else {
-                wh_lo  = family_info[idx-1][0]; // resolution of low-bound
-                bit_lo = family_info[idx-1][1]; // Mbps of low-bound
-            }
+            wh_lo  = family_info[idx-1][0]; // resolution of low-bound
+            bit_lo = family_info[idx-1][1]; // Mbps of low-bound
 
             float ratio = (float)(bit_hi - bit_lo) / (wh_hi - wh_lo);
             key   = bit_lo + (ratio * (wh - wh_lo));
