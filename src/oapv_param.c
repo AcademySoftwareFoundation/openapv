@@ -499,6 +499,10 @@ static int enc_update_param_bitrate(oapve_param_t* param)
 
 static int enc_update_param_tile(oapve_ctx_t* ctx, oapve_param_t* param)
 {
+    /* frame dimensions must fit the 24-bit frame_info fields */
+    oapv_assert_rv(param->w > 0 && param->w <= ((1 << 24) - 1), OAPV_ERR_INVALID_WIDTH);
+    oapv_assert_rv(param->h > 0 && param->h <= ((1 << 24) - 1), OAPV_ERR_INVALID_HEIGHT);
+
     /* set various value */
     ctx->w = oapv_div_round_up(param->w, OAPV_MB_W) * OAPV_MB_W;
     ctx->h = oapv_div_round_up(param->h, OAPV_MB_H) * OAPV_MB_H;
