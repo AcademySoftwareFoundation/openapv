@@ -1690,6 +1690,7 @@ static int dec_thread_tile(void *arg)
             oapv_tpool_leave_cs(ctx->sync_obj);
         }
         /* read tile size */
+        oapv_assert_gv(tile[tidx].bs_beg + OAPV_TILE_SIZE_LEN <= ctx->bs.end, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
         oapv_bsr_init(&bs, tile[tidx].bs_beg, OAPV_TILE_SIZE_LEN, NULL);
         ret = oapvd_vlc_tile_size(&bs, &tile[tidx].tile_size);
         oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
@@ -1926,7 +1927,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
         ret = oapvd_vlc_pbu_size(bs, &pbu_size); // read pbu_size (4 byte)
         oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
         remain -= 4; // size of pbu_size syntax
-        oapv_assert_gv(pbu_size <= remain, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
+        oapv_assert_gv(pbu_size >= 4 && pbu_size <= remain, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
 
         ret = oapvd_vlc_pbu_header(bs, &pbuh);
         oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
