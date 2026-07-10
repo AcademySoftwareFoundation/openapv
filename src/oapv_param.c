@@ -505,6 +505,10 @@ static int enc_update_param_bitrate(oapve_param_t* param)
 {
     int level_idx = level_idc_to_level_idx(param->level_idc);
 
+    // bound the rate-table indices before use
+    oapv_assert_rv(level_idx >= 0 && level_idx < MAX_LEVEL_NUM, OAPV_ERR_INVALID_LEVEL);
+    oapv_assert_rv(param->band_idc >= 0 && param->band_idc < MAX_BAND_NUM, OAPV_ERR_INVALID_ARGUMENT);
+
     if (param->bitrate == 0 && param->qp == OAPVE_PARAM_QP_AUTO) {
         param->bitrate = max_coded_data_rate[level_idx][param->band_idc];
     }
@@ -608,8 +612,15 @@ static float get_key_bitrate(int w, int h)
         if(wh < family_info[idx][0]) {
             wh_hi  = family_info[idx][0]; // resolution of high-bound
             bit_hi = family_info[idx][1]; // Mbps for high-bound
-            wh_lo  = family_info[idx-1][0]; // resolution of low-bound
-            bit_lo = family_info[idx-1][1]; // Mbps of low-bound
+            if(idx == 0) {
+                // below the smallest tabulated resolution: interpolate from origin
+                wh_lo  = 0;
+                bit_lo = 0;
+            }
+            else {
+                wh_lo  = family_info[idx-1][0]; // resolution of low-bound
+                bit_lo = family_info[idx-1][1]; // Mbps of low-bound
+            }
 
             float ratio = (float)(bit_hi - bit_lo) / (wh_hi - wh_lo);
             key   = bit_lo + (ratio * (wh - wh_lo));
