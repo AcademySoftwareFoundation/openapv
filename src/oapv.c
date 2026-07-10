@@ -1245,13 +1245,17 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         for(i = 0; i < num_md; i++) {
             int group_id = md_list->md_arr[i].group_id;
             bs_pos_pbu_beg = oapv_bsw_sink(bs);            /* store pbu pos to calculate size */
+            oapv_assert_rv(bs_pos_pbu_beg != NULL, OAPV_ERR_OUT_OF_BS_BUF);
             DUMP_SAVE(0);
             oapv_bsw_write(bs, 0, 32); /* skip pbu_size syntax (later re-write) */
             oapve_vlc_pbu_header(bs, OAPV_PBU_TYPE_METADATA, group_id);
-            oapve_vlc_metadata(&md_list->md_arr[i], bs);
+            ret = oapve_vlc_metadata(&md_list->md_arr[i], bs);
+            oapv_assert_rv(ret == OAPV_OK, ret);
 
             // rewrite pbu_size
-            int pbu_size = ((u8 *)oapv_bsw_sink(bs)) - bs_pos_pbu_beg - 4;
+            u8 *bs_pos_pbu_end = oapv_bsw_sink(bs);
+            oapv_assert_rv(bs_pos_pbu_end != NULL, OAPV_ERR_OUT_OF_BS_BUF);
+            int pbu_size = (bs_pos_pbu_end - bs_pos_pbu_beg) - 4;
             DUMP_SAVE(1);
             DUMP_LOAD(0);
             oapv_bsw_write_direct(bs_pos_pbu_beg, pbu_size, 32);

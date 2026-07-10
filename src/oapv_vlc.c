@@ -475,7 +475,10 @@ int oapve_vlc_pbu_header(oapv_bs_t *bs, int pbu_type, int group_id)
 int oapve_vlc_metadata(oapv_md_t *md, oapv_bs_t *bs)
 {
     u8 *bs_pos_md;
+    u8 *bs_pos_end;
     bs_pos_md = oapv_bsw_sink(bs);
+    // sink returns NULL when the output buffer has no room left
+    oapv_assert_rv(bs_pos_md != NULL, OAPV_ERR_OUT_OF_BS_BUF);
 
     oapv_bsw_write(bs, 0, 32); // raw bitstream byte size (skip)
     DUMP_SAVE(0);
@@ -510,7 +513,9 @@ int oapve_vlc_metadata(oapv_md_t *md, oapv_bs_t *bs)
 
         mdp = mdp->next;
     }
-    u32 md_size = (u32)((u8 *)oapv_bsw_sink(bs) - bs_pos_md) - 4;
+    bs_pos_end = oapv_bsw_sink(bs);
+    oapv_assert_rv(bs_pos_end != NULL, OAPV_ERR_OUT_OF_BS_BUF);
+    u32 md_size = (u32)(bs_pos_end - bs_pos_md) - 4;
     oapv_bsw_write_direct(bs_pos_md, md_size, 32);
     DUMP_SAVE(1);
     DUMP_LOAD(0);
