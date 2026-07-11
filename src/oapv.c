@@ -723,7 +723,7 @@ static int enc_tile(oapve_ctx_t *ctx, oapve_core_t *core, oapve_tile_t *tile)
             if(ctx->imgb_r) {
                 rec = ctx->imgb_r->a[tc];
                 rec += (c > 1) ? 1 : 0;
-                rec_s = ctx->imgb_i->s[tc];
+                rec_s = ctx->imgb_r->s[tc]; // recon stride, not input stride
             }
             else {
                 rec = NULL;
@@ -735,7 +735,7 @@ static int enc_tile(oapve_ctx_t *ctx, oapve_core_t *core, oapve_tile_t *tile)
             org_s = ctx->imgb_i->s[c];
             if(ctx->imgb_r) {
                 rec = ctx->imgb_r->a[c];
-                rec_s = ctx->imgb_i->s[c];
+                rec_s = ctx->imgb_r->s[c]; // recon stride, not input stride
             }
             else {
                 rec = NULL;
