@@ -1038,7 +1038,7 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
     }
 
     oapv_tpool_t *tpool = ctx->tpool;
-    int           res, tidx = 0, thread_num1 = 0;
+    int           tidx = 0, thread_num1 = 0;
     int           parallel_task = (ctx->threads > ctx->num_tiles) ? ctx->num_tiles : ctx->threads;
 
     /* encode tiles ************************************/
@@ -1047,13 +1047,19 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
                    (void *)ctx->core[tidx]);
     }
     ret = enc_thread_tile((void *)ctx->core[tidx]);
-    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
+    // always join spawned workers before handling any error, so no worker
+    // keeps reading shared state after this function returns
     for(thread_num1 = 0; thread_num1 < parallel_task - 1; thread_num1++) {
-        res = tpool->join(ctx->thread_id[thread_num1], &ret);
-        oapv_assert_gv(res == TPOOL_SUCCESS, ret, OAPV_ERR_FAILED_SYSCALL, ERR);
-        oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+        int thread_ret = OAPV_OK;
+        if(tpool->join(ctx->thread_id[thread_num1], &thread_ret) != TPOOL_SUCCESS) {
+            ret = OAPV_ERR_FAILED_SYSCALL;
+        }
+        else if(OAPV_FAILED(thread_ret)) {
+            ret = thread_ret;
+        }
     }
+    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
     /****************************************************/
 
     for(int i = 0; i < ctx->num_tiles; i++) {
