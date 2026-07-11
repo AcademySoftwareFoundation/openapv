@@ -103,7 +103,11 @@ static int kbps_str_to_int(const char *str)
         if(endptr == tmp || *endptr != '\0' || errno == ERANGE) {
             return -1;
         }
-        kbps = (int)fval;
+        double v = (double)fval; // reject values that overflow int
+        if(!(v >= 0 && v <= (double)INT_MAX)) {
+            return -1;
+        }
+        kbps = (int)v;
     }
     else if(strchr(s, 'M') || strchr(s, 'm')) {
         char *tmp = strtok(s, "Mm ");
@@ -115,7 +119,11 @@ static int kbps_str_to_int(const char *str)
         if(endptr == tmp || *endptr != '\0' || errno == ERANGE) {
             return -1;
         }
-        kbps = (int)(fval * 1000);
+        double v = (double)fval * 1000.0; // reject values that overflow int
+        if(!(v >= 0 && v <= (double)INT_MAX)) {
+            return -1;
+        }
+        kbps = (int)v;
     }
     else if(strchr(s, 'G') || strchr(s, 'g')) {
         char *tmp = strtok(s, "Gg ");
@@ -127,7 +135,11 @@ static int kbps_str_to_int(const char *str)
         if(endptr == tmp || *endptr != '\0' || errno == ERANGE) {
             return -1;
         }
-        kbps = (int)(fval * 1000000);
+        double v = (double)fval * 1000000.0; // reject values that overflow int
+        if(!(v >= 0 && v <= (double)INT_MAX)) {
+            return -1;
+        }
+        kbps = (int)v;
     }
     else {
         char *endptr;
