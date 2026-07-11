@@ -462,7 +462,7 @@ static int enc_update_param_level_band(oapve_param_t* param)
                    (param->band_idc >= 0 && param->band_idc < MAX_BAND_NUM), OAPV_ERR_INVALID_BAND);
     // otherwise fps is optional; guard the divisor when it is left unset
     double fps = (param->fps_den > 0) ? (double)param->fps_num / param->fps_den : 0.0;
-    u64 luma_sample_rate = (int)((double)w * h * fps);
+    u64 luma_sample_rate = (u64)((double)w * h * fps); // u64: product can exceed INT_MAX
     int min_level_idx = 0;
     for (int i = 0 ; i < MAX_LEVEL_NUM ; i++) {
         if (luma_sample_rate <= max_luma_sample_rate[i]) {
