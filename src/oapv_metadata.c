@@ -64,7 +64,8 @@ static oapv_mdp_t *meta_mdp_find_ud(oapv_md_t *md, unsigned char *uuid, oapv_mdp
     while(mdp != NULL) {
         if(mdp->pld_type == OAPV_METADATA_USER_DEFINED) {
             oapv_md_usd_t *usd = (oapv_md_usd_t *)mdp->pld_data;
-            if(oapv_mcmp(uuid, usd->uuid, 16) == 0) {
+            // uuid occupies the first 16 bytes of the payload
+            if(mdp->pld_size >= 16 && oapv_mcmp(uuid, usd->uuid, 16) == 0) {
                 return mdp;
             }
         }
@@ -342,6 +343,9 @@ int oapvm_get(oapvm_t mid, int group_id, int type, void **data, int *size, unsig
 {
     oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(data != NULL && size != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    // user-defined lookup compares a 16-byte uuid; it must be provided
+    oapv_assert_rv(type != OAPV_METADATA_USER_DEFINED || uuid != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_md_t   *md = meta_find_md(ctx, group_id);
     oapv_assert_g(md != NULL, ERR);
     oapv_mdp_t *mdp = meta_find_mdp(md, type, uuid);
@@ -359,6 +363,8 @@ int oapvm_rem(oapvm_t mid, int group_id, int type, unsigned char *uuid)
 {
     oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    // user-defined lookup compares a 16-byte uuid; it must be provided
+    oapv_assert_rv(type != OAPV_METADATA_USER_DEFINED || uuid != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_md_t   *md = meta_find_md(ctx, group_id);
     oapv_assert_g(md != NULL, ERR);
     return meta_rm_mdp(md, type, uuid);
@@ -387,6 +393,7 @@ int oapvm_get_all(oapvm_t mid, oapvm_payload_t *pld, int *num_plds)
 {
     oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(num_plds != NULL, OAPV_ERR_INVALID_ARGUMENT);
     if(pld == NULL) {
         int num_payload = 0;
         for(int i = 0; i < ctx->num; i++) {

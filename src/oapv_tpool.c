@@ -312,7 +312,7 @@ oapv_sync_obj_t oapv_tpool_sync_obj_create()
 
 tpool_result_t oapv_tpool_sync_obj_delete(oapv_sync_obj_t *sobj)
 {
-
+    if(sobj == NULL) return TPOOL_SUCCESS; // nothing to delete
     thread_mutex_t *imutex = (thread_mutex_t *)(*sobj);
     if(imutex == NULL) return TPOOL_SUCCESS; // nothing to delete
 
@@ -618,6 +618,7 @@ oapv_sync_obj_t oapv_tpool_sync_obj_create()
 
 tpool_result_t oapv_tpool_sync_obj_delete(oapv_sync_obj_t *sobj)
 {
+    if(sobj == NULL) return TPOOL_SUCCESS; // nothing to delete
     thread_mutex_t *imutex = (thread_mutex_t *)(*sobj);
     if(imutex == NULL) return TPOOL_SUCCESS; // nothing to delete
 #if WINDOWS_MUTEX_SYNC
