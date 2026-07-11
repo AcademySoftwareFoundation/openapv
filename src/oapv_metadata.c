@@ -371,6 +371,7 @@ ERR:
 int oapvm_set_all(oapvm_t mid, oapvm_payload_t *pld, int num_plds)
 {
     int          ret;
+    oapv_assert_rv(pld != NULL && num_plds >= 0, OAPV_ERR_INVALID_ARGUMENT);
     for(int i = 0; i < num_plds; i++) {
         ret = oapvm_set(mid, pld[i].group_id, pld[i].type, pld[i].data, pld[i].size);
         oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);

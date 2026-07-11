@@ -445,6 +445,9 @@ static int enc_update_param_level_band(oapve_param_t* param)
     if(param->rc_type != OAPV_RC_CQP || param->level_idc == OAPVE_PARAM_LEVEL_IDC_AUTO) {
         oapv_assert_rv(param->fps_num > 0 && param->fps_den > 0, OAPV_ERR_INVALID_FPS);
     }
+    // band_idc indexes the rate table below; allow AUTO or a valid band
+    oapv_assert_rv(param->band_idc == OAPVE_PARAM_BAND_IDC_AUTO ||
+                   (param->band_idc >= 0 && param->band_idc < MAX_BAND_NUM), OAPV_ERR_INVALID_BAND);
     // otherwise fps is optional; guard the divisor when it is left unset
     double fps = (param->fps_den > 0) ? (double)param->fps_num / param->fps_den : 0.0;
     u64 luma_sample_rate = (int)((double)w * h * fps);
@@ -507,7 +510,7 @@ static int enc_update_param_bitrate(oapve_param_t* param)
 
     // bound the rate-table indices before use
     oapv_assert_rv(level_idx >= 0 && level_idx < MAX_LEVEL_NUM, OAPV_ERR_INVALID_LEVEL);
-    oapv_assert_rv(param->band_idc >= 0 && param->band_idc < MAX_BAND_NUM, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(param->band_idc >= 0 && param->band_idc < MAX_BAND_NUM, OAPV_ERR_INVALID_BAND);
 
     if (param->bitrate == 0 && param->qp == OAPVE_PARAM_QP_AUTO) {
         param->bitrate = max_coded_data_rate[level_idx][param->band_idc];

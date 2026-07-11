@@ -836,6 +836,15 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     oapv_assert_rv(param->h == imgb_i->h[0], OAPV_ERR_INVALID_HEIGHT);
     oapv_assert_rv((param->qp >= MIN_QUANT && param->qp <= MAX_QUANT(10)) || param->qp == OAPVE_PARAM_QP_AUTO, OAPV_ERR_INVALID_QP);
 
+    // q_matrix entries are divisors during quantization; reject zeros
+    if(param->use_q_matrix) {
+        for(int c = 0; c < OAPV_MAX_CC; c++) {
+            for(int i = 0; i < OAPV_BLK_D; i++) {
+                oapv_assert_rv(param->q_matrix[c][i] != 0, OAPV_ERR_INVALID_ARGUMENT);
+            }
+        }
+    }
+
     // check width restriction for 422
     if(OAPV_CS_GET_FORMAT(imgb_i->cs) == OAPV_CF_YCBCR422 && imgb_i->w[0] & 0x1) {
         return OAPV_ERR_INVALID_WIDTH; // odd width is spec-out in YCbCr422
@@ -1124,6 +1133,10 @@ oapve_t oapve_create(oapve_cdesc_t *cdesc, int *err)
 
     DUMP_CREATE(1);
 
+    if(cdesc == NULL) {
+        if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
+        return NULL;
+    }
     if(!((cdesc->threads > 0 && cdesc->threads <= OAPV_MAX_THREADS) || cdesc->threads == OAPV_CDESC_THREADS_AUTO)) {
         if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
         return NULL;
@@ -1860,6 +1873,10 @@ oapvd_t oapvd_create(oapvd_cdesc_t *cdesc, int *err)
     DUMP_CREATE(0);
     ctx = NULL;
 
+    if(cdesc == NULL) {
+        if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
+        return NULL;
+    }
     if(!((cdesc->threads > 0 && cdesc->threads <= OAPV_MAX_THREADS) || cdesc->threads == OAPV_CDESC_THREADS_AUTO)) {
         if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
         return NULL;
@@ -2035,6 +2052,7 @@ int oapvd_config(oapvd_t did, int cfg, void *buf, int *size)
 
     ctx = dec_id_to_ctx(did);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(buf != NULL, OAPV_ERR_INVALID_ARGUMENT);
 
     switch(cfg) {
     /* set config ************************************************************/

@@ -107,8 +107,9 @@ extern "C" {
 #define OAPV_ERR_OUT_OF_BS_BUF          (-203) /* too small bitstream buffer */
 #define OAPV_ERR_NOT_FOUND              (-204)
 #define OAPV_ERR_FAILED_SYSCALL         (-301) /* failed system call */
-#define OAPV_ERR_INVALID_PROFILE        (-400)
-#define OAPV_ERR_INVALID_LEVEL          (-401)
+#define OAPV_ERR_INVALID_PROFILE        (-400) /* invalid profile_idc */
+#define OAPV_ERR_INVALID_LEVEL          (-401) /* invalid level_idc */
+#define OAPV_ERR_INVALID_BAND           (-402) /* invalid band_idc */
 #define OAPV_ERR_INVALID_WIDTH          (-405) /* invalid width (like odd) */
 #define OAPV_ERR_INVALID_HEIGHT         (-406)
 #define OAPV_ERR_INVALID_FPS            (-407) /* invalid or missing frame rate */
