@@ -860,6 +860,8 @@ int oapvd_vlc_dc_coef(oapv_bs_t *bs, int *dc_diff, int *kparam_dc)
     abs_dc_diff = dec_vlc_read(bs, *kparam_dc);
     if(abs_dc_diff < 0) // dec_vlc_read error sentinel
         return OAPV_ERR_MALFORMED_BITSTREAM;
+    if(abs_dc_diff > 32767)
+        return OAPV_ERR_MALFORMED_BITSTREAM;
     if(abs_dc_diff) {
         if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
         BSR_READ_1BIT(bs, sign);
@@ -907,6 +909,8 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
                 }
                 else {
                     run = dec_vlc_read_kparam0(bs);
+                    if(run < 0)
+                        return OAPV_ERR_MALFORMED_BITSTREAM;
                 }
             }
         }
@@ -934,12 +938,20 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
                 level = 1;
             }
             else {
-                level = dec_vlc_read_1bit_read(bs) + 1;
+                level = dec_vlc_read_1bit_read(bs);
+                if(level < 0)
+                    return OAPV_ERR_MALFORMED_BITSTREAM;
+                level += 1;
             }
         }
         else {
-            level = dec_vlc_read(bs, k_ac) + 1;
+            level = dec_vlc_read(bs, k_ac);
+            if(level < 0)
+                return OAPV_ERR_MALFORMED_BITSTREAM;
+            level += 1;
         }
+        if(level > 32767)
+            return OAPV_ERR_MALFORMED_BITSTREAM;
         k_ac = KPARAM_AC(level);
 
         if(first_ac) {
