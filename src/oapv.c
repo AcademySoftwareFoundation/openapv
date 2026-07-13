@@ -1495,10 +1495,13 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_tile_info_t * part, oapv_imgb_
     for(int c = 0; c < imgb->np; c++) {
         int comp_w = aligned_w >> (c > 0 ? get_chroma_sft_w(ctx->fh.fi.chroma_format_idc) : 0);
         int comp_h = aligned_h >> (c > 0 ? get_chroma_sft_h(ctx->fh.fi.chroma_format_idc) : 0);
+        // frame_width/height are signaled in 24 bits, so the required buffer
+        // size can exceed INT_MAX; compute in s64 so the product does not wrap
+        // and let a too-small (int) bsize incorrectly pass the check
         int required_stride = comp_w * byte_depth;
-        int required_bsize = required_stride * comp_h;
+        s64 required_bsize = (s64)required_stride * comp_h;
 
-        if(imgb->bsize[c] < required_bsize) {
+        if((s64)imgb->bsize[c] < required_bsize) {
             return OAPV_ERR_INVALID_ARGUMENT;
         }
     }
