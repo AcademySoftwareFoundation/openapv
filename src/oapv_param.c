@@ -550,7 +550,13 @@ static int enc_update_param_tile(oapve_ctx_t* ctx, oapve_param_t* param)
     int tile_w, tile_h;
 
     oapv_assert_rv(param->tile_w >= OAPV_MIN_TILE_W && param->tile_h >= OAPV_MIN_TILE_H, OAPV_ERR_INVALID_ARGUMENT);
-    oapv_assert_rv(param->tile_w <= ctx->w && param->tile_h <= ctx->h, OAPV_ERR_INVALID_ARGUMENT);
+    // a tile larger than the picture means a single tile; clamp to picture size
+    if(param->tile_w > ctx->w) {
+        param->tile_w = ctx->w;
+    }
+    if(param->tile_h > ctx->h) {
+        param->tile_h = ctx->h;
+    }
     oapv_assert_rv((param->tile_w & (OAPV_MB_W - 1)) == 0 && (param->tile_h & (OAPV_MB_H - 1)) == 0, OAPV_ERR_INVALID_ARGUMENT);
 
     if (oapv_div_round_up(ctx->w, param->tile_w) > OAPV_MAX_TILE_COLS) {
