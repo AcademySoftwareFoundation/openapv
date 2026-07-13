@@ -121,13 +121,19 @@ int oapve_rc_get_tile_cost_thread(oapve_ctx_t* ctx, u64* sum)
     }
     // use main thread
     int ret = get_tile_cost_thread((void*)ctx->core[tidx]);
-    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
+    // always join spawned workers before handling any error, so no worker
+    // keeps reading shared state after this function returns
     for (int thread_num1 = 0; thread_num1 < parallel_task - 1; thread_num1++) {
-        int res = tpool->join(ctx->thread_id[thread_num1], &ret);
-        oapv_assert_rv(res == TPOOL_SUCCESS, ret);
-        oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+        int thread_ret = OAPV_OK;
+        if(tpool->join(ctx->thread_id[thread_num1], &thread_ret) != TPOOL_SUCCESS) {
+            ret = OAPV_ERR_FAILED_SYSCALL;
+        }
+        else if(OAPV_FAILED(thread_ret)) {
+            ret = thread_ret;
+        }
     }
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     *sum = 0;
     for (int i = 0; i < ctx->num_tiles; i++)
