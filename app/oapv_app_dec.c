@@ -252,6 +252,10 @@ static int read_bitstream(FILE *fp, unsigned char *bs_buf, int *bs_buf_size)
                     logerr("ERR: Cannot read bitstream!\n");
                     return -1;
                 }
+                if(read_size >= MAX_BS_BUF) {
+                    logerr("ERR: bitstream buffer overflow\n");
+                    return -1;
+                }
                 bs_buf[read_size] = b;
                 read_size++;
                 au_size--;
