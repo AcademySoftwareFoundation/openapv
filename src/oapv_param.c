@@ -95,6 +95,7 @@ static int kbps_str_to_int(const char *str)
     char *s = (char *)str;
     if(strchr(s, 'K') || strchr(s, 'k')) {
         char *tmp = strtok(s, "Kk ");
+        if(tmp == NULL) return -1;
         char *endptr;
         float fval;
         errno = 0;
@@ -102,10 +103,15 @@ static int kbps_str_to_int(const char *str)
         if(endptr == tmp || *endptr != '\0' || errno == ERANGE) {
             return -1;
         }
-        kbps = (int)fval;
+        double v = (double)fval; // reject values that overflow int
+        if(!(v >= 0 && v <= (double)INT_MAX)) {
+            return -1;
+        }
+        kbps = (int)v;
     }
     else if(strchr(s, 'M') || strchr(s, 'm')) {
         char *tmp = strtok(s, "Mm ");
+        if(tmp == NULL) return -1;
         char *endptr;
         float fval;
         errno = 0;
@@ -113,10 +119,15 @@ static int kbps_str_to_int(const char *str)
         if(endptr == tmp || *endptr != '\0' || errno == ERANGE) {
             return -1;
         }
-        kbps = (int)(fval * 1000);
+        double v = (double)fval * 1000.0; // reject values that overflow int
+        if(!(v >= 0 && v <= (double)INT_MAX)) {
+            return -1;
+        }
+        kbps = (int)v;
     }
     else if(strchr(s, 'G') || strchr(s, 'g')) {
         char *tmp = strtok(s, "Gg ");
+        if(tmp == NULL) return -1;
         char *endptr;
         float fval;
         errno = 0;
@@ -124,7 +135,11 @@ static int kbps_str_to_int(const char *str)
         if(endptr == tmp || *endptr != '\0' || errno == ERANGE) {
             return -1;
         }
-        kbps = (int)(fval * 1000000);
+        double v = (double)fval * 1000000.0; // reject values that overflow int
+        if(!(v >= 0 && v <= (double)INT_MAX)) {
+            return -1;
+        }
+        kbps = (int)v;
     }
     else {
         char *endptr;
@@ -181,6 +196,10 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     char  str_buf[64];
     int   ti0;
     float tf0;
+
+    if(param == NULL || name == NULL || value == NULL) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
 
     /* normalization of name and value ***************************************/
     // pass '-- prefix' if exists
@@ -248,15 +267,28 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     }
     NAME_CMP("fps") {
         if(strpbrk(value, "/") != NULL) {
-            sscanf(value, "%d/%d", &param->fps_num, &param->fps_den);
+            // parse into locals first so a bad value leaves param unchanged
+            int num, den;
+            if(sscanf(value, "%d/%d", &num, &den) != 2 || num <= 0 || den <= 0) {
+                return OAPV_ERR_INVALID_FPS;
+            }
+            param->fps_num = num;
+            param->fps_den = den;
         }
         else if(strpbrk(value, ".") != NULL) {
-            GET_FLOAT_OR_ERR(value, tf0, OAPV_ERR_INVALID_ARGUMENT);
-            param->fps_num = tf0 * 10000;
+            GET_FLOAT_OR_ERR(value, tf0, OAPV_ERR_INVALID_FPS);
+            // reject values that would overflow the fixed-point fps_num
+            if(!(tf0 > 0.0f) || tf0 > (float)INT_MAX / 10000.0f) {
+                return OAPV_ERR_INVALID_FPS;
+            }
+            param->fps_num = (int)(tf0 * 10000);
             param->fps_den = 10000;
         }
         else {
-            GET_INTEGER_OR_ERR(value, ti0, OAPV_ERR_INVALID_ARGUMENT);
+            GET_INTEGER_OR_ERR(value, ti0, OAPV_ERR_INVALID_FPS);
+            if(ti0 <= 0) {
+                return OAPV_ERR_INVALID_FPS;
+            }
             param->fps_num = ti0;
             param->fps_den = 1;
         }
@@ -420,8 +452,17 @@ static int enc_update_param_level_band(oapve_param_t* param)
 {
     int w = oapv_div_round_up(param->w, OAPV_MB_W) * OAPV_MB_W;
     int h = oapv_div_round_up(param->h, OAPV_MB_H) * OAPV_MB_H;
-    double fps = (double)param->fps_num / param->fps_den;
-    u64 luma_sample_rate = (int)((double)w * h * fps);
+    // fps is required for rate control (ABR) and for automatic level selection;
+    // it stays optional for fixed-QP with an explicit level
+    if(param->rc_type != OAPV_RC_CQP || param->level_idc == OAPVE_PARAM_LEVEL_IDC_AUTO) {
+        oapv_assert_rv(param->fps_num > 0 && param->fps_den > 0, OAPV_ERR_INVALID_FPS);
+    }
+    // band_idc indexes the rate table below; allow AUTO or a valid band
+    oapv_assert_rv(param->band_idc == OAPVE_PARAM_BAND_IDC_AUTO ||
+                   (param->band_idc >= 0 && param->band_idc < MAX_BAND_NUM), OAPV_ERR_INVALID_BAND);
+    // otherwise fps is optional; guard the divisor when it is left unset
+    double fps = (param->fps_den > 0) ? (double)param->fps_num / param->fps_den : 0.0;
+    u64 luma_sample_rate = (u64)((double)w * h * fps); // u64: product can exceed INT_MAX
     int min_level_idx = 0;
     for (int i = 0 ; i < MAX_LEVEL_NUM ; i++) {
         if (luma_sample_rate <= max_luma_sample_rate[i]) {
@@ -479,6 +520,10 @@ static int enc_update_param_bitrate(oapve_param_t* param)
 {
     int level_idx = level_idc_to_level_idx(param->level_idc);
 
+    // bound the rate-table indices before use
+    oapv_assert_rv(level_idx >= 0 && level_idx < MAX_LEVEL_NUM, OAPV_ERR_INVALID_LEVEL);
+    oapv_assert_rv(param->band_idc >= 0 && param->band_idc < MAX_BAND_NUM, OAPV_ERR_INVALID_BAND);
+
     if (param->bitrate == 0 && param->qp == OAPVE_PARAM_QP_AUTO) {
         param->bitrate = max_coded_data_rate[level_idx][param->band_idc];
     }
@@ -493,6 +538,10 @@ static int enc_update_param_bitrate(oapve_param_t* param)
 
 static int enc_update_param_tile(oapve_ctx_t* ctx, oapve_param_t* param)
 {
+    /* frame dimensions must fit the 24-bit frame_info fields */
+    oapv_assert_rv(param->w > 0 && param->w <= ((1 << 24) - 1), OAPV_ERR_INVALID_WIDTH);
+    oapv_assert_rv(param->h > 0 && param->h <= ((1 << 24) - 1), OAPV_ERR_INVALID_HEIGHT);
+
     /* set various value */
     ctx->w = oapv_div_round_up(param->w, OAPV_MB_W) * OAPV_MB_W;
     ctx->h = oapv_div_round_up(param->h, OAPV_MB_H) * OAPV_MB_H;
@@ -501,6 +550,13 @@ static int enc_update_param_tile(oapve_ctx_t* ctx, oapve_param_t* param)
     int tile_w, tile_h;
 
     oapv_assert_rv(param->tile_w >= OAPV_MIN_TILE_W && param->tile_h >= OAPV_MIN_TILE_H, OAPV_ERR_INVALID_ARGUMENT);
+    // a tile larger than the picture means a single tile; clamp to picture size
+    if(param->tile_w > ctx->w) {
+        param->tile_w = ctx->w;
+    }
+    if(param->tile_h > ctx->h) {
+        param->tile_h = ctx->h;
+    }
     oapv_assert_rv((param->tile_w & (OAPV_MB_W - 1)) == 0 && (param->tile_h & (OAPV_MB_H - 1)) == 0, OAPV_ERR_INVALID_ARGUMENT);
 
     if (oapv_div_round_up(ctx->w, param->tile_w) > OAPV_MAX_TILE_COLS) {
@@ -528,6 +584,9 @@ int oapve_param_update(oapve_ctx_t* ctx)
 {
     int ret = OAPV_OK;
     int min_num_tiles = OAPV_MAX_TILES;
+    // bound the frame count to the param[] array size
+    oapv_assert_rv(ctx->cdesc.max_num_frms >= 1 && ctx->cdesc.max_num_frms <= OAPV_MAX_NUM_FRAMES,
+                   OAPV_ERR_INVALID_ARGUMENT);
     for (int i = 0; i < ctx->cdesc.max_num_frms; i++) {
         ret = enc_update_param_tile(ctx, &ctx->cdesc.param[i]);
         oapv_assert_rv(ret == OAPV_OK, ret);
@@ -567,7 +626,8 @@ static int family_info[][2] = {
 static float get_key_bitrate(int w, int h)
 {
     int idx, wh_hi, wh_lo, bit_hi, bit_lo;
-    int wh = w * h;
+    // 64-bit to avoid overflow; family_info[0] is {0,..} so idx never underflows
+    s64 wh = (s64)w * h;
     float key = 0.f;
 
     for(idx = 0; idx < NUM_FAMILY_INFO; idx++) {
@@ -595,6 +655,9 @@ static float get_key_bitrate(int w, int h)
 int oapve_family_bitrate(int family, int w, int h, int fps_num, int fps_den, int * kbps)
 {
     float key, ratio;
+
+    // frame rate is a divisor below; reject non-positive values
+    oapv_assert_rv(fps_num > 0 && fps_den > 0, OAPV_ERR_INVALID_FPS);
 
     switch(family) {
     case OAPV_FAMILY_422_LQ:

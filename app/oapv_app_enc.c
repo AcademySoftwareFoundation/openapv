@@ -309,7 +309,7 @@ typedef struct args_var {
 
     char           width[16];
     char           height[16];
-    char           fps[16];
+    char           fps[24];
 
     char           qp[16];
     char           qp_offset_c1[16];
@@ -520,7 +520,7 @@ static int set_extra_config(oapve_t id, args_var_t *vars, oapve_param_t *param)
     if(vars->hash) {
         value = 1;
         size = 4;
-        ret = oapve_config(id, OAPV_CFG_SET_USE_FRM_HASH, &value, &size);
+        ret = oapve_config(id, OAPV_CFG_FRM(OAPV_CFG_SET_USE_FRM_HASH, 0), &value, &size);
         if(OAPV_FAILED(ret)) {
             logerr("ERR: failed to set config for using frame hash\n");
             return -1;
@@ -706,7 +706,7 @@ static int family_to_bitrate(char * family, oapve_param_t *param)
 #define UPDATE_A_PARAM_W_KEY_VAL(param, key, val) \
     if(strlen(val) > 0) { \
         if(OAPV_FAILED(oapve_param_parse(param, key, val))) { \
-            logerr("input value (%s) of %s is invalid\n", val, key); \
+            logerr("ERR: input value (%s) of %s is invalid\n", val, key); \
             return -1; \
         } \
     }
@@ -719,6 +719,11 @@ static int update_param(args_var_t *vars, oapve_param_t *param)
 
     UPDATE_A_PARAM_W_KEY_VAL(param, "width", vars->width);
     UPDATE_A_PARAM_W_KEY_VAL(param, "height", vars->height);
+    if(param->w <= 0 || param->w > IMGB_MAX_W || param->h <= 0 || param->h > IMGB_MAX_H) {
+        logerr("ERR: frame dimensions %dx%d out of range (max %dx%d)\n",
+               param->w, param->h, IMGB_MAX_W, IMGB_MAX_H);
+        return -1;
+    }
     UPDATE_A_PARAM_W_KEY_VAL(param, "fps", vars->fps);
 
     UPDATE_A_PARAM_W_KEY_VAL(param, "qp", vars->qp);
@@ -782,7 +787,7 @@ static int parse_master_display(const char* data_string, oapvm_payload_mdcv_t *m
     // Check if sscanf successfully assigned all expected fields (10 numerical values).
     const int expected_fields = 10;
     if (assigned_fields != expected_fields) {
-        logerr("Parsing error: master display color volume information");
+        logerr("ERR: Parsing error: master display color volume information");
         return -1;
     }
     return 0; // Success
@@ -1127,9 +1132,11 @@ int main(int argc, const char **argv)
             }
             else {
                 imgb_r = imgb_create(param->w, param->h, OAPV_CS_SET(cfmt, args_var->input_depth, 0));
+                if(imgb_r == NULL) { ret = -1; goto ERR; }
                 ifrms.frm[i].imgb = imgb_create(param->w, param->h, OAPV_CS_SET(cfmt, codec_depth, 0));
             }
         }
+        if(ifrms.frm[i].imgb == NULL) { ret = -1; goto ERR; }
 
         if(is_rec) {
             if(args_var->input_depth == codec_depth) {
@@ -1142,9 +1149,11 @@ int main(int argc, const char **argv)
                 else
                 {
                     imgb_w = imgb_create(param->w, param->h, OAPV_CS_SET(cfmt, args_var->input_depth, 0));
+                    if(imgb_w == NULL) { ret = -1; goto ERR; }
                     rfrms.frm[i].imgb = imgb_create(param->w, param->h, OAPV_CS_SET(cfmt, codec_depth, 0));
                 }
             }
+            if(rfrms.frm[i].imgb == NULL) { ret = -1; goto ERR; }
             rfrms.num_frms++;
         }
         ifrms.num_frms++;

@@ -33,7 +33,7 @@
 
 int oapve_rc_get_tile_cost(oapve_ctx_t* ctx, oapve_core_t* core, oapve_tile_t* tile)
 {
-    int sum = 0;
+    s64 sum = 0;
     s16* org = NULL;
     s16* pic = NULL;
     int  org_s;
@@ -121,13 +121,19 @@ int oapve_rc_get_tile_cost_thread(oapve_ctx_t* ctx, u64* sum)
     }
     // use main thread
     int ret = get_tile_cost_thread((void*)ctx->core[tidx]);
-    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
+    // always join spawned workers before handling any error, so no worker
+    // keeps reading shared state after this function returns
     for (int thread_num1 = 0; thread_num1 < parallel_task - 1; thread_num1++) {
-        int res = tpool->join(ctx->thread_id[thread_num1], &ret);
-        oapv_assert_rv(res == TPOOL_SUCCESS, ret);
-        oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+        int thread_ret = OAPV_OK;
+        if(tpool->join(ctx->thread_id[thread_num1], &thread_ret) != TPOOL_SUCCESS) {
+            ret = OAPV_ERR_FAILED_SYSCALL;
+        }
+        else if(OAPV_FAILED(thread_ret)) {
+            ret = thread_ret;
+        }
     }
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     *sum = 0;
     for (int i = 0; i < ctx->num_tiles; i++)
@@ -189,6 +195,9 @@ void oapve_rc_get_qp(oapve_ctx_t* ctx, oapve_tile_t* tile, int frame_qp, int* qp
     double min_lambda = exp(((double)(min_qp - 0.49) - 13.7122) / 4.2005);
 
     const int LAMBDA_PREC = 1000000;
+    if(!isfinite(est_lambda)) {
+        est_lambda = min_lambda;
+    }
     est_lambda = oapv_clip3(min_lambda, max_lambda, est_lambda);
     est_lambda = (double)((s64)(est_lambda * (double)LAMBDA_PREC + 0.5)) / (double)LAMBDA_PREC;
     *qp = (int)(4.2005 * log(est_lambda) + 13.7122 + 0.5);
@@ -214,11 +223,17 @@ void oapve_rc_update_after_pic(oapve_ctx_t* ctx, double cost)
         double diff_lambda = (ctx->rc_param.beta) * (log((double)total_bits) - log(((double)ctx->param->bitrate * 1000 / ((double)ctx->param->fps_num / ctx->param->fps_den))));
 
         diff_lambda = oapv_clip3(-0.125, 0.125, 0.25 * diff_lambda);
-        ctx->rc_param.alpha = (ctx->rc_param.alpha) * exp(diff_lambda);
-        ctx->rc_param.beta = (ctx->rc_param.beta) + diff_lambda / ln_bpp;
+        double alpha_new = (ctx->rc_param.alpha) * exp(diff_lambda);
+        double beta_new = (ctx->rc_param.beta) + diff_lambda / ln_bpp;
 
-        ctx->rc_param.alpha = oapv_clip3(0.05, 500, ctx->rc_param.alpha);
-        ctx->rc_param.beta = oapv_clip3(0.1, 3, ctx->rc_param.beta);
+        alpha_new = oapv_clip3(0.05, 500, alpha_new);
+        beta_new = oapv_clip3(0.1, 3, beta_new);
+
+        // discard non-finite results (NaN/Inf) so they don't corrupt persistent RC state
+        if(isfinite(alpha_new) && isfinite(beta_new)) {
+            ctx->rc_param.alpha = alpha_new;
+            ctx->rc_param.beta = beta_new;
+        }
     }
     ctx->rc_param.is_updated = 1;
 }

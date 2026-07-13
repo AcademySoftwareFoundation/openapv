@@ -465,6 +465,7 @@ static int args_parse(args_parser_t *args, int argc, const char *argv[],
     for(i = 1; i < argc; i++) {
         if(!strcmp(argv[i], "--" ARGS_KEY_LONG_CONFIG)) {
             if(i + 1 < argc) {
+                if(num_configs >= ARGS_MAX_NUM_CONF_FILES) break;
                 num_configs++;
                 pos_conf_files[num_configs - 1] = i + 1;
             }

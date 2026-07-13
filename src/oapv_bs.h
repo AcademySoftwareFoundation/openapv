@@ -44,6 +44,7 @@ struct oapv_bs {
     u8                *end;      // address of bitstream end
     u8                *beg;      // address of bitstream begin
     u32                size;     // size of input bitstream in byte
+    int                is_eob;   // set when read encounters unexpected end-of-bitstream
     oapv_bs_fn_flush_t fn_flush; // function pointer for flush operation
     int                ndata[4]; // arbitrary data, if needs
     void              *pdata[4]; // arbitrary address, if needs
@@ -108,6 +109,9 @@ should set zero in that case. */
 /*! Is end of bitstream ? */
 #define BSR_IS_EOB(bs) (((bs)->cur >= (bs)->end && (bs)->leftbits==0)? 1: 0)
 
+/*! Did read encounter unexpected end-of-bitstream? */
+#define BSR_IS_UNEXPECTED_EOB(bs) ((bs)->is_eob)
+
 /*! Is bitstream byte aligned? */
 #define BSR_IS_BYTE_ALIGN(bs) ((((bs)->leftbits & 0x7) == 0)? 1: 0)
 
@@ -141,7 +145,7 @@ void *oapv_bsr_sink(oapv_bs_t *bs);
 void oapv_bsr_move(oapv_bs_t *bs, u8 *pos);
 u32 oapv_bsr_read(oapv_bs_t *bs, int size);
 int oapv_bsr_read1(oapv_bs_t *bs);
-u32 oapv_bsr_read_direct(void *addr, int len);
+int oapv_bsr_read_direct(const void *addr, int len, u32 *out);
 
 ///////////////////////////////////////////////////////////////////////////////
 // end of decoder code

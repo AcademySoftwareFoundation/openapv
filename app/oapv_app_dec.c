@@ -34,8 +34,7 @@
 #include "oapv_app_args.h"
 #include "oapv_app_y4m.h"
 
-#define MAX_BS_BUF            128 * 1024 * 1024 /* byte */
-#define MAX_NUM_METADATA_PLDS 128 /* max number of metadata payloads per access unit */
+#define MAX_BS_BUF 128 * 1024 * 1024 /* byte */
 
 // check generic frame or not
 #define IS_NON_AUX_FRM(frm) (((frm)->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME) || ((frm)->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME))
@@ -238,7 +237,7 @@ static int read_bitstream(FILE *fp, unsigned char *bs_buf, int *bs_buf_size)
             return 0;
         }
         else if(ret < 0) {
-            logerr("Cannot read bitstream size!\n");
+            logerr("ERR: Cannot read bitstream size!\n");
             return -1;
         }
         if(au_size > 0) {
@@ -250,7 +249,7 @@ static int read_bitstream(FILE *fp, unsigned char *bs_buf, int *bs_buf_size)
             while(au_size > 0) {
                 /* read byte */
                 if(1 != fread(&b, 1, 1, fp)) {
-                    logerr("Cannot read bitstream!\n");
+                    logerr("ERR: Cannot read bitstream!\n");
                     return -1;
                 }
                 bs_buf[read_size] = b;
@@ -261,12 +260,12 @@ static int read_bitstream(FILE *fp, unsigned char *bs_buf, int *bs_buf_size)
         }
         else {
             /* size field present but zero: malformed bitstream */
-            logerr("Cannot read bitstream size!\n");
+            logerr("ERR: Cannot read bitstream size!\n");
             return -1;
         }
     }
     else {
-        logerr("Cannot seek bitstream!\n");
+        logerr("ERR: Cannot seek bitstream!\n");
         return -1;
     }
     return read_size + 4;
@@ -281,7 +280,7 @@ static int set_extra_config(oapvd_t id, args_var_t *args_vars)
         size = 4;
         ret = oapvd_config(id, OAPV_CFG_SET_USE_FRM_HASH, &value, &size);
         if(OAPV_FAILED(ret)) {
-            logerr("failed to set config for using frame hash\n");
+            logerr("ERR: failed to set config for using frame hash\n");
             return -1;
         }
     }
@@ -290,7 +289,7 @@ static int set_extra_config(oapvd_t id, args_var_t *args_vars)
         size = 4;
         ret = oapvd_config(id, OAPV_CFG_SET_DISABLE_COMPANDING, &value, &size);
         if(OAPV_FAILED(ret)) {
-            logerr("failed to set config for disabling companding process\n");
+            logerr("ERR: failed to set config for disabling companding process\n");
             return -1;
         }
     }
@@ -565,6 +564,7 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
         /* main decoding block */
         bitb.addr = bs_buf;
+        bitb.bsize = MAX_BS_BUF;
         bitb.ssize = bs_buf_size;
         memset(&stat, 0, sizeof(oapvd_stat_t));
 
@@ -599,8 +599,8 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             }
 
             /* validate number of metadata payloads */
-            if(num_plds < 0 || num_plds > MAX_NUM_METADATA_PLDS) {
-                logerr("ERR: invalid number of metadata payloads (%d), valid range is 0-%d\n", num_plds, MAX_NUM_METADATA_PLDS);
+            if(num_plds < 0 || num_plds > OAPV_MAX_NUM_META_PAYLOADS) {
+                logerr("ERR: invalid number of metadata payloads (%d), valid range is 0-%d\n", num_plds, OAPV_MAX_NUM_META_PAYLOADS);
                 goto END;
             }
 
@@ -706,6 +706,9 @@ ERR:
     if(imgb_w != NULL)
         imgb_w->release(imgb_w);
 
+    if(bs_buf != NULL)
+        free(bs_buf);
+
     return 0;
 }
 
@@ -740,7 +743,7 @@ static int read_u32(FILE *fp, unsigned int * val)
 static int read_pbu(FILE *fp, unsigned char *pbu, unsigned int pbu_size)
 {
     if(pbu_size != fread(pbu, 1, pbu_size, fp)) {
-        logerr("Cannot read PDU!\n");
+        logerr("ERR: Cannot read PDU!\n");
         return -1;
     }
     return 0;
@@ -951,6 +954,7 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
                 // start to decode a frame
                 bitb.addr = pbu;
+                bitb.bsize = pbu_size;
                 bitb.ssize = pbu_size;
 
                 clk_beg = oapv_clk_get();

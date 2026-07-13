@@ -57,7 +57,7 @@ extern "C" {
 /* version numbers (should be changed in case of new release) */
 #define OAPV_VER_APISET                 (1)
 #define OAPV_VER_MAJOR                  (0)
-#define OAPV_VER_MINOR                  (0)
+#define OAPV_VER_MINOR                  (1)
 #define OAPV_VER_PATCH                  (0)
 
 /* 4-bytes version number */
@@ -107,10 +107,12 @@ extern "C" {
 #define OAPV_ERR_OUT_OF_BS_BUF          (-203) /* too small bitstream buffer */
 #define OAPV_ERR_NOT_FOUND              (-204)
 #define OAPV_ERR_FAILED_SYSCALL         (-301) /* failed system call */
-#define OAPV_ERR_INVALID_PROFILE        (-400)
-#define OAPV_ERR_INVALID_LEVEL          (-401)
+#define OAPV_ERR_INVALID_PROFILE        (-400) /* invalid profile_idc */
+#define OAPV_ERR_INVALID_LEVEL          (-401) /* invalid level_idc */
+#define OAPV_ERR_INVALID_BAND           (-402) /* invalid band_idc */
 #define OAPV_ERR_INVALID_WIDTH          (-405) /* invalid width (like odd) */
 #define OAPV_ERR_INVALID_HEIGHT         (-406)
+#define OAPV_ERR_INVALID_FPS            (-407) /* invalid or missing frame rate */
 #define OAPV_ERR_INVALID_QP             (-410)
 #define OAPV_ERR_INVALID_FAMILY         (-501) /* invalid family number */
 #define OAPV_ERR_UNKNOWN                (-32767) /* unknown error */
@@ -192,6 +194,11 @@ extern "C" {
 #define OAPV_CFG_GET_WIDTH              (701)
 #define OAPV_CFG_GET_HEIGHT             (702)
 #define OAPV_CFG_GET_AU_BS_FMT          (802)
+
+/* Target a specific frame's parameters in oapve_config(): the upper 16 bits of
+ * 'cfg' carry the frame index, the lower 16 bits the config id above. Legacy
+ * callers pass the plain id (index 0). */
+#define OAPV_CFG_FRM(cfg, frm_idx)      ((((frm_idx) & 0xFFFF) << 16) | ((cfg) & 0xFFFF))
 
 /*****************************************************************************
  * config values
@@ -376,6 +383,7 @@ struct oapv_frm {
 
 #define OAPV_MAX_NUM_FRAMES (16) // max number of frames in an access unit
 #define OAPV_MAX_NUM_METAS  (16) // max number of metadata in an access unit
+#define OAPV_MAX_NUM_META_PAYLOADS (128) // max number of metadata payloads per access unit
 
 typedef struct oapv_frms oapv_frms_t;
 struct oapv_frms {

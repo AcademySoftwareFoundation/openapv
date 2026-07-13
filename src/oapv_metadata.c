@@ -64,7 +64,8 @@ static oapv_mdp_t *meta_mdp_find_ud(oapv_md_t *md, unsigned char *uuid, oapv_mdp
     while(mdp != NULL) {
         if(mdp->pld_type == OAPV_METADATA_USER_DEFINED) {
             oapv_md_usd_t *usd = (oapv_md_usd_t *)mdp->pld_data;
-            if(oapv_mcmp(uuid, usd->uuid, 16) == 0) {
+            // uuid occupies the first 16 bytes of the payload
+            if(mdp->pld_size >= 16 && oapv_mcmp(uuid, usd->uuid, 16) == 0) {
                 return mdp;
             }
         }
@@ -185,6 +186,7 @@ int oapvm_write_mdcv(oapvm_payload_mdcv_t *mdcv, void *data, int *size)
     int i, t;
     u32 tu32;
     oapv_bs_t bs;
+    oapv_assert_rv(mdcv != NULL && data != NULL && size != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_bsw_init(&bs, data, 24, NULL); // MDCV payload has 24 bytes
 
     for(i = 0; i < 3; i++) {
@@ -222,6 +224,7 @@ int oapvm_read_mdcv(void *data, int size, oapvm_payload_mdcv_t *mdcv)
 {
     int i;
     oapv_bs_t bs;
+    oapv_assert_rv(data != NULL && mdcv != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(size >= 24, OAPV_ERR_INVALID_ARGUMENT);
     oapv_bsr_init(&bs, data, size, NULL); // MDCV payload has 24 bytes
 
@@ -243,6 +246,7 @@ int oapvm_write_cll(oapvm_payload_cll_t *cll, void *data, int *size)
 {
     int t;
     oapv_bs_t bs;
+    oapv_assert_rv(cll != NULL && data != NULL && size != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_bsw_init(&bs, data, 4, NULL); // CLL payload has 4 bytes
 
     t = cll->max_cll;
@@ -262,6 +266,7 @@ int oapvm_write_cll(oapvm_payload_cll_t *cll, void *data, int *size)
 int oapvm_read_cll(void *data, int size, oapvm_payload_cll_t *cll)
 {
     oapv_bs_t bs;
+    oapv_assert_rv(data != NULL && cll != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(size >= 4, OAPV_ERR_INVALID_ARGUMENT);
     oapv_bsr_init(&bs, data, size, NULL); // CLL payload has 4 bytes
 
@@ -299,7 +304,7 @@ int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size)
 
     oapv_md_t *md = meta_find_md(ctx, group_id);
     if(md == NULL) {
-        oapv_assert_rv(ctx->num < OAPV_MAX_NUM_METAS, OAPV_ERR_REACHED_MAX);
+        oapv_assert_gv(ctx->num < OAPV_MAX_NUM_METAS, ret, OAPV_ERR_REACHED_MAX, ERR);
         md = &ctx->md_arr[ctx->num];
         md->group_id = group_id;
         md->mdp_num = 0;
@@ -338,6 +343,9 @@ int oapvm_get(oapvm_t mid, int group_id, int type, void **data, int *size, unsig
 {
     oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(data != NULL && size != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    // user-defined lookup compares a 16-byte uuid; it must be provided
+    oapv_assert_rv(type != OAPV_METADATA_USER_DEFINED || uuid != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_md_t   *md = meta_find_md(ctx, group_id);
     oapv_assert_g(md != NULL, ERR);
     oapv_mdp_t *mdp = meta_find_mdp(md, type, uuid);
@@ -355,6 +363,8 @@ int oapvm_rem(oapvm_t mid, int group_id, int type, unsigned char *uuid)
 {
     oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    // user-defined lookup compares a 16-byte uuid; it must be provided
+    oapv_assert_rv(type != OAPV_METADATA_USER_DEFINED || uuid != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_md_t   *md = meta_find_md(ctx, group_id);
     oapv_assert_g(md != NULL, ERR);
     return meta_rm_mdp(md, type, uuid);
@@ -367,6 +377,7 @@ ERR:
 int oapvm_set_all(oapvm_t mid, oapvm_payload_t *pld, int num_plds)
 {
     int          ret;
+    oapv_assert_rv(pld != NULL && num_plds >= 0, OAPV_ERR_INVALID_ARGUMENT);
     for(int i = 0; i < num_plds; i++) {
         ret = oapvm_set(mid, pld[i].group_id, pld[i].type, pld[i].data, pld[i].size);
         oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
@@ -382,10 +393,13 @@ int oapvm_get_all(oapvm_t mid, oapvm_payload_t *pld, int *num_plds)
 {
     oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(num_plds != NULL, OAPV_ERR_INVALID_ARGUMENT);
     if(pld == NULL) {
         int num_payload = 0;
         for(int i = 0; i < ctx->num; i++) {
             num_payload += ctx->md_arr[i].mdp_num;
+            if(num_payload > OAPV_MAX_NUM_META_PAYLOADS || num_payload < 0)
+                return OAPV_ERR_REACHED_MAX;
         }
         *num_plds = num_payload;
         return OAPV_OK;
@@ -396,7 +410,8 @@ int oapvm_get_all(oapvm_t mid, oapvm_payload_t *pld, int *num_plds)
         int         group_id = cur_md->group_id;
         oapv_mdp_t *mdp = cur_md->md_payload;
         while(mdp != NULL) {
-            oapv_assert_rv(pld_cnt < *num_plds, OAPV_ERR_REACHED_MAX);
+            if(pld_cnt >= *num_plds)
+                return OAPV_ERR_REACHED_MAX;
             pld[pld_cnt].group_id = group_id;
             pld[pld_cnt].size = mdp->pld_size;
             pld[pld_cnt].data = mdp->pld_data;
@@ -428,7 +443,7 @@ oapvm_t oapvm_create(int *err)
     oapvm_ctx_t *ctx;
     ctx = oapv_malloc(sizeof(oapvm_ctx_t));
     if(ctx == NULL) {
-        *err = OAPV_ERR_OUT_OF_MEMORY;
+        if(err) *err = OAPV_ERR_OUT_OF_MEMORY;
         return NULL;
     }
     oapv_mset(ctx, 0, sizeof(oapvm_ctx_t));

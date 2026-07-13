@@ -423,6 +423,8 @@ const oapv_fn_dquant_t oapv_tbl_fn_dquant[2] = {
 void oapv_adjust_itrans(int *src, int *dst, int itrans_diff_idx, int diff_step, int shift)
 {
     int offset = 1 << (shift - 1);
+    // diff_step is used as a 16-bit value (see AVX madd); clamp to avoid overflow
+    diff_step = oapv_clip3(-32768, 32767, diff_step);
     short* itrans_diff = oapv_itrans_diff[itrans_diff_idx];
     for(int k = 0; k < 4; k++) {
         dst[0]  = src[0] +  ((itrans_diff[0]  * diff_step + offset) >> shift);

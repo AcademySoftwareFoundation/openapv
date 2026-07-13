@@ -84,19 +84,31 @@ static int y4m_parse_tags(y4m_params_t *y4m, char *tags)
         switch(p[0]) {
         case 'W': {
             if(sscanf(p + 1, "%d", &y4m->w) != 1)
-                return OAPV_ERR;
+                return -1;
+            if(y4m->w <= 0 || y4m->w > IMGB_MAX_W) {
+                logerr("ERR: y4m frame width %d is out of range (1..%d)\n", y4m->w, IMGB_MAX_W);
+                return -1;
+            }
             found_w = 1;
             break;
         }
         case 'H': {
             if(sscanf(p + 1, "%d", &y4m->h) != 1)
-                return OAPV_ERR;
+                return -1;
+            if(y4m->h <= 0 || y4m->h > IMGB_MAX_H) {
+                logerr("ERR: y4m frame height %d is out of range (1..%d)\n", y4m->h, IMGB_MAX_H);
+                return -1;
+            }
             found_h = 1;
             break;
         }
         case 'F': {
             if(sscanf(p + 1, "%d:%d", &fps_n, &fps_d) != 2)
-                return OAPV_ERR;
+                return -1;
+            if(fps_n <= 0 || fps_d <= 0) {
+                logerr("ERR: invalid y4m frame rate %d:%d\n", fps_n, fps_d);
+                return -1;
+            }
             y4m->fps_num = fps_n;
             y4m->fps_den = fps_d;
             break;
@@ -107,12 +119,12 @@ static int y4m_parse_tags(y4m_params_t *y4m, char *tags)
         }
         case 'A': {
             if(sscanf(p + 1, "%d:%d", &pix_ratio_n, &pix_ratio_d) != 2)
-                return OAPV_ERR;
+                return -1;
             break;
         }
         case 'C': {
             if(q - p > 16)
-                return OAPV_ERR;
+                return -1;
             memcpy(colorspace, p + 1, q - p - 1);
             colorspace[q - p - 1] = '\0';
             found_cf = 1;
@@ -123,8 +135,8 @@ static int y4m_parse_tags(y4m_params_t *y4m, char *tags)
     }
 
     if(!(found_w == 1 && found_h == 1)) {
-        logerr("Mandatory width and height values were not found in y4m header");
-        return OAPV_ERR;
+        logerr("ERR: Mandatory width and height values were not found in y4m header");
+        return -1;
     }
 
     if(!found_cf) {
@@ -177,7 +189,7 @@ static int y4m_parse_tags(y4m_params_t *y4m, char *tags)
         y4m->color_format = OAPV_CF_UNKNOWN;
         y4m->bit_depth = -1;
     }
-    return OAPV_OK;
+    return 0;
 }
 
 int y4m_header_parser(FILE *ip_y4m, y4m_params_t *y4m)
@@ -187,6 +199,7 @@ int y4m_header_parser(FILE *ip_y4m, y4m_params_t *y4m)
     int       ret;
     int       i;
 
+    memset(y4m, 0, sizeof(*y4m));
     memset(buffer, 0, sizeof(char) * head_size);
 
     /*Read until newline, or 128 cols, whichever happens first.*/
@@ -199,21 +212,25 @@ int y4m_header_parser(FILE *ip_y4m, y4m_params_t *y4m)
     }
     /*We skipped too much header data.*/
     if(i == (head_size - 1)) {
-        logerr("Error parsing header; not a YUV2MPEG2 file?\n");
+        logerr("ERR: parsing header; not a YUV2MPEG2 file?\n");
         return -1;
     }
     buffer[i] = '\0';
     if(memcmp(buffer, "YUV4MPEG", 8)) {
-        logerr("Incomplete magic for YUV4MPEG file.\n");
+        logerr("ERR: Incomplete magic for YUV4MPEG file.\n");
         return -1;
     }
     if(buffer[8] != '2') {
-        logerr("Incorrect YUV input file version; YUV4MPEG2 required.\n");
+        logerr("ERR: Incorrect YUV input file version; YUV4MPEG2 required.\n");
     }
     ret = y4m_parse_tags(y4m, buffer + 5);
     if(ret < 0) {
-        logerr("Error parsing YUV4MPEG2 header.\n");
+        logerr("ERR: parsing YUV4MPEG2 header.\n");
         return ret;
+    }
+    if(y4m->w <= 0 || y4m->h <= 0 || y4m->fps_num <= 0 || y4m->fps_den <= 0) {
+        logerr("ERR: Y4M header missing required width/height/frame-rate.\n");
+        return -1;
     }
     return 0;
 }
@@ -272,7 +289,7 @@ static int write_y4m_header(char *fname, oapv_imgb_t *imgb)
     }
 
     if(strlen(c_buf) == 0) {
-        logerr("Color format is not supported by y4m\n");
+        logerr("ERR: Color format is not supported by y4m\n");
         return -1;
     }
 
@@ -282,7 +299,7 @@ static int write_y4m_header(char *fname, oapv_imgb_t *imgb)
 
     fp = fopen(fname, "ab");
     if(fp == NULL) {
-        logerr("cannot open file = %s\n", fname);
+        logerr("ERR: cannot open file = %s\n", fname);
         return -1;
     }
     if(buff_len != fwrite(buf, 1, buff_len, fp)) {
@@ -298,7 +315,7 @@ static int write_y4m_frame_header(char *fname)
     FILE *fp;
     fp = fopen(fname, "ab");
     if(fp == NULL) {
-        logerr("cannot open file = %s\n", fname);
+        logerr("ERR: cannot open file = %s\n", fname);
         return -1;
     }
     if(6 != fwrite("FRAME\n", 1, 6, fp)) {
@@ -321,9 +338,9 @@ static int check_file_name_type(char * fname)
         return -1;
     }
     strncpy(fext, fname + strlen(fname) - 3, sizeof(fext) - 1);
-    fext[0] = toupper(fext[0]);
-    fext[1] = toupper(fext[1]);
-    fext[2] = toupper(fext[2]);
+    fext[0] = toupper((unsigned char)fext[0]);
+    fext[1] = toupper((unsigned char)fext[1]);
+    fext[2] = toupper((unsigned char)fext[2]);
 
     if(strcmp(fext, "YUV") == 0) {
         return 0;

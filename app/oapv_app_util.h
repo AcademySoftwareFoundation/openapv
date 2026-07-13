@@ -322,7 +322,7 @@ oapv_imgb_t *imgb_create(int w, int h, int cs)
 
     /* reject invalid or out-of-range resolution */
     if(w <= 0 || h <= 0 || w > IMGB_MAX_W || h > IMGB_MAX_H || bd <= 0) {
-        logerr("invalid image parameter (w=%d, h=%d, byte-depth=%d)\n", w, h, bd);
+        logerr("ERR: invalid image parameter (w=%d, h=%d, byte-depth=%d)\n", w, h, bd);
         goto ERR;
     }
 
@@ -385,7 +385,7 @@ oapv_imgb_t *imgb_create(int w, int h, int cs)
     return imgb;
 
 ERR:
-    logerr("cannot create image buffer\n");
+    logerr("ERR: cannot create image buffer\n");
     if(imgb) {
         for(int i = 0; i < OAPV_MAX_CC; i++) {
             if(imgb->a[i])
@@ -407,11 +407,11 @@ static int imgb_read(FILE *fp, oapv_imgb_t *img, int width, int height, int is_y
         if(6 != fread(t_buf, 1, 6, fp))
             return -1;
         if(memcmp(t_buf, "FRAME", 5)) {
-            logerr("Loss of framing in Y4M input data\n");
+            logerr("ERR: Loss of framing in Y4M input data\n");
             return -1;
         }
         if(t_buf[5] != '\n') {
-            logerr("Error parsing Y4M frame header\n");
+            logerr("ERR: parsing Y4M frame header\n");
             return -1;
         }
     }
@@ -431,7 +431,7 @@ static int imgb_read(FILE *fp, oapv_imgb_t *img, int width, int height, int is_y
         f_h = height;
     }
     else {
-        logerr("unsupported bit-depth (%d)\n", bit_depth);
+        logerr("ERR: unsupported bit-depth (%d)\n", bit_depth);
         return -1;
     }
 
@@ -493,14 +493,20 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
 {
     unsigned char *p8;
     int            i, j, bd;
+    int            chroma_format, bit_depth;
     FILE          *fp;
 
-    int            chroma_format = OAPV_CS_GET_FORMAT(imgb->cs);
-    int            bit_depth = OAPV_CS_GET_BIT_DEPTH(imgb->cs);
+    if(imgb == NULL) {
+        logerr("ERR: null image buffer in image write\n");
+        return -1;
+    }
+
+    chroma_format = OAPV_CS_GET_FORMAT(imgb->cs);
+    bit_depth = OAPV_CS_GET_BIT_DEPTH(imgb->cs);
 
     fp = fopen(fname, "ab");
     if(fp == NULL) {
-        logerr("cannot open file = %s\n", fname);
+        logerr("ERR: cannot open file = %s\n", fname);
         return -1;
     }
     if(bit_depth == 8 && (chroma_format == OAPV_CF_YCBCR400 || chroma_format == OAPV_CF_YCBCR420 || chroma_format == OAPV_CF_YCBCR422 ||
@@ -514,7 +520,7 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
         bd = 2;
     }
     else {
-        logerr("cannot support the color space\n");
+        logerr("ERR: cannot support the color space\n");
         fclose(fp);
         return -1;
     }
@@ -530,6 +536,35 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
 
     fclose(fp);
     return 0;
+}
+
+// checks src/dst are compatible and both buffers hold the copy extent
+static int imgb_cpy_is_valid(oapv_imgb_t *dst, oapv_imgb_t *src)
+{
+    if(src == NULL || dst == NULL) {
+        logerr("ERR: null image buffer in image copy\n");
+        return 0;
+    }
+    if(src->np < 1 || src->np > OAPV_MAX_CC || dst->np != src->np) {
+        logerr("ERR: mismatched plane count in image copy\n");
+        return 0;
+    }
+    int src_bytes = OAPV_CS_GET_BYTE_DEPTH(src->cs);
+    int dst_bytes = OAPV_CS_GET_BYTE_DEPTH(dst->cs);
+    for(int i = 0; i < src->np; i++) {
+        int w = src->w[i] > src->aw[i] ? src->w[i] : src->aw[i];
+        int h = src->h[i] > src->ah[i] ? src->h[i] : src->ah[i];
+        if(src->a[i] == NULL || dst->a[i] == NULL || w < 0 || h < 0) {
+            logerr("ERR: invalid plane in image copy\n");
+            return 0;
+        }
+        if((long long)(h - 1) * src->s[i] + (long long)w * src_bytes > src->bsize[i] ||
+           (long long)(h - 1) * dst->s[i] + (long long)w * dst_bytes > dst->bsize[i]) {
+            logerr("ERR: buffer too small in image copy\n");
+            return 0;
+        }
+    }
+    return 1;
 }
 
 static void imgb_cpy_plane(oapv_imgb_t *dst, oapv_imgb_t *src)
@@ -654,8 +689,16 @@ static void imgb_cpy_shift_right(oapv_imgb_t *dst, oapv_imgb_t *src, int shift)
 static void imgb_cpy(oapv_imgb_t *dst, oapv_imgb_t *src)
 {
     int i, bd_src, bd_dst;
+
+    if(!imgb_cpy_is_valid(dst, src)) return;
+
     bd_src = OAPV_CS_GET_BIT_DEPTH(src->cs);
     bd_dst = OAPV_CS_GET_BIT_DEPTH(dst->cs);
+
+    if(bd_src < 8 || bd_src > 16 || bd_dst < 8 || bd_dst > 16) {
+        logerr("ERR: unsupported bit depth in image copy\n");
+        return;
+    }
 
     if(src->cs == dst->cs) {
         imgb_cpy_plane(dst, src);
@@ -708,7 +751,7 @@ static void measure_psnr(oapv_imgb_t *org, oapv_imgb_t *rec, double psnr[4], int
 
             for(j = 0; j < org->h[i]; j++) {
                 for(k = 0; k < org->w[i]; k++) {
-                    sum[i] += (o[k] - r[k]) * (o[k] - r[k]);
+                    sum[i] += (double)(o[k] - r[k]) * (o[k] - r[k]);
                 }
 
                 o += org->s[i];
@@ -734,7 +777,7 @@ static void measure_psnr(oapv_imgb_t *org, oapv_imgb_t *rec, double psnr[4], int
                         sum[i] += (((int)o[k] - (int)r[k]) >> 6) * (((int)o[k] - (int)r[k]) >> 6);
                     }
                     else {
-                        sum[i] += (o[k] - r[k]) * (o[k] - r[k]);
+                        sum[i] += (double)(o[k] - r[k]) * (o[k] - r[k]);
                     }
                 }
                 o = (unsigned short *)((unsigned char *)o + org->s[i]);
@@ -752,7 +795,7 @@ static int write_data(char *fname, unsigned char *data, int size)
 
     fp = fopen(fname, "ab");
     if(fp == NULL) {
-        logerr("cannot open the output file=%s\n", fname);
+        logerr("ERR: cannot open the output file=%s\n", fname);
         return -1;
     }
     fwrite(data, 1, size, fp);
@@ -765,7 +808,7 @@ static int clear_data(char *fname)
     FILE *fp;
     fp = fopen(fname, "wb");
     if(fp == NULL) {
-        logerr("cannot remove file (%s)\n", fname);
+        logerr("ERR: cannot remove file (%s)\n", fname);
         return -1;
     }
     fclose(fp);
