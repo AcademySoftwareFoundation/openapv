@@ -1299,38 +1299,44 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
 
 int oapve_config(oapve_t eid, int cfg, void *buf, int *size)
 {
-    oapve_ctx_t *ctx;
-    int          t0;
+    oapve_ctx_t  *ctx;
+    oapve_param_t *param;
+    int           t0;
+    int           frm_idx = (cfg >> 16) & 0xFFFF; // upper 16 bits: frame index
+    int           cfg_id = cfg & 0xFFFF;          // lower 16 bits: config id
 
     ctx = enc_id_to_ctx(eid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(buf != NULL && size != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(frm_idx < ctx->cdesc.max_num_frms, OAPV_ERR_INVALID_ARGUMENT);
+    param = &ctx->cdesc.param[frm_idx]; // persistent per-frame config
 
-    switch(cfg) {
+    switch(cfg_id) {
     /* set config **********************************************************/
     case OAPV_CFG_SET_QP:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         t0 = *((int *)buf);
         oapv_assert_rv(t0 >= MIN_QUANT && t0 <= MAX_QUANT(10),
                        OAPV_ERR_INVALID_ARGUMENT);
-        ctx->param->qp = t0;
+        param->qp = t0;
         break;
     case OAPV_CFG_SET_FPS_NUM:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         t0 = *((int *)buf);
         oapv_assert_rv(t0 > 0, OAPV_ERR_INVALID_ARGUMENT);
-        ctx->param->fps_num = t0;
+        param->fps_num = t0;
         break;
     case OAPV_CFG_SET_FPS_DEN:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         t0 = *((int *)buf);
         oapv_assert_rv(t0 > 0, OAPV_ERR_INVALID_ARGUMENT);
-        ctx->param->fps_den = t0;
+        param->fps_den = t0;
         break;
     case OAPV_CFG_SET_BPS:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         t0 = *((int *)buf);
         oapv_assert_rv(t0 > 0, OAPV_ERR_INVALID_ARGUMENT);
-        ctx->param->bitrate = t0;
+        param->bitrate = t0;
         break;
     case OAPV_CFG_SET_USE_FRM_HASH:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
@@ -1345,27 +1351,27 @@ int oapve_config(oapve_t eid, int cfg, void *buf, int *size)
     /* get config *******************************************************/
     case OAPV_CFG_GET_QP:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
-        *((int *)buf) = ctx->param->qp;
+        *((int *)buf) = param->qp;
         break;
     case OAPV_CFG_GET_WIDTH:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
-        *((int *)buf) = ctx->param->w;
+        *((int *)buf) = param->w;
         break;
     case OAPV_CFG_GET_HEIGHT:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
-        *((int *)buf) = ctx->param->h;
+        *((int *)buf) = param->h;
         break;
     case OAPV_CFG_GET_FPS_NUM:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
-        *((int *)buf) = ctx->param->fps_num;
+        *((int *)buf) = param->fps_num;
         break;
     case OAPV_CFG_GET_FPS_DEN:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
-        *((int *)buf) = ctx->param->fps_den;
+        *((int *)buf) = param->fps_den;
         break;
     case OAPV_CFG_GET_BPS:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
-        *((int *)buf) = ctx->param->bitrate;
+        *((int *)buf) = param->bitrate;
         break;
     case OAPV_CFG_GET_AU_BS_FMT:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);

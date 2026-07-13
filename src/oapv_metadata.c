@@ -443,7 +443,7 @@ oapvm_t oapvm_create(int *err)
     oapvm_ctx_t *ctx;
     ctx = oapv_malloc(sizeof(oapvm_ctx_t));
     if(ctx == NULL) {
-        *err = OAPV_ERR_OUT_OF_MEMORY;
+        if(err) *err = OAPV_ERR_OUT_OF_MEMORY;
         return NULL;
     }
     oapv_mset(ctx, 0, sizeof(oapvm_ctx_t));

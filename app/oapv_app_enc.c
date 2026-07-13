@@ -520,7 +520,7 @@ static int set_extra_config(oapve_t id, args_var_t *vars, oapve_param_t *param)
     if(vars->hash) {
         value = 1;
         size = 4;
-        ret = oapve_config(id, OAPV_CFG_SET_USE_FRM_HASH, &value, &size);
+        ret = oapve_config(id, OAPV_CFG_FRM(OAPV_CFG_SET_USE_FRM_HASH, 0), &value, &size);
         if(OAPV_FAILED(ret)) {
             logerr("ERR: failed to set config for using frame hash\n");
             return -1;

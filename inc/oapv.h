@@ -195,6 +195,11 @@ extern "C" {
 #define OAPV_CFG_GET_HEIGHT             (702)
 #define OAPV_CFG_GET_AU_BS_FMT          (802)
 
+/* Target a specific frame's parameters in oapve_config(): the upper 16 bits of
+ * 'cfg' carry the frame index, the lower 16 bits the config id above. Legacy
+ * callers pass the plain id (index 0). */
+#define OAPV_CFG_FRM(cfg, frm_idx)      ((((frm_idx) & 0xFFFF) << 16) | ((cfg) & 0xFFFF))
+
 /*****************************************************************************
  * config values
  *****************************************************************************/

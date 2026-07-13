@@ -651,6 +651,7 @@ void oapv_tpool_leave_cs(oapv_sync_obj_t sobj)
 
 tpool_result_t oapv_tpool_init(oapv_tpool_t *tp, int maxtask)
 {
+    if(tp == NULL) return TPOOL_INVALID_ARG;
     // assign handles to threadcontroller object
     // handles for create, run, join and terminate will be given to controller  object
 
