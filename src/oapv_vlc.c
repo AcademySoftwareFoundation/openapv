@@ -739,7 +739,8 @@ static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
 
 static int dec_vlc_read(oapv_bs_t *bs, int k)
 {
-    int symbol;
+    // u32 so accumulation wraps (defined) instead of signed-overflow UB
+    u32 symbol;
     int flag;
     int parse_exp_golomb = 0;
 
@@ -750,7 +751,7 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
         if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
         BSR_READ_1BIT(bs, flag);
 
-        symbol = (1 + flag) << k;
+        symbol = (u32)(1 + flag) << k;
         parse_exp_golomb = flag;
     }
     else {
@@ -765,7 +766,18 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
                 break;
             }
             else {
-                symbol += (1 << k);
+                // The APV spec has no (k & 31) here: for a valid bitstream k
+                // stays below 32 so the mask is a no-op. It exists only to
+                // keep the shift count in [0,31] for a malformed stream that
+                // drives k past 31, which would otherwise be shift-count UB.
+                // Such a stream is rejected by the (k < 32) check after the
+                // loop, so the masked value is never used.
+                //
+                // The mask is used instead of an in-loop (k < 32) branch on
+                // purpose: this is the hot coefficient-decoding loop, and an
+                // extra conditional here would add a mispredictable branch and
+                // slow down decoding of every symbol. Masking is branch-free.
+                symbol += 1u << (k & 31);
                 k++;
             }
         }
