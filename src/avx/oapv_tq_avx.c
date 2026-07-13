@@ -533,6 +533,8 @@ const oapv_fn_dquant_t oapv_tbl_fn_dquant_avx[2] =
 
 void oapv_adjust_itrans_avx(int* src, int* dst, int itrans_diff_idx, int diff_step, int shift)
 {
+    // madd below reads diff_step as 16-bit; clamp so it is not truncated
+    diff_step = oapv_clip3(-32768, 32767, diff_step);
     __m256i v0 = _mm256_set1_epi32((1 << 16) | (diff_step & 0xffff));
     __m256i v1 = _mm256_set1_epi16(1 << (shift - 1));
     __m256i s0, s1, d, d0, d1;

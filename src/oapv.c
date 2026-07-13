@@ -586,6 +586,7 @@ static int enc_ready(oapve_ctx_t *ctx)
 
     if(ctx->threads >= 1) {
         ctx->tpool = oapv_malloc(sizeof(oapv_tpool_t));
+        oapv_assert_gv(ctx->tpool != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
         oapv_tpool_init(ctx->tpool, ctx->threads);
         for(int i = 0; i < ctx->threads; i++) {
             ctx->thread_id[i] = ctx->tpool->create(ctx->tpool, i);
@@ -1835,6 +1836,7 @@ static int dec_ready(oapvd_ctx_t *ctx)
 
     if(ctx->threads >= 2) {
         ctx->tpool = oapv_malloc(sizeof(oapv_tpool_t));
+        oapv_assert_gv(ctx->tpool != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
         oapv_tpool_init(ctx->tpool, ctx->threads - 1);
         for(i = 0; i < ctx->threads - 1; i++) {
             ctx->thread_id[i] = ctx->tpool->create(ctx->tpool, i);
