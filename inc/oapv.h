@@ -42,6 +42,8 @@ extern "C" {
     #include <oapv/oapv_exports.h>
 #endif
 
+#include <stddef.h>
+
 /*****************************************************************************
  * version and related macro
  * the version string follows the rule of API_SET.MAJOR.MINOR.PATCH
@@ -60,9 +62,22 @@ extern "C" {
 #define OAPV_VER_MINOR                  (1)
 #define OAPV_VER_PATCH                  (0)
 
+/*
+* TMV Version history (remove before merge)
+* - Added fixes for encoder memory stomps during encoding of 16K videos.
+* - Added rate controller fix for multiple frames of different sizes.
+*/
+
 /* 4-bytes version number */
 #define OAPV_VER_NUM \
     OAPV_VER_SET(OAPV_VER_APISET,OAPV_VER_MAJOR,OAPV_VER_MINOR,OAPV_VER_PATCH)
+
+/* TMV specific APIs */
+#define OAPV_HAS_SELECTIVE_MULTI_MIPS_DECODE_API 1
+#define OAPV_HAS_SELECTIVE_DECODE_API            1
+#define OAPV_HAS_LOGGING_API                     1
+#define OAPV_HAS_MEMORY_API                      1
+#define OAPV_HAS_CPU_TRACE_API                   1
 
 /* size of macroblock */
 #define OAPV_LOG2_MB                    (4)
@@ -81,8 +96,8 @@ extern "C" {
 #define OAPV_BLK_D                      (OAPV_BLK_W * OAPV_BLK_H)
 
 /* size of tile */
-#define OAPV_MAX_TILE_ROWS              (20) // max number of tiles in row
-#define OAPV_MAX_TILE_COLS              (20) // max number of tiles in column
+#define OAPV_MAX_TILE_ROWS              (64) // max number of tiles in row (supports 16K with 256x256 pixel tiles)
+#define OAPV_MAX_TILE_COLS              (64) // max number of tiles in column
 #define OAPV_MAX_TILES                  (OAPV_MAX_TILE_ROWS * OAPV_MAX_TILE_COLS)
 #define OAPV_MIN_TILE_W_MB              (16)
 #define OAPV_MIN_TILE_H_MB              (8)
@@ -281,6 +296,40 @@ extern "C" {
 #define OAPV_RC_ABR                     (1)
 
 /*****************************************************************************
+ * logging verbosities
+ *****************************************************************************/
+
+#define OAPV_LOG_ERROR                  0
+#define OAPV_LOG_WARNING                1
+#define OAPV_LOG_INFO                   2
+#define OAPV_LOG_DEBUG                  3
+
+/*****************************************************************************
+ * logging callback (note: handlers must be thread safe)
+ *****************************************************************************/
+typedef void (*oapv_log_callback_t)(const char *message, int verbosity, void *userdata);
+
+/*****************************************************************************
+ * memory callbacks
+ *****************************************************************************/
+typedef struct oapv_memory_callbacks oapv_memory_callbacks_t;
+struct oapv_memory_callbacks {
+    void *(*malloc)(size_t size);
+    void *(*calloc)(size_t count, size_t size);
+    void *(*realloc)(void *block, size_t size);
+    void (*free)(void *block);
+};
+
+/*****************************************************************************
+ * cpu event tracing callbacks
+ *****************************************************************************/
+typedef struct oapv_cputrace_callbacks oapv_cputrace_callbacks_t;
+struct oapv_cputrace_callbacks {
+    void (*begin_event)(const char *name, const char *file, int line);
+    void (*end_event)(void);
+};
+
+/*****************************************************************************
  * type and macro for media time
  *****************************************************************************/
 typedef long long        oapv_mtime_t; /* in 100-nanosec unit */
@@ -372,6 +421,29 @@ struct oapv_imgb {
     int (*addref)(oapv_imgb_t *imgb);
     int (*getref)(oapv_imgb_t *imgb);
     int (*release)(oapv_imgb_t *imgb);
+
+    /* Optional tiled-layout output. When tiled_layout == 0 (default), `a[c]`
+     * points at a scanline-strided plane and `s[c]` is the picture stride
+     * in bytes — the historical behavior. When tiled_layout != 0, the
+     * output buffer is laid out tile-major with planes interleaved within
+     * each tile (i.e. tile k occupies one contiguous `tile_size`-byte
+     * block, and all of plane c's `tile_h[c]*tile_stride[c]` bytes live
+     * within that block at the same intra-tile offset for every tile).
+     *
+     * In tiled mode `a[c]` is the buffer base plus the intra-tile byte
+     * offset of plane c, so tile (tx, ty) for component c starts at:
+     *     a[c] + (ty * num_tile_cols + tx) * tile_size
+     * and the decoder writes pixels at tile-local coordinates using
+     * `tile_stride[c]` as the per-row byte advance.
+     *
+     * Zero-initialised structs continue to use the scanline path. */
+    int           tiled_layout;
+    int           num_tile_cols;            /* number of tile columns in the picture */
+    int           num_tile_rows;            /* number of tile rows in the picture */
+    int           tile_size;                /* total bytes per tile (sum of plane sub-tiles, incl. padding) */
+    int           tile_w[OAPV_MAX_CC];      /* tile width  per component, in samples */
+    int           tile_h[OAPV_MAX_CC];      /* tile height per component, in samples */
+    int           tile_stride[OAPV_MAX_CC]; /* tile row stride in bytes (= tile_w[c] * bytes_per_sample) */
 };
 
 typedef struct oapv_frm oapv_frm_t;
@@ -691,6 +763,82 @@ struct oapvd_stat {
 };
 
 /*****************************************************************************
+ * selective decode configuration
+ *****************************************************************************/
+typedef struct oapv_selective_decode oapv_selective_decode_t;
+struct oapv_selective_decode {
+    int mip_level;                          // Which mip level to decode (0=full, 1=half, etc.)
+    int num_tiles;                          // Number of tiles to decode
+    int tile_coords[2*OAPV_MAX_TILES];      // Pairs of [col, row] for each tile
+    oapv_imgb_t *output_buffer;             // Per-channel output buffers (Y, U, V, A)
+    
+    // Frame metadata (filled by decoder)
+    int actual_frame_width;                 // Actual frame width from mip level metadata
+    int actual_frame_height;                // Actual frame height from mip level metadata  
+    int actual_tile_width;                  // Actual tile width in pixels (converted from MBs)
+    int actual_tile_height;                 // Actual tile height in pixels (converted from MBs)
+    int bit_depth;                          // Bit depth from frame metadata
+    int chroma_format_idc;                  // Chroma format from frame metadata
+};
+
+/*****************************************************************************
+ * multi-mip selective decode structures
+ *****************************************************************************/
+typedef struct oapv_mip_request oapv_mip_request_t;
+struct oapv_mip_request {
+    int mip_level;                          // Which mip level to decode (0=full, 1=half, etc.)
+    int num_tiles;                          // Number of tiles to decode for this mip
+    int tile_coords[2*OAPV_MAX_TILES];      // Pairs of [col, row] for each tile
+    oapv_imgb_t *output_buffer;             // Output buffer for this mip level
+
+    // Status (filled by decoder)
+    int status;                             // OAPV_OK if successful, error code otherwise
+
+    // Frame metadata (filled by decoder)
+    int frame_width_mb_aligned;             // Frame width in pixels aligned to macroblock boundaries from mip level metadata
+    int frame_height_mb_aligned;            // Frame height in pixels aligned to macroblock boundaries from mip level metadata
+    int tile_width_mb_aligned;              // Tile width in pixels aligned to macroblock boundaries (converted from MBs)
+    int tile_height_mb_aligned;             // Tile height in pixels aligned to macroblock boundaries (converted from MBs)
+    int bit_depth;                          // Bit depth from frame metadata
+    int chroma_format_idc;                  // Chroma format from frame metadata
+
+    /* Optional per-tile destination slot mapping for virtualized output.
+     *
+     * When NULL (default after Memzero), the decoder routes each tile to its
+     * natural offset within output_buffer using (row * num_tile_cols + col).
+     * This is the legacy behavior and is fully ABI-compatible with callers
+     * that don't know about this field.
+     *
+     * When non-NULL, must point to a caller-owned array of at least num_tiles
+     * ints, where tile_dst_slots[i] is the destination slot index for the
+     * tile at tile_coords[i*2..i*2+1]. The decoder writes that tile at
+     * (tile_dst_slots[i] * tile_size) within output_buffer. Used by callers
+     * implementing a bounded resident-tile cache where output_buffer is sized
+     * to a tile-budget (much smaller than the worst-case full-tile-count).
+     *
+     * Only honoured when output_buffer->tiled_layout != 0. Caller is
+     * responsible for keeping the array alive across the decode call. */
+    const int *tile_dst_slots;
+};
+
+typedef struct oapv_multi_mip_decode oapv_multi_mip_decode_t;
+struct oapv_multi_mip_decode {
+    int num_mips;                           // Number of mip levels to decode
+    oapv_mip_request_t *mip_requests;       // Array of mip requests
+};
+
+/*****************************************************************************
+ * selective decode input stream
+ *****************************************************************************/
+typedef struct oapvd_istream oapvd_istream_t;
+struct oapvd_istream {
+    void *data;
+    long long (*tell)(oapvd_istream_t *bitr);
+    int (*seek)(oapvd_istream_t *bitr, long long offset, int origin);
+    size_t (*read)(oapvd_istream_t *bitr, void *buffer, size_t size, size_t count);
+};
+
+/*****************************************************************************
  * metadata payload
  *****************************************************************************/
 typedef struct oapvm_payload oapvm_payload_t;
@@ -781,9 +929,28 @@ OAPV_EXPORT oapvd_t oapvd_create(oapvd_cdesc_t *cdesc, int *err);
 OAPV_EXPORT void oapvd_delete(oapvd_t did);
 OAPV_EXPORT int oapvd_config(oapvd_t did, int cfg, void *buf, int *size);
 OAPV_EXPORT int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat);
+OAPV_EXPORT int oapvd_decode_selective(oapvd_t did, oapvd_istream_t *istream, oapv_selective_decode_t *sel_decode, oapvm_t mid, oapvd_stat_t *stat);
+OAPV_EXPORT int oapvd_decode_selective_multi(oapvd_t did, oapvd_istream_t *istream, oapv_selective_decode_t *sel_decode, oapvm_t mid, oapvd_stat_t *stat);
+OAPV_EXPORT int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream, oapv_multi_mip_decode_t *multi_mip_decode, oapvm_t mid, oapvd_stat_t *stat);
 
 /* utility APIs **************************************************************/
 OAPV_EXPORT int oapvd_info(void *au, int au_size, oapv_au_info_t *aui);
+
+/*****************************************************************************
+ * openapv logging
+ *****************************************************************************/
+OAPV_EXPORT void oapv_set_logging_callback(oapv_log_callback_t callback, void *userdata);
+OAPV_EXPORT void oapv_set_logging_verbosity(int verbosity);
+
+/*****************************************************************************
+ * openapv memory callbacks
+ *****************************************************************************/
+OAPV_EXPORT int oapv_set_memory_callbacks(const oapv_memory_callbacks_t* callbacks);
+
+/*****************************************************************************
+ * cpu event tracing callbacks
+ *****************************************************************************/
+OAPV_EXPORT int oapv_set_cputrace_callbacks(const oapv_cputrace_callbacks_t *callbacks);
 
 /*****************************************************************************
  * openapv version

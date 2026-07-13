@@ -238,6 +238,7 @@ static __inline oapv_clk_t oapv_clk_sec(oapv_clk_t clk)
 
 #define CLIP_VAL(n, min, max) (((n) > (max)) ? (max) : (((n) < (min)) ? (min) : (n)))
 #define ALIGN_VAL(val, align) ((((val) + (align) - 1) / (align)) * (align))
+#define MAX_VAL(a,b) (((a) > (b)) ? (a) : (b))
 
 /* Function for atomic increment:
    This function might need to modify according to O/S or CPU platform
@@ -493,7 +494,7 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
 {
     unsigned char *p8;
     int            i, j, bd;
-    int            chroma_format, bit_depth;
+    int            color_format, bit_depth;
     FILE          *fp;
 
     if(imgb == NULL) {
@@ -501,7 +502,7 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
         return -1;
     }
 
-    chroma_format = OAPV_CS_GET_FORMAT(imgb->cs);
+    color_format = OAPV_CS_GET_FORMAT(imgb->cs);
     bit_depth = OAPV_CS_GET_BIT_DEPTH(imgb->cs);
 
     fp = fopen(fname, "ab");
@@ -509,14 +510,14 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
         logerr("ERR: cannot open file = %s\n", fname);
         return -1;
     }
-    if(bit_depth == 8 && (chroma_format == OAPV_CF_YCBCR400 || chroma_format == OAPV_CF_YCBCR420 || chroma_format == OAPV_CF_YCBCR422 ||
-                          chroma_format == OAPV_CF_YCBCR444 || chroma_format == OAPV_CF_YCBCR4444)) {
+    if(bit_depth == 8 && (color_format == OAPV_CF_YCBCR400 || color_format == OAPV_CF_YCBCR420 || color_format == OAPV_CF_YCBCR422 ||
+                          color_format == OAPV_CF_YCBCR444 || color_format == OAPV_CF_YCBCR4444)) {
         bd = 1;
     }
-    else if(bit_depth >= 10 && bit_depth <= 16 && (chroma_format == OAPV_CF_YCBCR400 || chroma_format == OAPV_CF_YCBCR420 || chroma_format == OAPV_CF_YCBCR422 || chroma_format == OAPV_CF_YCBCR444 || chroma_format == OAPV_CF_YCBCR4444)) {
+    else if(bit_depth >= 10 && bit_depth <= 16 && (color_format == OAPV_CF_YCBCR400 || color_format == OAPV_CF_YCBCR420 || color_format == OAPV_CF_YCBCR422 || color_format == OAPV_CF_YCBCR444 || color_format == OAPV_CF_YCBCR4444)) {
         bd = 2;
     }
-    else if(bit_depth >= 10 && chroma_format == OAPV_CF_PLANAR2) {
+    else if(bit_depth >= 10 && color_format == OAPV_CF_PLANAR2) {
         bd = 2;
     }
     else {
@@ -525,7 +526,10 @@ static int imgb_write(char *fname, oapv_imgb_t *imgb)
         return -1;
     }
 
-    for(i = 0; i < imgb->np; i++) {
+    // Note: because of 4444, we only save up to 3 components because y4m doesn't support 4.
+    int num_components = imgb->np > 3 ? 3 : imgb->np;
+
+    for(i = 0; i < num_components; i++) {
         p8 = (unsigned char *)imgb->a[i] + (imgb->s[i] * imgb->y[i]) + (imgb->x[i] * bd);
 
         for(j = 0; j < imgb->h[i]; j++) {
@@ -736,6 +740,128 @@ void imgb_clear(oapv_imgb_t *imgb)
     }
 }
 
+// todo: doesn't work with planar2.
+static void imgb_calc_mip_8(oapv_imgb_t *dst_img, oapv_imgb_t *src_img)
+{
+    unsigned char *src_buff;
+    unsigned char  *dst_buff;
+    int             accum = 0;
+    int             dst_w, dst_h, src_w, src_h;
+    int             plane_idx, pixel_y, pixel_x;
+
+    for(plane_idx = 0; plane_idx < dst_img->np; plane_idx++) {
+        src_buff = (unsigned char *)src_img->a[plane_idx];
+        dst_buff = (unsigned char *)dst_img->a[plane_idx];
+        dst_w = dst_img->w[plane_idx];
+        dst_h = dst_img->h[plane_idx];
+        src_w = src_img->w[plane_idx];
+        src_h = src_img->h[plane_idx];
+
+        if(src_h > dst_h && src_w > dst_w) {
+            for(pixel_y = 0; pixel_y < dst_h; pixel_y++) {
+                for(pixel_x = 0; pixel_x < dst_w; pixel_x++) {
+                    accum = src_buff[pixel_x * 2];
+                    accum += src_buff[pixel_x * 2 + 1];
+                    accum += src_buff[pixel_x * 2 + src_img->s[plane_idx]];
+                    accum += src_buff[pixel_x * 2 + 1 + src_img->s[plane_idx]];
+                    dst_buff[pixel_x] = (unsigned char)(accum / 4);
+                }
+                src_buff += src_img->s[plane_idx] * 2;
+                dst_buff += dst_img->s[plane_idx];
+            }
+        }
+        else if(src_h > dst_h) {
+            for(pixel_y = 0; pixel_y < dst_h; pixel_y++) {
+                for(pixel_x = 0; pixel_x < dst_w; pixel_x++) {
+                    accum = src_buff[pixel_x];
+                    accum += src_buff[pixel_x + src_img->s[plane_idx]];
+                    dst_buff[pixel_x] = (unsigned char)(accum / 2);
+                }
+                src_buff += src_img->s[plane_idx] * 2;
+                dst_buff += dst_img->s[plane_idx];
+            }
+        }
+        else if(src_w > dst_w) {
+            for(pixel_y = 0; pixel_y < dst_h; pixel_y++) {
+                for(pixel_x = 0; pixel_x < dst_w; pixel_x++) {
+                    accum = src_buff[pixel_x * 2];
+                    accum += src_buff[pixel_x * 2 + 1];
+                    dst_buff[pixel_x] = (unsigned char)(accum / 2);
+                }
+                src_buff += src_img->s[plane_idx];
+                dst_buff += dst_img->s[plane_idx];
+            }
+        }
+    }
+}
+
+static void imgb_calc_mip_16(oapv_imgb_t* dst_img, oapv_imgb_t* src_img)
+{
+    unsigned short *src_buff;
+    unsigned short *dst_buff;
+    int             accum = 0;
+    int             dst_w, dst_h, src_w, src_h;
+    int             plane_idx, pixel_y, pixel_x;
+
+    for(plane_idx = 0; plane_idx < dst_img->np; plane_idx++)
+    {
+        src_buff = (unsigned short *)src_img->a[plane_idx];
+        dst_buff = (unsigned short *)dst_img->a[plane_idx];
+        dst_w = dst_img->w[plane_idx];
+        dst_h = dst_img->h[plane_idx];
+        src_w = src_img->w[plane_idx];
+        src_h = src_img->h[plane_idx];
+
+        if(src_h > dst_h && src_w > dst_w) {
+            for(pixel_y = 0; pixel_y < dst_h; pixel_y++) {
+                for(pixel_x = 0; pixel_x < dst_w; pixel_x++) {
+                    accum = src_buff[pixel_x * 2];
+                    accum += src_buff[pixel_x * 2 + 1];
+                    accum += src_buff[pixel_x * 2 + src_img->s[plane_idx]/2];
+                    accum += src_buff[pixel_x * 2 + 1 + src_img->s[plane_idx]/2];
+                    dst_buff[pixel_x] = (unsigned short)(accum / 4);
+                }
+                src_buff += src_img->s[plane_idx];     // must divide stride by 2 because of ushort ptrs.
+                dst_buff += dst_img->s[plane_idx] / 2; // must divide stride by 2 because of ushort ptrs.
+            }
+        }
+        else if (src_h > dst_h) {
+            for(pixel_y = 0; pixel_y < dst_h; pixel_y++) {
+                for(pixel_x = 0; pixel_x < dst_w; pixel_x++) {
+                    accum = src_buff[pixel_x];
+                    accum += src_buff[pixel_x + src_img->s[plane_idx]/2];
+                    dst_buff[pixel_x] = (unsigned short)(accum / 2);
+                }
+                src_buff += src_img->s[plane_idx];     // must divide stride by 2 because of ushort ptrs.
+                dst_buff += dst_img->s[plane_idx] / 2; // must divide stride by 2 because of ushort ptrs.
+            }
+        }
+        else if(src_w > dst_w) {
+            for(pixel_y = 0; pixel_y < dst_h; pixel_y++) {
+                for(pixel_x = 0; pixel_x < dst_w; pixel_x++) {
+                    accum = src_buff[pixel_x * 2];
+                    accum += src_buff[pixel_x * 2 + 1];
+                    dst_buff[pixel_x] = (unsigned short)(accum / 2);
+                }
+                src_buff += src_img->s[plane_idx] / 2; // must divide stride by 2 because of ushort ptrs.
+                dst_buff += dst_img->s[plane_idx] / 2; // must divide stride by 2 because of ushort ptrs.
+            }        
+        }
+    }
+}
+
+static void imgb_calc_mip(oapv_imgb_t *dst_img, oapv_imgb_t *src_img)
+{
+    int dst_bit_depth = OAPV_CS_GET_BIT_DEPTH(dst_img->cs);
+    if(dst_bit_depth > 8) {
+        imgb_calc_mip_16(dst_img, src_img); // might have to mask bits.
+    }
+    else
+    {
+        imgb_calc_mip_8(dst_img, src_img);
+    }
+}
+
 static void measure_psnr(oapv_imgb_t *org, oapv_imgb_t *rec, double psnr[4], int bit_depth)
 {
     double sum[4], mse[4];
@@ -789,6 +915,7 @@ static void measure_psnr(oapv_imgb_t *org, oapv_imgb_t *rec, double psnr[4], int
     }
 }
 
+/* Note: this should be called append_data */
 static int write_data(char *fname, unsigned char *data, int size)
 {
     FILE *fp;
@@ -803,9 +930,32 @@ static int write_data(char *fname, unsigned char *data, int size)
     return 0;
 }
 
+/* Opens a file and write the whole buffer to file. File is overwriten. */
+static int overwrite_data(char *fname, unsigned char *data, int size)
+{
+    FILE *fp;
+
+    fp = fopen(fname, "wb");
+    if(fp == NULL) {
+        logerr("cannot open the output file=%s\n", fname);
+        return -1;
+    }
+    fwrite(data, 1, size, fp);
+    fclose(fp);
+    return 0;
+}
+
 static int clear_data(char *fname)
 {
     FILE *fp;
+
+    /* don't create an empty file, if it didn't exist before. */
+    fp = fopen(fname, "rb");
+    if(fp == NULL) {
+        return 0;
+    }
+    fclose(fp);
+
     fp = fopen(fname, "wb");
     if(fp == NULL) {
         logerr("ERR: cannot remove file (%s)\n", fname);

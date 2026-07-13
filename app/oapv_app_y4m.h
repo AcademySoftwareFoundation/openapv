@@ -273,7 +273,7 @@ static int write_y4m_header(char *fname, oapv_imgb_t *imgb)
         else if(bit_depth == 12)
             strcpy(c_buf, "422p12");
     }
-    else if(color_format == OAPV_CF_YCBCR444) {
+    else if(color_format == OAPV_CF_YCBCR444 || color_format == OAPV_CF_YCBCR4444) { // for testing 4444 is considered 444.
         if(bit_depth == 8)
             strcpy(c_buf, "444");
         else if(bit_depth == 10)

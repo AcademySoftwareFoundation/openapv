@@ -41,6 +41,16 @@
 
 #define WINDOWS_MUTEX_SYNC 0
 
+void oapv_tpool_yield()
+{
+    #if !defined(WIN32) && !defined(WIN64)
+    sched_yield();
+    #else
+    Sleep(0);
+    #endif
+}
+
+
 #if !defined(WIN32) && !defined(WIN64)
 
 typedef struct thread_ctx {
@@ -336,6 +346,20 @@ void oapv_tpool_leave_cs(oapv_sync_obj_t sobj)
 {
     thread_mutex_t *imutex = (thread_mutex_t *)(sobj);
     pthread_mutex_unlock(&imutex->lmutex);
+}
+
+int oapv_tpool_atomic_inc(oapv_sync_obj_t sobj, volatile int *pcnt)
+{
+    thread_mutex_t *imutex = (thread_mutex_t *)(sobj);
+    int             temp = 0;
+
+    // lock the mutex, increment the count and release the mutex
+    pthread_mutex_lock(&imutex->lmutex);
+    temp = *pcnt;
+    *pcnt = ++temp;
+    pthread_mutex_unlock(&imutex->lmutex);
+
+    return temp;
 }
 
 #else
@@ -645,6 +669,39 @@ void oapv_tpool_leave_cs(oapv_sync_obj_t sobj)
 {
     thread_mutex_t *imutex = (thread_mutex_t *)(sobj);
     LeaveCriticalSection(&imutex->c_section);
+}
+
+int oapv_tpool_atomic_inc(oapv_sync_obj_t sobj, volatile int *pcnt)
+{
+    thread_mutex_t *imutex = (thread_mutex_t *)(sobj);
+    int             temp = 0;
+
+#if WINDOWS_MUTEX_SYNC
+    // let's lock the mutex
+    DWORD dw_wait_result = WaitForSingleObject(imutex->lmutex, INFINITE); // wait for infinite time
+
+    switch(dw_wait_result) {
+        // The thread got ownership of the mutex
+    case WAIT_OBJECT_0:
+        temp = *pcnt;
+        *pcnt = ++temp;
+        // Release ownership of the mutex object
+        ReleaseMutex(imutex->lmutex);
+        break;
+        // The thread got ownership of an abandoned mutex
+    case WAIT_ABANDONED:
+        temp = *pcnt;
+        temp++;
+        *pcnt = temp;
+        break;
+    }
+#else
+    EnterCriticalSection(&imutex->c_section);
+    temp = *pcnt;
+    *pcnt = ++temp;
+    LeaveCriticalSection(&imutex->c_section);
+#endif
+    return temp;
 }
 
 #endif

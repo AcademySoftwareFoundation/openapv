@@ -35,7 +35,23 @@
 #include "oapv_app_y4m.h"
 
 #define MAX_BS_BUF   (128 * 1024 * 1024)
-#define MAX_NUM_FRMS (1)           // supports only 1-frame in an access unit
+/* Worst-case AU bitstream size as a function of frame dimensions and the
+ * number of color components. Allows roughly 4 bytes per coefficient plus a
+ * fixed allowance for AU/PBU headers and metadata. Result is clamped to
+ * INT_MAX-1 because oapv_bitb_t.bsize is `int`. */
+#define BS_BUF_FLOOR        MAX_BS_BUF
+#define BS_BUF_HEADER_ALLOW (16 * 1024 * 1024)
+static int compute_bs_buf_size(int w, int h, int num_comp)
+{
+    unsigned long long need =
+        (unsigned long long)w * (unsigned long long)h *
+        (unsigned long long)num_comp * 4ULL + (unsigned long long)BS_BUF_HEADER_ALLOW;
+    if(need < (unsigned long long)BS_BUF_FLOOR) need = BS_BUF_FLOOR;
+    if(need > (unsigned long long)0x7FFFFFF0ULL) need = 0x7FFFFFF0ULL;
+    return (int)need;
+}
+#define MAX_NUM_FRMS (OAPV_MAX_NUM_FRAMES) // TMV: supports for mips as non-primary frames in access unit
+#define NUM_PRI_FRMS (1) // Supports only 1 primary frame in access unit
 #define FRM_IDX      (0)           // supports only 1-frame in an access unit
 #define MAX_NUM_CC   (OAPV_MAX_CC) // Max number of color components (upto 4:4:4:4)
 
@@ -284,6 +300,10 @@ static const args_opt_t enc_args_opts[] = {
         ARGS_NO_KEY,  "max-cll", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "content light level information metadata"
     },
+    {
+        ARGS_NO_KEY,  "tmv-mips", ARGS_VAL_TYPE_NONE, 0, NULL, 0,
+        "TMV - Generate mipmaps as non-primary frames in each access units."
+    },
     {ARGS_END_KEY, "", ARGS_VAL_TYPE_NONE, 0, NULL, 0, ""} /* termination */
 };
 
@@ -298,6 +318,7 @@ typedef struct args_var {
     char           fname_rec[256];
     int            max_au;
     int            hash;
+    int            tmv_mips;
     int            input_depth;
     int            input_csp;
     int            seek;
@@ -356,6 +377,7 @@ static args_var_t *args_init_vars(args_parser_t *args, oapve_param_t *param)
     args_set_variable_by_key_long(opts, "recon", vars->fname_rec, sizeof(vars->fname_rec));
     args_set_variable_by_key_long(opts, "max-au", &vars->max_au, 0);
     args_set_variable_by_key_long(opts, "hash", &vars->hash, 0);
+    args_set_variable_by_key_long(opts, "tmv-mips", &vars->tmv_mips, 0);
     args_set_variable_by_key_long(opts, "verbose", &op_verbose, 0);
     op_verbose = VERBOSE_SIMPLE; /* default */
     args_set_variable_by_key_long(opts, "input-depth", &vars->input_depth, 0);
@@ -555,7 +577,7 @@ static void print_commandline(int argc, const char **argv)
 
 static void add_thousands_comma_to_number(char *in, char *out)
 {
-    int len, left = 0;
+    size_t len, left = 0;
     len = strlen(in);
     left = len % 3;
 
@@ -895,7 +917,10 @@ int main(int argc, const char **argv)
     int            is_out = 0, is_rec = 0;
     char          *errstr = NULL;
     int            cfmt;                      // color format
-    const int      num_frames = MAX_NUM_FRMS; // number of frames in an access unit
+    const int      num_frames = NUM_PRI_FRMS; // number of primary frames in an access unit
+    int            num_mips = 0;              // [TMV] number of mipmaps
+    int            start_mip_idx = 0;
+    char           fname_out_au[256+128];     // filename for given AU when outputting one AU per file.
 
     // print logo
     logv2("  ____                ___   ___ _   __\n");
@@ -1016,8 +1041,20 @@ int main(int argc, const char **argv)
         goto ERR;
     }
 
-    cdesc.max_bs_buf_size = MAX_BS_BUF; /* maximum bitstream buffer size */
-    cdesc.max_num_frms = MAX_NUM_FRMS;
+    /* Size the bitstream buffer to the worst-case AU for the chosen
+     * dimensions and color format, so high-resolution inputs (e.g. 16k)
+     * don't trigger OAPV_ERR_OUT_OF_BS_BUF. */
+    {
+        int num_comp;
+        switch(cfmt) {
+        case OAPV_CF_YCBCR400:  num_comp = 1; break;
+        case OAPV_CF_YCBCR4444: num_comp = 4; break;
+        case OAPV_CF_PLANAR2:   num_comp = 3; break;
+        default:                num_comp = 3; break;
+        }
+        cdesc.max_bs_buf_size = compute_bs_buf_size(param->w, param->h, num_comp);
+    }
+    cdesc.max_num_frms = NUM_PRI_FRMS;
     if(!strcmp(args_var->threads, "auto")){
         cdesc.threads = OAPV_CDESC_THREADS_AUTO;
     }
@@ -1059,13 +1096,55 @@ int main(int argc, const char **argv)
         is_rec = 1;
     }
 
-    /* allocate bitstream buffer */
-    bs_buf = (unsigned char *)malloc(MAX_BS_BUF);
+    /* allocate bitstream buffer (sized in cdesc.max_bs_buf_size above) */
+    bs_buf = (unsigned char *)malloc((size_t)cdesc.max_bs_buf_size);
     if(bs_buf == NULL) {
-        logerr("ERR: cannot allocate bitstream buffer, size=%d", MAX_BS_BUF);
+        logerr("ERR: cannot allocate bitstream buffer, size=%d", cdesc.max_bs_buf_size);
         ret = -1;
         goto ERR;
     }
+
+    // TMV -- Prep mip encoding parameters --
+    num_mips = 0;
+
+    if(args_var->tmv_mips) {
+        for(int mip_idx = 0, w = param->w / 2, h = param->h / 2;; mip_idx++) {
+
+            if((cfmt == OAPV_CF_YCBCR422 || cfmt == OAPV_CF_YCBCR420) && (w & 0x1)) {
+                logerr("ERR: Can't generate mip of width %d. Not multiple of two (YUV 422/420 constraint).\n", w);
+                break;
+            }
+
+            if(cfmt == OAPV_CF_YCBCR420 && (h & 0x1)) {
+                logerr("ERR: Can't generate mip of heigth %d. Not multiple of two (YUV 420 constraint).\n", h);
+                break;
+            }
+
+            int frame_idx = 1 + mip_idx; // assumes 1 primary frame
+            cdesc.param[frame_idx] = *param;
+            cdesc.param[frame_idx].w = w;
+            cdesc.param[frame_idx].h = h;
+
+            if(w == 1 && h == 1) {
+                break;
+            }
+
+            num_mips++;
+
+            w = MAX_VAL(w / 2, 1);
+            h = MAX_VAL(h / 2, 1);
+        }
+
+        // Log mipmap levels that will be generated
+        logv2("Generating %d mipmap levels:\n", num_mips);
+        logv2("  Mip 0: %dx%d (primary frame)\n", param->w, param->h);
+        for(int i = 0; i < num_mips; i++) {
+            logv2("  Mip %d: %dx%d\n", i + 1,
+                  cdesc.param[i + 1].w, cdesc.param[i + 1].h);
+        }
+    }
+
+    cdesc.max_num_frms = 1 + num_mips;  // TMV
 
     /* create encoder */
     id = oapve_create(&cdesc, &ret);
@@ -1093,7 +1172,7 @@ int main(int argc, const char **argv)
 
     bitrate_tot = 0;
     bitb.addr = bs_buf;
-    bitb.bsize = MAX_BS_BUF;
+    bitb.bsize = cdesc.max_bs_buf_size;
 
     if(args_var->seek > 0) {
         state = STATE_SKIPPING;
@@ -1166,6 +1245,29 @@ int main(int argc, const char **argv)
         goto ERR;
     }
 
+    // --- TMV Begin
+    // prepare frames for the mips
+    start_mip_idx = ifrms.num_frms;
+
+    if (num_mips + ifrms.num_frms >= OAPV_MAX_NUM_FRAMES)
+    {
+        num_mips = OAPV_MAX_NUM_FRAMES - ifrms.num_frms - 1;
+        logerr("ERR: Too many mips, clamping to %d mips.", num_mips);
+    }
+
+    for (int mip_idx = 0, w = param->w/2, h = param->h/2; mip_idx < num_mips; mip_idx++)
+    {
+        int frame_idx = start_mip_idx + mip_idx;
+        // Allocate the mip with codec format and bitdepth directly, mips are calculated from already converted imgb.
+        ifrms.frm[frame_idx].imgb = imgb_create(w, h, OAPV_CS_SET(cfmt, codec_depth, 0));
+        w = MAX_VAL(w / 2, 1);
+        h = MAX_VAL(h / 2, 1);
+    }
+
+    ifrms.num_frms += num_mips;
+    // --- TMV End
+
+
     /* encode pictures *******************************************************/
     while(args_var->max_au == 0 || (au_cnt < args_var->max_au)) {
         for(int i = 0; i < num_frames; i++) {
@@ -1189,6 +1291,26 @@ int main(int argc, const char **argv)
             ifrms.frm[i].pbu_type = OAPV_PBU_TYPE_PRIMARY_FRAME;
         }
 
+        // TMV -- Calculcate the mipmaps and store in non-primary frame.
+        for (int mip_idx = 0; mip_idx < num_mips; mip_idx++)
+        {
+            int src_frm_idx = 0;
+            int dst_frm_idx = mip_idx + start_mip_idx;
+            if (mip_idx > 0)
+            {
+                src_frm_idx = start_mip_idx + mip_idx - 1;
+            }
+
+            logv3("Encoding mip level %d (%dx%d)...\n",
+                  mip_idx + 1,
+                  ifrms.frm[dst_frm_idx].imgb->w[0],
+                  ifrms.frm[dst_frm_idx].imgb->h[0]);
+
+            imgb_calc_mip(ifrms.frm[dst_frm_idx].imgb, ifrms.frm[src_frm_idx].imgb);
+            ifrms.frm[dst_frm_idx].group_id = 2 + mip_idx;  // non primary frame must have different group id.
+            ifrms.frm[dst_frm_idx].pbu_type = OAPV_PBU_TYPE_NON_PRIMARY_FRAME;
+        }
+
         if(state == STATE_ENCODING) {
             /* encoding */
             clk_beg = oapv_clk_get();
@@ -1205,7 +1327,7 @@ int main(int argc, const char **argv)
 
             bitrate_tot += stat.frm_size[FRM_IDX];
 
-            print_stat_au(&stat, au_cnt, param, args_var->max_au, bitrate_tot, clk_end, clk_tot);
+            print_stat_au(&stat, (int)au_cnt, param, args_var->max_au, bitrate_tot, clk_end, clk_tot);
 
             for(int fidx = 0; fidx < num_frames; fidx++) {
                 if(is_rec) {
@@ -1221,10 +1343,23 @@ int main(int argc, const char **argv)
                 /* store bitstream */
                 if(OAPV_SUCCEEDED(ret)) {
                     if(is_out && stat.write > 0) {
-                        if(write_data(args_var->fname_out, bs_buf, stat.write)) {
-                            logerr("ERR: cannot write bitstream\n");
-                            ret = -1;
-                            goto ERR;
+                        /* If an APV extension (.apv or .oapv) is specified, all AU are appended to that file. */
+                        if (strstr(args_var->fname_out, ".apv") || strstr(args_var->fname_out, ".APV") ||
+                            strstr(args_var->fname_out, ".oapv") || strstr(args_var->fname_out, ".OAPV")) {
+                            if (write_data(args_var->fname_out, bs_buf, stat.write)) {
+                                logerr("ERR: cannot write bitstream\n");
+                                ret = -1;
+                                goto ERR;
+                            }
+                        }
+                        else {
+                            /* Separate each AU in an individual file. */
+                            sprintf(fname_out_au, "%s_%04d.apv1", args_var->fname_out, (int)au_cnt);
+                            if(overwrite_data(fname_out_au, bs_buf, stat.write)) {
+                                logerr("ERR: cannot write bitstream\n");
+                                ret = -1;
+                                goto ERR;
+                            }
                         }
                     }
                 }

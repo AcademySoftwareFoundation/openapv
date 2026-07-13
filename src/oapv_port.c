@@ -31,6 +31,56 @@
 
 #include <stdarg.h>
 #include "oapv_port.h"
+#include "oapv.h"
+
+static oapv_memory_callbacks_t memory_callbacks = { NULL, NULL, NULL, NULL };
+
+int oapv_set_memory_callbacks(const oapv_memory_callbacks_t *callbacks)
+{
+    // Make sure all the callbacks are properly set.
+    if(callbacks->malloc && callbacks->calloc && callbacks->realloc && callbacks->free) {
+        memory_callbacks = *callbacks;
+        return OAPV_OK;
+    }
+    return OAPV_ERR_INVALID_ARGUMENT;
+}
+
+void* oapv_internal_malloc(size_t size)
+{
+    if(memory_callbacks.malloc) {
+        return memory_callbacks.malloc(size);
+    }
+
+    return malloc(size);
+}
+
+void* oapv_internal_calloc(size_t count, size_t size)
+{
+    if(memory_callbacks.calloc) {
+        return memory_callbacks.calloc(count, size);
+    }
+
+    return calloc(count, size);
+}
+
+void* oapv_internal_realloc(void* block, size_t size)
+{
+    if(memory_callbacks.realloc) {
+        return memory_callbacks.realloc(block, size);
+    }
+
+    return realloc(block, size);
+}
+
+void oapv_internal_free(void* block)
+{
+    if(memory_callbacks.free) {
+        memory_callbacks.free(block);
+    }
+    else {
+        free(block);
+    }
+}
 
 void *oapv_malloc_align32(int size)
 {

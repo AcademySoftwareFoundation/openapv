@@ -132,7 +132,7 @@ struct oapv_fh {
     int       tile_width_in_mbs;            /* u(20) */
     int       tile_height_in_mbs;           /* u(20) */
     int       tile_size_present_in_fh_flag; /* u( 1) */
-    u32       tile_size[OAPV_MAX_TILES];    /* u(32) */
+    u32      *tile_size;                     /* u(32) - dynamically allocated */
     /* ( end ) tile_info  */
     // int reserved_zero_8bits_4;                   /* u( 8) */
 };
@@ -185,6 +185,9 @@ typedef void (*oapv_fn_dquant_t)(s16 *coef, s16 q_matrix[OAPV_BLK_D], int log2_w
 typedef int (*oapv_fn_sad_t)(int w, int h, void *src1, void *src2, int s_src1, int s_src2);
 typedef s64 (*oapv_fn_ssd_t)(int w, int h, void *src1, void *src2, int s_src1, int s_src2);
 typedef void (*oapv_fn_diff_t)(int w, int h, void *src1, void *src2, int s_src1, int s_src2, int s_diff, s16 *diff);
+/* RC-specific 8x8 sampler (TMV): reads a block straight from the input imgb
+ * for a given component and luma-space coordinate, used by rate control. */
+typedef void (*oapv_fn_imgb_to_blk_rc_t)(oapv_imgb_t *imgb, int c, int x_l, int y_l, int w_l, int h_l, s16 *block, int bit_depth);
 
 typedef double (*oapv_fn_enc_blk_cost_t)(oapve_ctx_t *ctx, oapve_core_t *core, int log2_w, int log2_h, int c);
 typedef void (*oapv_fn_blk_from_pic_t)(int w, int h, void *pic, int pic_x, int pic_s, void *blk, int blk_s, int bd, int mid_val);
@@ -277,8 +280,13 @@ struct oapve_ctx {
     oapv_imgb_t               *imgb_r;
     oapve_param_t             *param;
     oapv_fh_t                  fh;
-    oapve_tile_t               tile[OAPV_MAX_TILES];
+    oapve_tile_t              *tile; /* dynamically allocated based on num_tiles */
     oapve_rc_param_t           rc_param;
+    /* per-frame RC working slots: rc_param is loaded from rc_param_frm[i] at
+     * the start of each frame and saved back after oapve_rc_update_after_pic,
+     * so alpha/beta drift from a small mip doesn't pollute the next AU's large
+     * mip. Keyed by frame index in the AU (0 = primary, 1..N = mips). */
+    oapve_rc_param_t           rc_param_frm[OAPV_MAX_NUM_FRAMES];
     oapv_tpool_t              *tpool;
     oapv_thread_t              thread_id[OAPV_MAX_THREADS];
     oapv_sync_obj_t            sync_obj;
@@ -310,6 +318,10 @@ struct oapve_ctx {
     const oapv_fn_ssd_t       *fn_ssd;
     const oapv_fn_diff_t      *fn_diff;
 
+    /* RC-specific 8x8 sampler used by oapve_rc; keeps its own signature
+     * (imgb + component + luma coords) distinct from the block<->picture
+     * transfer functions below. */
+    oapv_fn_imgb_to_blk_rc_t   fn_imgb_to_blk_rc;
     oapv_fn_blk_from_pic_t     fn_blk_from_pic[N_C];
     oapv_fn_blk_to_pic_t       fn_blk_to_pic[N_C];
     oapv_fn_imgb_pad_t         fn_imgb_pad;
@@ -348,6 +360,15 @@ struct oapve_ctx {
 #define DEC_TILE_STAT_IS_DO(stat)     ((stat) & DEC_TILE_STAT_FLAG_DO)
 #define DEC_TILE_STAT_IS_ON(stat)     ((stat) & DEC_TILE_STAT_FLAG_ON)
 #define DEC_TILE_STAT_IS_DONE(stat)   ((stat) & DEC_TILE_STAT_FLAG_DONE)
+
+/* TMV selective/disk-I/O decoder tile status (distinct scheme from the
+ * bitfield macros above; used by the multi-mip/selective decode paths). */
+#define DEC_TILE_STAT_NOT_READY   -2  // Tile data not yet loaded from disk
+#define DEC_TILE_STAT_NOT_DECODED 0   // Data loaded, ready to decode
+#define DEC_TILE_STAT_ON_DECODING 1
+#define DEC_TILE_STAT_DECODED     2
+#define DEC_TILE_STAT_ERROR       3
+#define DEC_TILE_STAT_SIZE_ERROR  -1
 
 
 typedef struct oapvd_tile oapvd_tile_t;
@@ -394,7 +415,7 @@ struct oapvd_ctx {
     oapv_bs_t               bs;
     oapv_imgb_t            *imgb;
     oapv_fh_t               fh;
-    oapvd_tile_t            tile[OAPV_MAX_TILES];
+    oapvd_tile_t           *tile; /* dynamically allocated based on num_tiles */
     oapv_tpool_t           *tpool;
     oapv_thread_t           thread_id[OAPV_MAX_THREADS];
     oapv_sync_obj_t         sync_obj;
@@ -417,6 +438,12 @@ struct oapvd_ctx {
 
     oapv_fn_blk_to_pic_t   fn_blk_to_pic[N_C];
 
+    /* Tile offset cache for optimized selective decoding */
+    int64_t                *tile_offsets_cache;       // Pre-calculated file offsets for all tiles
+    int                     tile_cache_valid;         // 1 if cache is valid, 0 if needs rebuild
+    int64_t                 tile_cache_frame_offset;  // Frame data start offset for cached tiles
+    int                     tile_cache_num_tiles;    // Number of tiles in cache
+
     /* platform specific data, if needed */
     void                   *pf;
 };
@@ -424,6 +451,21 @@ struct oapvd_ctx {
 // end of decoder code
 #endif // ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
+
+// Selective decode structures (TMV)
+typedef struct {
+    u8 *compressed_data;    // Compressed tile data buffer
+    u32 size;               // Size of compressed data
+    int col, row;           // Tile position
+    int mip_level;          // Mip level this tile belongs to
+} oapv_tile_data_t;
+
+typedef struct {
+    u8 *fast_buffers[OAPV_MAX_THREADS][4];     // Thread-local buffers: 64K, 256K, 1M, 4M
+    u32 fast_buffer_sizes[4];                   // Buffer sizes
+    volatile int buffer_in_use[OAPV_MAX_THREADS][4]; // Usage flags
+    u32 malloc_threshold;                       // Threshold for malloc fallback
+} oapv_tile_buffer_mgr_t;
 
 #define OAPV_PBU_HEADER_BYTE (4)
 #define OAPV_FRAME_INFO_BYTE (12)

@@ -36,17 +36,24 @@
 // start of encoder code
 #if ENABLE_ENCODER
 ///////////////////////////////////////////////////////////////////////////////
-#define BSW_FLUSH_4BYTE(bs) {                     \
-        if ((bs)->cur + 4 <= (bs)->end) {         \
+/* Flush 4 bytes of `code` into the bitstream buffer.
+ * If the 4 bytes would overrun bs->end, set the bs->ndata[0] error flag,
+ * stop advancing the cursor, and zero out the code state. The tile-encode
+ * caller must check ndata[0] after the inner coefficient loop and report
+ * OAPV_ERR_OUT_OF_BS_BUF rather than continue with corrupted state. */
+#define BSW_FLUSH_4BYTE(bs) {                         \
+        if((bs)->cur + 4 > (bs)->end) {               \
+            (bs)->ndata[0] = -1;                      \
+            (bs)->code = 0;                           \
+            (bs)->leftbits = 32;                      \
+        } else {                                      \
             *(bs)->cur++ = ((bs)->code >> 24) & 0xFF; \
             *(bs)->cur++ = ((bs)->code >> 16) & 0xFF; \
             *(bs)->cur++ = ((bs)->code >> 8) & 0xFF;  \
             *(bs)->cur++ = ((bs)->code) & 0xFF;       \
-        } else {                                  \
-            (bs)->cur += 4;                       \
-        }                                         \
-        (bs)->code = 0;                           \
-        (bs)->leftbits = 32;                      \
+            (bs)->code = 0;                           \
+            (bs)->leftbits = 32;                      \
+        }                                             \
     }
 
 #define BSW_FLUSH_8BYTE(bs) {                     \
@@ -284,7 +291,13 @@ void oapve_set_frame_header(oapve_ctx_t *ctx, oapv_fh_t *fh)
 {
     oapve_param_t *param = ctx->param;
 
+    // Preserve dynamically allocated tile_size pointer
+    u32 *tile_size_backup = fh->tile_size;
+
     oapv_mset(fh, 0, sizeof(oapv_fh_t));
+
+    // Restore tile_size pointer
+    fh->tile_size = tile_size_backup;
     fh->fi.profile_idc = param->profile_idc;
     fh->fi.level_idc = param->level_idc;
     fh->fi.band_idc = param->band_idc;
@@ -320,7 +333,8 @@ void oapve_set_frame_header(oapve_ctx_t *ctx, oapv_fh_t *fh)
             }
         }
     }
-    fh->tile_size_present_in_fh_flag = 0;
+    /* For TMV: We need to save the tile sizes in frame header to be able to index tiles in decoder. */
+    fh->tile_size_present_in_fh_flag = 1;
 }
 
 void oapve_set_tile_header(oapve_ctx_t *ctx, oapv_th_t *th, int tile_idx, int qp)
@@ -805,6 +819,7 @@ static int dec_vlc_tile_info(oapv_bs_t *bs, oapv_fh_t *fh)
 {
     int ret;
     int pic_w, pic_h, tile_w, tile_h, tile_cols, tile_rows;
+    int num_tiles;
 
     fh->tile_width_in_mbs = oapv_bsr_read(bs, 20);
     DUMP_HLS(fh->tile_width_in_mbs, fh->tile_width_in_mbs);
@@ -823,15 +838,22 @@ static int dec_vlc_tile_info(oapv_bs_t *bs, oapv_fh_t *fh)
 
     tile_cols = (pic_w + (tile_w - 1)) / tile_w;
     tile_rows = (pic_h + (tile_h - 1)) / tile_h;
+    num_tiles = tile_cols * tile_rows;
 
     ret = oapv_validate_tile_topology(tile_cols, tile_rows, NULL);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+    // Allocate tile_size array if needed
+    if(fh->tile_size == NULL) {
+        fh->tile_size = (u32 *)oapv_malloc_fast(OAPV_MAX_TILES * sizeof(u32));
+        oapv_assert_rv(fh->tile_size != NULL, OAPV_ERR_OUT_OF_MEMORY);
+    }
 
     fh->tile_size_present_in_fh_flag = oapv_bsr_read1(bs);
     DUMP_HLS(fh->tile_size_present_in_fh_flag, fh->tile_size_present_in_fh_flag);
 
     if(fh->tile_size_present_in_fh_flag) {
-        for(int i = 0; i < tile_cols * tile_rows; i++) {
+        for(int i = 0; i < num_tiles; i++) {
             fh->tile_size[i] = oapv_bsr_read(bs, 32);
             DUMP_HLS(fh->tile_size, fh->tile_size[i]);
             oapv_assert_rv(fh->tile_size[i] > 0, OAPV_ERR_MALFORMED_BITSTREAM);
@@ -866,6 +888,8 @@ int oapvd_vlc_dc_coef(oapv_bs_t *bs, int *dc_diff, int *kparam_dc)
 
 int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
 {
+    // printf("DEBUG: oapvd_vlc_ac_coef entry - leftbits=%d, code=0x%08x\n", bs->leftbits, bs->code);
+    
     int        level, run, k_ac, k_run, flag;
     int        scan_pos_offset;
     const u8  *scanp;
