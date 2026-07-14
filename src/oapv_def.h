@@ -260,7 +260,7 @@ struct oapve_tile {
     u8             *bs_buf;
     s32             bs_size;
     u32             bs_buf_max;
-    volatile s32    stat;
+    s32             stat;
 };
 
 /******************************************************************************
@@ -363,7 +363,7 @@ struct oapvd_tile {
 
     u8          *bs_beg;    /* start position of tile in input bistream */
     u8          *bs_end;    /* end position of tile() in input bistream */
-    volatile s32 stat;      /* decoding status */
+    s32          stat;      /* decoding status */
 };
 
 typedef struct oapvd_core oapvd_core_t;
