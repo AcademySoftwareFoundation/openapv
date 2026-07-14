@@ -111,8 +111,39 @@ static int validate_imgb(oapv_imgb_t *imgb, int mip_level) {
     return non_zero_count > 0;
 }
 
+// Local single-mip selective-decode wrapper over oapvd_decode_selective_multi_mips
+// (replaces the removed oapvd_decode_selective_multi API).
+static int decode_selective_single(oapvd_t did, oapvd_istream_t *istream,
+                                   oapv_selective_decode_t *sel_decode, oapvm_t mid, oapvd_stat_t *stat)
+{
+    oapv_mip_request_t mip_request;
+    memset(&mip_request, 0, sizeof(mip_request));
+    mip_request.mip_level = sel_decode->mip_level;
+    mip_request.num_tiles = sel_decode->num_tiles;
+    memcpy(mip_request.tile_coords, sel_decode->tile_coords, sizeof(sel_decode->tile_coords));
+    mip_request.output_buffer = sel_decode->output_buffer;
+
+    oapv_multi_mip_decode_t multi;
+    memset(&multi, 0, sizeof(multi));
+    multi.num_mips = 1;
+    multi.mip_requests = &mip_request;
+
+    int ret = oapvd_decode_selective_multi_mips(did, istream, &multi, mid, stat);
+    if(ret == OAPV_OK && mip_request.status != OAPV_OK) {
+        ret = mip_request.status;
+    }
+
+    sel_decode->actual_frame_width = mip_request.frame_width_mb_aligned;
+    sel_decode->actual_frame_height = mip_request.frame_height_mb_aligned;
+    sel_decode->actual_tile_width = mip_request.tile_width_mb_aligned;
+    sel_decode->actual_tile_height = mip_request.tile_height_mb_aligned;
+    sel_decode->bit_depth = mip_request.bit_depth;
+    sel_decode->chroma_format_idc = mip_request.chroma_format_idc;
+    return ret;
+}
+
 /*
- * Test Method 1: Sequential calls to oapvd_decode_selective_multi
+ * Test Method 1: Sequential single-mip selective decodes
  * This simulates the old approach where each mip is decoded separately
  */
 static int test_sequential_multi_calls(
@@ -156,7 +187,7 @@ static int test_sequential_multi_calls(
 
         /* First call: Get metadata */
         istream.seek(&istream, 0, SEEK_SET);
-        ret = oapvd_decode_selective_multi(decoder, &istream, &sel_decode, NULL, &stat);
+        ret = decode_selective_single(decoder, &istream, &sel_decode, NULL, &stat);
         if(ret != OAPV_OK) {
             fclose(fp);
             return ret;
@@ -177,7 +208,7 @@ static int test_sequential_multi_calls(
         istream.seek(&istream, 0, SEEK_SET);
 
         u64 decode_start = get_time_ns();
-        ret = oapvd_decode_selective_multi(decoder, &istream, &sel_decode, NULL, &stat);
+        ret = decode_selective_single(decoder, &istream, &sel_decode, NULL, &stat);
         u64 decode_end = get_time_ns();
 
         if(ret != OAPV_OK) {

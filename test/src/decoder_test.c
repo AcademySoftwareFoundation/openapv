@@ -1049,6 +1049,39 @@ void file_istream_init(oapvd_istream_t* istream, FILE* fp)
     istream->read = file_istream_read;
 }
 
+// Local single-mip selective-decode wrapper over oapvd_decode_selective_multi_mips.
+// Replaces the removed oapvd_decode_selective / oapvd_decode_selective_multi APIs:
+// it builds a single-entry multi-mip request (exactly what the removed _multi
+// wrapper did internally) and copies the returned metadata back to sel_decode.
+static int decode_selective_single(oapvd_t did, oapvd_istream_t *istream,
+                                   oapv_selective_decode_t *sel_decode, oapvm_t mid, oapvd_stat_t *stat)
+{
+    oapv_mip_request_t mip_request;
+    memset(&mip_request, 0, sizeof(mip_request));
+    mip_request.mip_level = sel_decode->mip_level;
+    mip_request.num_tiles = sel_decode->num_tiles;
+    memcpy(mip_request.tile_coords, sel_decode->tile_coords, sizeof(sel_decode->tile_coords));
+    mip_request.output_buffer = sel_decode->output_buffer;
+
+    oapv_multi_mip_decode_t multi;
+    memset(&multi, 0, sizeof(multi));
+    multi.num_mips = 1;
+    multi.mip_requests = &mip_request;
+
+    int ret = oapvd_decode_selective_multi_mips(did, istream, &multi, mid, stat);
+    if(OAPV_SUCCEEDED(ret) && OAPV_FAILED(mip_request.status)) {
+        ret = mip_request.status;
+    }
+
+    sel_decode->actual_frame_width = mip_request.frame_width_mb_aligned;
+    sel_decode->actual_frame_height = mip_request.frame_height_mb_aligned;
+    sel_decode->actual_tile_width = mip_request.tile_width_mb_aligned;
+    sel_decode->actual_tile_height = mip_request.tile_height_mb_aligned;
+    sel_decode->bit_depth = mip_request.bit_depth;
+    sel_decode->chroma_format_idc = mip_request.chroma_format_idc;
+    return ret;
+}
+
 // Decode a full frame (all tiles) with a pre-existing decoder.
 static int decode_mip(const char* input_file, int mip_level, oapvd_t decoder_id)
 {
@@ -1081,7 +1114,7 @@ static int decode_mip(const char* input_file, int mip_level, oapvd_t decoder_id)
     file_istream_init(&istream, fp);
 
     // Get frame and tile sizes.
-    int ret = oapvd_decode_selective_multi(decoder_id, &istream, sel_decode, 0, &stat);
+    int ret = decode_selective_single(decoder_id, &istream, sel_decode, 0, &stat);
 
     if(OAPV_FAILED(ret)) {
         printf("ERROR: Failed to get metadata (return code: %d)\n", ret);
@@ -1125,7 +1158,7 @@ static int decode_mip(const char* input_file, int mip_level, oapvd_t decoder_id)
     stat.read = 0;
 
     // Run the decode
-    ret = oapvd_decode_selective_multi(decoder_id, &istream, sel_decode, 0, &stat);
+    ret = decode_selective_single(decoder_id, &istream, sel_decode, 0, &stat);
 
     if(OAPV_SUCCEEDED(ret)) {
         printf("SUCCESS: Decode completed\n");
@@ -1426,7 +1459,7 @@ int run_multi_mip_test_config(const char* input_file, const test_config_t* confi
                        mip_req->num_tiles * 2 * sizeof(int));
                 single_decode.output_buffer = mip_req->output_buffer;
 
-                ret = oapvd_decode_selective_multi(decoder_id, &istream, &single_decode, 0, &stat);
+                ret = decode_selective_single(decoder_id, &istream, &single_decode, 0, &stat);
                 if (OAPV_FAILED(ret)) {
                     printf("ERROR: Individual decode failed for mip %d\n", mip_req->mip_level);
                 }
@@ -1506,9 +1539,9 @@ int run_test_config(const char* input_file, const test_config_t* config) {
     // Get metadata
     int ret;
     if (config->test_type == TEST_SINGLE_TILE) {
-        ret = oapvd_decode_selective(decoder_id, &istream, &sel_decode, 0, &stat);
+        ret = decode_selective_single(decoder_id, &istream, &sel_decode, 0, &stat);
     } else {
-        ret = oapvd_decode_selective_multi(decoder_id, &istream, &sel_decode, 0, &stat);
+        ret = decode_selective_single(decoder_id, &istream, &sel_decode, 0, &stat);
     }
     
     if (OAPV_FAILED(ret)) {
@@ -1558,9 +1591,9 @@ int run_test_config(const char* input_file, const test_config_t* config) {
 
         // Run the decode
         if (config->test_type == TEST_SINGLE_TILE) {
-            ret = oapvd_decode_selective(decoder_id, &istream, &sel_decode, 0, &stat);
+            ret = decode_selective_single(decoder_id, &istream, &sel_decode, 0, &stat);
         } else {
-            ret = oapvd_decode_selective_multi(decoder_id, &istream, &sel_decode, 0, &stat);
+            ret = decode_selective_single(decoder_id, &istream, &sel_decode, 0, &stat);
         }
         
         clock_t end_time = clock();

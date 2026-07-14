@@ -438,12 +438,6 @@ struct oapvd_ctx {
 
     oapv_fn_blk_to_pic_t   fn_blk_to_pic[N_C];
 
-    /* Tile offset cache for optimized selective decoding */
-    int64_t                *tile_offsets_cache;       // Pre-calculated file offsets for all tiles
-    int                     tile_cache_valid;         // 1 if cache is valid, 0 if needs rebuild
-    int64_t                 tile_cache_frame_offset;  // Frame data start offset for cached tiles
-    int                     tile_cache_num_tiles;    // Number of tiles in cache
-
     /* platform specific data, if needed */
     void                   *pf;
 };

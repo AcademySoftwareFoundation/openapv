@@ -929,8 +929,6 @@ OAPV_EXPORT oapvd_t oapvd_create(oapvd_cdesc_t *cdesc, int *err);
 OAPV_EXPORT void oapvd_delete(oapvd_t did);
 OAPV_EXPORT int oapvd_config(oapvd_t did, int cfg, void *buf, int *size);
 OAPV_EXPORT int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat);
-OAPV_EXPORT int oapvd_decode_selective(oapvd_t did, oapvd_istream_t *istream, oapv_selective_decode_t *sel_decode, oapvm_t mid, oapvd_stat_t *stat);
-OAPV_EXPORT int oapvd_decode_selective_multi(oapvd_t did, oapvd_istream_t *istream, oapv_selective_decode_t *sel_decode, oapvm_t mid, oapvd_stat_t *stat);
 OAPV_EXPORT int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream, oapv_multi_mip_decode_t *multi_mip_decode, oapvm_t mid, oapvd_stat_t *stat);
 
 /* utility APIs **************************************************************/
