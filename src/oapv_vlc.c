@@ -36,24 +36,17 @@
 // start of encoder code
 #if ENABLE_ENCODER
 ///////////////////////////////////////////////////////////////////////////////
-/* Flush 4 bytes of `code` into the bitstream buffer.
- * If the 4 bytes would overrun bs->end, set the bs->ndata[0] error flag,
- * stop advancing the cursor, and zero out the code state. The tile-encode
- * caller must check ndata[0] after the inner coefficient loop and report
- * OAPV_ERR_OUT_OF_BS_BUF rather than continue with corrupted state. */
-#define BSW_FLUSH_4BYTE(bs) {                         \
-        if((bs)->cur + 4 > (bs)->end) {               \
-            (bs)->ndata[0] = -1;                      \
-            (bs)->code = 0;                           \
-            (bs)->leftbits = 32;                      \
-        } else {                                      \
+#define BSW_FLUSH_4BYTE(bs) {                     \
+        if ((bs)->cur + 4 <= (bs)->end) {         \
             *(bs)->cur++ = ((bs)->code >> 24) & 0xFF; \
             *(bs)->cur++ = ((bs)->code >> 16) & 0xFF; \
             *(bs)->cur++ = ((bs)->code >> 8) & 0xFF;  \
             *(bs)->cur++ = ((bs)->code) & 0xFF;       \
-            (bs)->code = 0;                           \
-            (bs)->leftbits = 32;                      \
-        }                                             \
+        } else {                                  \
+            (bs)->cur += 4;                       \
+        }                                         \
+        (bs)->code = 0;                           \
+        (bs)->leftbits = 32;                      \
     }
 
 #define BSW_FLUSH_8BYTE(bs) {                     \
@@ -887,9 +880,7 @@ int oapvd_vlc_dc_coef(oapv_bs_t *bs, int *dc_diff, int *kparam_dc)
 }
 
 int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
-{
-    // printf("DEBUG: oapvd_vlc_ac_coef entry - leftbits=%d, code=0x%08x\n", bs->leftbits, bs->code);
-    
+{    
     int        level, run, k_ac, k_run, flag;
     int        scan_pos_offset;
     const u8  *scanp;
