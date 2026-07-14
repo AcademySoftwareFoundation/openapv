@@ -763,25 +763,6 @@ struct oapvd_stat {
 };
 
 /*****************************************************************************
- * selective decode configuration
- *****************************************************************************/
-typedef struct oapv_selective_decode oapv_selective_decode_t;
-struct oapv_selective_decode {
-    int mip_level;                          // Which mip level to decode (0=full, 1=half, etc.)
-    int num_tiles;                          // Number of tiles to decode
-    int tile_coords[2*OAPV_MAX_TILES];      // Pairs of [col, row] for each tile
-    oapv_imgb_t *output_buffer;             // Per-channel output buffers (Y, U, V, A)
-    
-    // Frame metadata (filled by decoder)
-    int actual_frame_width;                 // Actual frame width from mip level metadata
-    int actual_frame_height;                // Actual frame height from mip level metadata  
-    int actual_tile_width;                  // Actual tile width in pixels (converted from MBs)
-    int actual_tile_height;                 // Actual tile height in pixels (converted from MBs)
-    int bit_depth;                          // Bit depth from frame metadata
-    int chroma_format_idc;                  // Chroma format from frame metadata
-};
-
-/*****************************************************************************
  * multi-mip selective decode structures
  *****************************************************************************/
 typedef struct oapv_mip_request oapv_mip_request_t;

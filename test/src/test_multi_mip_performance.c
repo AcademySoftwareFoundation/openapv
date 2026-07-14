@@ -111,34 +111,21 @@ static int validate_imgb(oapv_imgb_t *imgb, int mip_level) {
     return non_zero_count > 0;
 }
 
-// Local single-mip selective-decode wrapper over oapvd_decode_selective_multi_mips
-// (replaces the removed oapvd_decode_selective_multi API).
+// Local single-mip selective-decode helper over oapvd_decode_selective_multi_mips
+// (replaces the removed oapvd_decode_selective_multi API). Wraps a single mip
+// request as a one-entry multi-mip decode; status/metadata fill mip_request.
 static int decode_selective_single(oapvd_t did, oapvd_istream_t *istream,
-                                   oapv_selective_decode_t *sel_decode, oapvm_t mid, oapvd_stat_t *stat)
+                                   oapv_mip_request_t *mip_request, oapvm_t mid, oapvd_stat_t *stat)
 {
-    oapv_mip_request_t mip_request;
-    memset(&mip_request, 0, sizeof(mip_request));
-    mip_request.mip_level = sel_decode->mip_level;
-    mip_request.num_tiles = sel_decode->num_tiles;
-    memcpy(mip_request.tile_coords, sel_decode->tile_coords, sizeof(sel_decode->tile_coords));
-    mip_request.output_buffer = sel_decode->output_buffer;
-
     oapv_multi_mip_decode_t multi;
     memset(&multi, 0, sizeof(multi));
     multi.num_mips = 1;
-    multi.mip_requests = &mip_request;
+    multi.mip_requests = mip_request;
 
     int ret = oapvd_decode_selective_multi_mips(did, istream, &multi, mid, stat);
-    if(ret == OAPV_OK && mip_request.status != OAPV_OK) {
-        ret = mip_request.status;
+    if(ret == OAPV_OK && mip_request->status != OAPV_OK) {
+        ret = mip_request->status;
     }
-
-    sel_decode->actual_frame_width = mip_request.frame_width_mb_aligned;
-    sel_decode->actual_frame_height = mip_request.frame_height_mb_aligned;
-    sel_decode->actual_tile_width = mip_request.tile_width_mb_aligned;
-    sel_decode->actual_tile_height = mip_request.tile_height_mb_aligned;
-    sel_decode->bit_depth = mip_request.bit_depth;
-    sel_decode->chroma_format_idc = mip_request.chroma_format_idc;
     return ret;
 }
 
@@ -176,7 +163,7 @@ static int test_sequential_multi_calls(
 
     /* Process each mip level separately */
     for(int m = 0; m < num_mips; m++) {
-        oapv_selective_decode_t sel_decode;
+        oapv_mip_request_t sel_decode = {0};
         oapvd_stat_t stat = {0};
         int ret;
 
@@ -195,8 +182,8 @@ static int test_sequential_multi_calls(
 
         /* Allocate output buffer */
         sel_decode.output_buffer = allocate_imgb(
-            sel_decode.actual_frame_width,
-            sel_decode.actual_frame_height,
+            sel_decode.frame_width_mb_aligned,
+            sel_decode.frame_height_mb_aligned,
             sel_decode.bit_depth);
 
         if(!sel_decode.output_buffer) {

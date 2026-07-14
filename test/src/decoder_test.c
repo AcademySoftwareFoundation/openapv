@@ -1049,36 +1049,22 @@ void file_istream_init(oapvd_istream_t* istream, FILE* fp)
     istream->read = file_istream_read;
 }
 
-// Local single-mip selective-decode wrapper over oapvd_decode_selective_multi_mips.
-// Replaces the removed oapvd_decode_selective / oapvd_decode_selective_multi APIs:
-// it builds a single-entry multi-mip request (exactly what the removed _multi
-// wrapper did internally) and copies the returned metadata back to sel_decode.
+// Local single-mip selective-decode helper over oapvd_decode_selective_multi_mips
+// (replaces the removed oapvd_decode_selective / oapvd_decode_selective_multi APIs).
+// Wraps a single mip request as a one-entry multi-mip decode; status and frame
+// metadata are filled directly into the caller's mip_request.
 static int decode_selective_single(oapvd_t did, oapvd_istream_t *istream,
-                                   oapv_selective_decode_t *sel_decode, oapvm_t mid, oapvd_stat_t *stat)
+                                   oapv_mip_request_t *mip_request, oapvm_t mid, oapvd_stat_t *stat)
 {
-    oapv_mip_request_t mip_request;
-    memset(&mip_request, 0, sizeof(mip_request));
-    mip_request.mip_level = sel_decode->mip_level;
-    mip_request.num_tiles = sel_decode->num_tiles;
-    memcpy(mip_request.tile_coords, sel_decode->tile_coords, sizeof(sel_decode->tile_coords));
-    mip_request.output_buffer = sel_decode->output_buffer;
-
     oapv_multi_mip_decode_t multi;
     memset(&multi, 0, sizeof(multi));
     multi.num_mips = 1;
-    multi.mip_requests = &mip_request;
+    multi.mip_requests = mip_request;
 
     int ret = oapvd_decode_selective_multi_mips(did, istream, &multi, mid, stat);
-    if(OAPV_SUCCEEDED(ret) && OAPV_FAILED(mip_request.status)) {
-        ret = mip_request.status;
+    if(OAPV_SUCCEEDED(ret) && OAPV_FAILED(mip_request->status)) {
+        ret = mip_request->status;
     }
-
-    sel_decode->actual_frame_width = mip_request.frame_width_mb_aligned;
-    sel_decode->actual_frame_height = mip_request.frame_height_mb_aligned;
-    sel_decode->actual_tile_width = mip_request.tile_width_mb_aligned;
-    sel_decode->actual_tile_height = mip_request.tile_height_mb_aligned;
-    sel_decode->bit_depth = mip_request.bit_depth;
-    sel_decode->chroma_format_idc = mip_request.chroma_format_idc;
     return ret;
 }
 
@@ -1093,7 +1079,7 @@ static int decode_mip(const char* input_file, int mip_level, oapvd_t decoder_id)
     }
 
     // Set up selective decode structure on the heap (to test this because that's how it is done in UE).
-    oapv_selective_decode_t *sel_decode = oapv_malloc(sizeof(oapv_selective_decode_t));
+    oapv_mip_request_t *sel_decode = oapv_malloc(sizeof(oapv_mip_request_t));
     if (sel_decode == NULL)
     {
         printf("ERROR: Failed to allocate memory for sel_decode\n");
@@ -1101,7 +1087,7 @@ static int decode_mip(const char* input_file, int mip_level, oapvd_t decoder_id)
         return -1;
     }
 
-    memset(sel_decode, 0, sizeof(oapv_selective_decode_t));
+    memset(sel_decode, 0, sizeof(oapv_mip_request_t));
 
     // Select just one tile of the specified mip for now. We want to read the frame and tile size first. 
     sel_decode->mip_level = mip_level;
@@ -1125,12 +1111,12 @@ static int decode_mip(const char* input_file, int mip_level, oapvd_t decoder_id)
     }
 
     printf("Frame: %dx%d, Tile size: %dx%d\n",
-           sel_decode->actual_frame_width, sel_decode->actual_frame_height,
-           sel_decode->actual_tile_width, sel_decode->actual_tile_height);
+           sel_decode->frame_width_mb_aligned, sel_decode->frame_height_mb_aligned,
+           sel_decode->tile_width_mb_aligned, sel_decode->tile_height_mb_aligned);
 
     // Create output buffers if needed
     int          color_format = chroma_format_idc_to_color_format(sel_decode->chroma_format_idc);
-    oapv_imgb_t *frame_buffer = create_frame_buffer(sel_decode->actual_frame_width, sel_decode->actual_frame_height, color_format, sel_decode->bit_depth);
+    oapv_imgb_t *frame_buffer = create_frame_buffer(sel_decode->frame_width_mb_aligned, sel_decode->frame_height_mb_aligned, color_format, sel_decode->bit_depth);
 
     if(!frame_buffer) {
         printf("ERROR: Failed to allocate frame buffers\n");
@@ -1142,8 +1128,8 @@ static int decode_mip(const char* input_file, int mip_level, oapvd_t decoder_id)
     sel_decode->output_buffer = frame_buffer;
 
     // List all tile coords for this mip.
-    int num_tile_col = (sel_decode->actual_frame_width + sel_decode->actual_tile_width - 1) / sel_decode->actual_tile_width;
-    int num_tile_row = (sel_decode->actual_frame_height + sel_decode->actual_tile_height - 1) / sel_decode->actual_tile_height;
+    int num_tile_col = (sel_decode->frame_width_mb_aligned + sel_decode->tile_width_mb_aligned - 1) / sel_decode->tile_width_mb_aligned;
+    int num_tile_row = (sel_decode->frame_height_mb_aligned + sel_decode->tile_height_mb_aligned - 1) / sel_decode->tile_height_mb_aligned;
     int num_tiles = num_tile_col * num_tile_row;
     sel_decode->num_tiles = num_tiles;
     for(int j = 0; j < num_tile_row; j++) {
@@ -1452,7 +1438,7 @@ int run_multi_mip_test_config(const char* input_file, const test_config_t* confi
         for (int m = 0; m < config->num_mips; m++) {
             oapv_mip_request_t *mip_req = &mip_requests[m];
             if (mip_req->status == OAPV_OK) {
-                oapv_selective_decode_t single_decode = {0};
+                oapv_mip_request_t single_decode = {0};
                 single_decode.mip_level = mip_req->mip_level;
                 single_decode.num_tiles = mip_req->num_tiles;
                 memcpy(single_decode.tile_coords, mip_req->tile_coords,
@@ -1522,7 +1508,7 @@ int run_test_config(const char* input_file, const test_config_t* config) {
     }
     
     // Set up selective decode structure
-    oapv_selective_decode_t sel_decode = {0};
+    oapv_mip_request_t sel_decode = {0};
     sel_decode.mip_level = config->mip_level;
     sel_decode.num_tiles = num_tiles;
     
@@ -1552,14 +1538,14 @@ int run_test_config(const char* input_file, const test_config_t* config) {
     }
     
     printf("Frame: %dx%d, Tile size: %dx%d\n",
-           sel_decode.actual_frame_width, sel_decode.actual_frame_height,
-           sel_decode.actual_tile_width, sel_decode.actual_tile_height);
+           sel_decode.frame_width_mb_aligned, sel_decode.frame_height_mb_aligned,
+           sel_decode.tile_width_mb_aligned, sel_decode.tile_height_mb_aligned);
     
     // Create output buffers if needed
     oapv_imgb_t *frame_buffer = NULL;
     if (config->output_format != OUTPUT_NONE || config->validation_level == VALIDATE_FULL) {
         int color_format = chroma_format_idc_to_color_format(sel_decode.chroma_format_idc);
-        frame_buffer = create_frame_buffer(sel_decode.actual_frame_width, sel_decode.actual_frame_height, color_format, sel_decode.bit_depth);
+        frame_buffer = create_frame_buffer(sel_decode.frame_width_mb_aligned, sel_decode.frame_height_mb_aligned, color_format, sel_decode.bit_depth);
         
         if (!frame_buffer) {
             printf("ERROR: Failed to allocate frame buffers\n");
