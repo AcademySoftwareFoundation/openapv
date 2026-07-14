@@ -2704,8 +2704,8 @@ static int oapvd_validate_stream(oapvd_istream_t *istream, oapv_stream_info_t *s
 
     u8 size_buf[4];
     istream->read(istream, size_buf, 4, 1);
-    stream_info->au_size = (size_buf[0] << 24) | (size_buf[1] << 16) |
-                          (size_buf[2] << 8) | size_buf[3];
+    stream_info->au_size = ((u32)size_buf[0] << 24) | ((u32)size_buf[1] << 16) |
+                          ((u32)size_buf[2] << 8) | (u32)size_buf[3];
     if(metrics) metrics->bytes_read += 4;
 
     stream_info->au_start_pos = istream->tell(istream);
@@ -2713,8 +2713,8 @@ static int oapvd_validate_stream(oapvd_istream_t *istream, oapv_stream_info_t *s
     // Verify APV signature
     u8 sig_buf[4];
     istream->read(istream, sig_buf, 4, 1);
-    stream_info->signature = (sig_buf[0] << 24) | (sig_buf[1] << 16) |
-                            (sig_buf[2] << 8) | sig_buf[3];
+    stream_info->signature = ((u32)sig_buf[0] << 24) | ((u32)sig_buf[1] << 16) |
+                            ((u32)sig_buf[2] << 8) | (u32)sig_buf[3];
     if(stream_info->signature != 0x61507631) {
         return OAPV_ERR_MALFORMED_BITSTREAM;
     }
@@ -2771,8 +2771,8 @@ static int oapvd_locate_all_mips(oapvd_istream_t *istream, oapv_stream_info_t *s
         // Read PBU size
         u8 pbu_size_buf[4];
         istream->read(istream, pbu_size_buf, 4, 1);
-        u32 pbu_size = (pbu_size_buf[0] << 24) | (pbu_size_buf[1] << 16) |
-                       (pbu_size_buf[2] << 8) | pbu_size_buf[3];
+        u32 pbu_size = ((u32)pbu_size_buf[0] << 24) | ((u32)pbu_size_buf[1] << 16) |
+                       ((u32)pbu_size_buf[2] << 8) | (u32)pbu_size_buf[3];
 
         if(pbu_size == 0 || pbu_size > stream_info->au_size) {
             return OAPV_ERR_MALFORMED_BITSTREAM;
