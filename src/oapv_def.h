@@ -286,6 +286,7 @@ struct oapve_ctx {
     int                        au_bs_fmt; // access unit bitstream format
     int                        num_tiles_frms[OAPV_MAX_NUM_FRAMES];
     int                        num_tiles;
+    int                        tile_idx;
     int                        num_tile_cols;
     int                        num_tile_rows;
     int                        qp[N_C];
@@ -400,6 +401,7 @@ struct oapvd_ctx {
     oapv_sync_obj_t         sync_obj;
     u8                     *tile_end;
     int                     num_tiles;
+    int                     tile_idx;
     int                     num_tile_cols;
     int                     num_tile_rows;
     int                     w;
