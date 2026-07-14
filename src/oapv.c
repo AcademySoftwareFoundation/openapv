@@ -782,29 +782,25 @@ static int enc_thread_tile(void *arg)
     oapve_core_t *core = (oapve_core_t *)arg;
     oapve_ctx_t  *ctx = core->ctx;
     oapve_tile_t *tile = ctx->tile;
-    int           ret = OAPV_OK, i;
+    int           ret = OAPV_OK;
 
     while(1) {
         // find not encoded tile
         oapv_tpool_enter_cs(ctx->sync_obj);
-        for(i = 0; i < ctx->num_tiles; i++) {
-            if(tile[i].stat == ENC_TILE_STAT_NOT_ENCODED) {
-                tile[i].stat = ENC_TILE_STAT_ON_ENCODING;
-                core->tile_idx = i;
-                break;
-            }
+        core->tile_idx = ctx->tile_idx;
+        if (ctx->tile_idx < ctx->num_tiles) {
+            tile[core->tile_idx].stat = ENC_TILE_STAT_ON_ENCODING;
+            ++ctx->tile_idx;
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
-        if(i == ctx->num_tiles) {
+        if(core->tile_idx == ctx->num_tiles) {
             break;
         }
 
         ret = enc_tile(ctx, core, &tile[core->tile_idx]);
         oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
-        oapv_tpool_enter_cs(ctx->sync_obj);
         tile[core->tile_idx].stat = ENC_TILE_STAT_ENCODED;
-        oapv_tpool_leave_cs(ctx->sync_obj);
     }
 ERR:
     return ret;
@@ -1069,6 +1065,7 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
     int           parallel_task = (ctx->threads > ctx->num_tiles) ? ctx->num_tiles : ctx->threads;
 
     /* encode tiles ************************************/
+    ctx->tile_idx = 0;
     for(tidx = 0; tidx < (parallel_task - 1); tidx++) {
         tpool->run(ctx->thread_id[tidx], enc_thread_tile,
                    (void *)ctx->core[tidx]);
@@ -1753,7 +1750,7 @@ static int dec_tile(oapvd_core_t *core, oapvd_tile_t *tile)
 static int dec_thread_tile(void *arg)
 {
     oapv_bs_t     bs;
-    int           i, ret, run, tidx = 0, thread_ret = OAPV_OK;
+    int           ret, run, tidx = 0, thread_ret = OAPV_OK;
 
     oapvd_core_t *core = (oapvd_core_t *)arg;
     oapvd_ctx_t  *ctx = core->ctx;
@@ -1762,15 +1759,13 @@ static int dec_thread_tile(void *arg)
     while(1) {
         // find not decoded tile
         oapv_tpool_enter_cs(ctx->sync_obj);
-        for(i = 0; i < ctx->num_tiles; i++) {
-            if(DEC_TILE_STAT_IS_DO(tile[i].stat)) {
-                tile[i].stat = DEC_TILE_STAT_ON(tile[i].stat);
-                tidx = i;
-                break;
-            }
+        tidx = ctx->tile_idx;
+        if (ctx->tile_idx < ctx->num_tiles) {
+            tile[tidx].stat = DEC_TILE_STAT_ON(tile[tidx].stat);
+            ++ctx->tile_idx;
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
-        if(i == ctx->num_tiles) {
+        if(tidx == ctx->num_tiles) {
             break; // end of worker thread
         }
 
@@ -1801,11 +1796,10 @@ static int dec_thread_tile(void *arg)
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
 
-        if(DEC_TILE_STAT_IS_DECODE(tile[i].stat)) {
+        if(DEC_TILE_STAT_IS_DECODE(tile[tidx].stat)) {
             ret = dec_tile(core, &tile[tidx]);
         }
 
-        oapv_tpool_enter_cs(ctx->sync_obj);
         if (OAPV_SUCCEEDED(ret)) {
             tile[tidx].stat = DEC_TILE_STAT_DONE(tile[tidx].stat);
         }
@@ -1813,7 +1807,6 @@ static int dec_thread_tile(void *arg)
             tile[tidx].stat = DEC_TILE_STAT_ERR(tile[tidx].stat);
             thread_ret = ret;
         }
-        oapv_tpool_leave_cs(ctx->sync_obj);
     }
     return thread_ret;
 
@@ -2062,6 +2055,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
             parallel_task = (ctx->threads > ctx->num_tiles) ? ctx->num_tiles : ctx->threads;
 
             /* decode tiles ************************************/
+            ctx->tile_idx = 0;
             for(tidx = 0; tidx < (parallel_task - 1); tidx++) {
                 tpool->run(ctx->thread_id[tidx], dec_thread_tile,
                            (void *)ctx->core[tidx]);
