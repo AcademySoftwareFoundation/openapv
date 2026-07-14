@@ -52,7 +52,7 @@ static int bsw_flush(oapv_bs_t *bs, int bytes)
     if(bs->cur + bytes > bs->end) {
         bs->ndata[0] = -1;
         bs->code = 0;
-        bs->leftbits = 32;
+        bs->leftbits = 64;
         return -1;
     }
 
@@ -126,7 +126,7 @@ int oapv_bsw_write1(oapv_bs_t *bs, int val)
         if(bs->cur >= bs->end) {
             bs->ndata[0] = -1;
             bs->code = 0;
-            bs->leftbits = 32;
+            bs->leftbits = 64;
             return -1;
         }
         bs->fn_flush(bs, 0);
