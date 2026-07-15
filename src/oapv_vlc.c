@@ -739,7 +739,8 @@ static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
 
 static int dec_vlc_read(oapv_bs_t *bs, int k)
 {
-    int symbol;
+    // u32 so accumulation wraps (defined) instead of signed-overflow UB
+    u32 symbol;
     int flag;
     int parse_exp_golomb = 0;
 
@@ -750,7 +751,7 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
         if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
         BSR_READ_1BIT(bs, flag);
 
-        symbol = (1 + flag) << k;
+        symbol = (u32)(1 + flag) << k;
         parse_exp_golomb = flag;
     }
     else {
@@ -765,7 +766,18 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
                 break;
             }
             else {
-                symbol += (1 << k);
+                // The APV spec has no (k & 31) here: for a valid bitstream k
+                // stays below 32 so the mask is a no-op. It exists only to
+                // keep the shift count in [0,31] for a malformed stream that
+                // drives k past 31, which would otherwise be shift-count UB.
+                // Such a stream is rejected by the (k < 32) check after the
+                // loop, so the masked value is never used.
+                //
+                // The mask is used instead of an in-loop (k < 32) branch on
+                // purpose: this is the hot coefficient-decoding loop, and an
+                // extra conditional here would add a mispredictable branch and
+                // slow down decoding of every symbol. Masking is branch-free.
+                symbol += 1u << (k & 31);
                 k++;
             }
         }
@@ -848,6 +860,8 @@ int oapvd_vlc_dc_coef(oapv_bs_t *bs, int *dc_diff, int *kparam_dc)
     abs_dc_diff = dec_vlc_read(bs, *kparam_dc);
     if(abs_dc_diff < 0) // dec_vlc_read error sentinel
         return OAPV_ERR_MALFORMED_BITSTREAM;
+    if(abs_dc_diff > 32767)
+        return OAPV_ERR_MALFORMED_BITSTREAM;
     if(abs_dc_diff) {
         if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
         BSR_READ_1BIT(bs, sign);
@@ -895,6 +909,8 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
                 }
                 else {
                     run = dec_vlc_read_kparam0(bs);
+                    if(run < 0)
+                        return OAPV_ERR_MALFORMED_BITSTREAM;
                 }
             }
         }
@@ -922,12 +938,20 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
                 level = 1;
             }
             else {
-                level = dec_vlc_read_1bit_read(bs) + 1;
+                level = dec_vlc_read_1bit_read(bs);
+                if(level < 0)
+                    return OAPV_ERR_MALFORMED_BITSTREAM;
+                level += 1;
             }
         }
         else {
-            level = dec_vlc_read(bs, k_ac) + 1;
+            level = dec_vlc_read(bs, k_ac);
+            if(level < 0)
+                return OAPV_ERR_MALFORMED_BITSTREAM;
+            level += 1;
         }
+        if(level > 32767)
+            return OAPV_ERR_MALFORMED_BITSTREAM;
         k_ac = KPARAM_AC(level);
 
         if(first_ac) {

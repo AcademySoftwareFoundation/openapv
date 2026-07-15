@@ -1,0 +1,37 @@
+name: Sign Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  sign-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.3
+
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download ${{ github.event.release.tag_name }} \
+            --dir release-assets \
+            --pattern "*.tar.gz" \
+            --pattern "*.zip" \
+            --pattern "*.deb" \
+            --pattern "*.dmg"
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload SHA256SUMS to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} \
+            release-assets/SHA256SUMS \
+            --clobber
