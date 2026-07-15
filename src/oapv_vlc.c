@@ -326,8 +326,10 @@ void oapve_set_frame_header(oapve_ctx_t *ctx, oapv_fh_t *fh)
             }
         }
     }
-    /* For TMV: We need to save the tile sizes in frame header to be able to index tiles in decoder. */
-    fh->tile_size_present_in_fh_flag = 1;
+    /* When enabled, tile sizes are written in the frame header so a decoder
+     * can index individual tiles (e.g. for selective / tiled decoding)
+     * without parsing the whole access unit. Off by default. */
+    fh->tile_size_present_in_fh_flag = param->tile_size_present_in_fh_flag;
 }
 
 void oapve_set_tile_header(oapve_ctx_t *ctx, oapv_th_t *th, int tile_idx, int qp)

@@ -684,6 +684,11 @@ struct oapve_param {
     int           tile_w; // width of tile MUST be N * MB width
     int           tile_h; // height of tile MUST be N * MB height
 
+    /* when non-zero, write per-tile sizes in the frame header so a decoder can
+       index individual tiles (e.g. for selective / tiled decoding) without
+       parsing the whole access unit. 0 (default) matches the base bitstream. */
+    int           tile_size_present_in_fh_flag;
+
     /* preset for setting trade-off between complexity and coding gain */
     int           preset;
     /* color description values */

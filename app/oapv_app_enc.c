@@ -792,6 +792,12 @@ static int update_param(args_var_t *vars, oapve_param_t *param)
 
     UPDATE_A_PARAM_W_KEY_VAL(param, "tile-w", vars->tile_w);
     UPDATE_A_PARAM_W_KEY_VAL(param, "tile-h", vars->tile_h);
+
+    /* The TMV mip/tiled workflow (--tmv-mips) produces per-AU tiled output
+     * meant for selective / tiled decoding, which needs per-tile sizes in the
+     * frame header so the decoder can index tiles. Enable the flag for that
+     * case; otherwise leave it off (base bitstream). */
+    param->tile_size_present_in_fh_flag = vars->tmv_mips ? 1 : 0;
     return 0;
 }
 

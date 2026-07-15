@@ -45,6 +45,8 @@ int oapve_param_default(oapve_param_t *param)
     param->tile_w = 16 * OAPV_MB_W; // default: 256
     param->tile_h = 16 * OAPV_MB_H; // default: 256
 
+    param->tile_size_present_in_fh_flag = 0; // default: off (base bitstream)
+
     param->profile_idc = OAPV_PROFILE_422_10;
     param->level_idc = OAPVE_PARAM_LEVEL_IDC_AUTO;
     param->band_idc  = OAPVE_PARAM_BAND_IDC_AUTO;
