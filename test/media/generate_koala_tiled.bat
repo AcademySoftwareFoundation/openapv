@@ -16,7 +16,7 @@ ffmpeg -y -i "%INPUT%" -pix_fmt yuv422p10le -s 3840x2160 -f rawvideo -frames:v %
 REM Generate .apv1 frames
 
 set OAPV_ENC_EXE=..\..\build\bin\release\oapv_app_enc
-set OAPV_ENC_ARGS=--color-transfer bt709 --color-primaries bt709
+set OAPV_ENC_ARGS=--color-primaries 1 --color-transfer 1 --color-matrix 1 --color-range 1
 
 REM Create output directory
 if not exist "%NAME%_tiled" mkdir "%NAME%_tiled"
@@ -76,6 +76,7 @@ if errorlevel 1 (
 REM Clean up temporary YUV files
 echo.
 echo Cleaning up temporary files...
+del /Q "%YUV%" 2>nul
 del /Q "%YUV_16K%" 2>nul
 del /Q "%YUV_16K_UPSCALED%" 2>nul
 
