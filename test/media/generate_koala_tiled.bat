@@ -1,8 +1,9 @@
 REM Generate yuv
 REM
-REM It generates a single .yuv with all the 455 frames(@ 30 fps) of the 
-REM source footage. It is encoded in yuv422p10, so each pixel is a 10-bit 
-REM luma and a 10-bit chroma, but padded in 16-bit values.
+REM It generates a single .yuv with the first NUMFRAMES frames (@ 30 fps) of
+REM the source footage (koala.mp4 is trimmed to 10 frames to keep the repo
+REM small). It is encoded in yuv422p10, so each pixel is a 10-bit luma and a
+REM 10-bit chroma, but padded in 16-bit values.
 
 @echo off
 
@@ -23,22 +24,24 @@ if not exist "%NAME%_tiled" mkdir "%NAME%_tiled"
 
 %OAPV_ENC_EXE% -i "%YUV%" -w 3840 -h 2160 -d 10 -z 30 --input-csp 2 --tile-w 256 --tile-h 256 --tmv-mips %OAPV_ENC_ARGS% -o %NAME%_tiled/%NAME%_tiled
 
-REM Generate 16K version from frame at 9.22 seconds
+REM Generate 16K version from the first frame
 
 echo.
 echo ========================================
-echo Generating 16K version from frame at 9.22 seconds
+echo Generating 16K version from the first frame
 echo ========================================
 
 set YUV_16K=%NAME%_16k_3840x2160_yuv422p10le.yuv
 set YUV_16K_UPSCALED=%NAME%_16k_15360x8640_yuv422p10le.yuv
 
-REM Extract single frame at 9.22 seconds
-echo Step 1: Extracting frame at 9.22 seconds...
-ffmpeg -y -ss 9.22 -i "%INPUT%" -pix_fmt yuv422p10le -s 3840x2160 -f rawvideo -frames:v 1 "%YUV_16K%"
+REM Extract the first frame (the 16K tests only exercise tile addressing /
+REM chroma at 16K resolution, so any frame works; frame 0 keeps the source
+REM clip tiny -- see NUMFRAMES above).
+echo Step 1: Extracting the first frame...
+ffmpeg -y -i "%INPUT%" -pix_fmt yuv422p10le -s 3840x2160 -f rawvideo -frames:v 1 "%YUV_16K%"
 
 if errorlevel 1 (
-    echo ERROR: Failed to extract frame at 9.22 seconds
+    echo ERROR: Failed to extract the first frame
     exit /b 1
 )
 
