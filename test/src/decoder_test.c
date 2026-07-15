@@ -993,23 +993,36 @@ void validate_full(oapv_imgb_t* frame_buffer, int num_tiles) {
         int chroma_min_x = min_x / chroma_width_factor;
         int chroma_max_x = max_x / chroma_width_factor;
         
-        // Check for chroma stripe artifacts only in decoded region
+        // Check for chroma stripe artifacts. A real artifact is a chroma column
+        // that stays zero across the rows where the luma plane DOES have decoded
+        // content. Columns/rows with no luma content are undecoded gaps (expected
+        // for sparse or partial tile selections) and are excluded, so this no
+        // longer false-positives on scattered tile layouts.
         int u_zero_cols = 0, v_zero_cols = 0;
-        int decoded_cols = chroma_max_x - chroma_min_x + 1;
-        
+        int decoded_cols = 0;
+
         for(int col = chroma_min_x; col <= chroma_max_x; col++) {
-            int u_col_zeros = 0, v_col_zeros = 0;
+            int y_content_rows = 0, u_col_zeros = 0, v_col_zeros = 0;
             for(int row = min_y; row <= max_y; row++) {
+                // luma has content in this chroma column if any co-located luma sample is non-zero
+                int y_here = 0;
+                for(int f = 0; f < chroma_width_factor; f++) {
+                    if(y_data[row * width + col * chroma_width_factor + f] != 0) { y_here = 1; break; }
+                }
+                if(!y_here) continue; // undecoded row for this column
+                y_content_rows++;
                 if(u_data[row * chroma_width + col] == 0) u_col_zeros++;
                 if(v_data[row * chroma_width + col] == 0) v_col_zeros++;
             }
-            int decoded_rows = max_y - min_y + 1;
-            if(u_col_zeros == decoded_rows) u_zero_cols++;
-            if(v_col_zeros == decoded_rows) v_zero_cols++;
+            if(y_content_rows > 0) { // a genuinely decoded column
+                decoded_cols++;
+                if(u_col_zeros == y_content_rows) u_zero_cols++; // chroma dropped where luma exists
+                if(v_col_zeros == y_content_rows) v_zero_cols++;
+            }
         }
-        
+
         printf("  Decoded region: (%d,%d) to (%d,%d)\n", min_x, min_y, max_x, max_y);
-        printf("  Chroma quality in decoded region: U zero columns: %d/%d, V zero columns: %d/%d\n", 
+        printf("  Chroma quality in decoded region: U zero columns: %d/%d, V zero columns: %d/%d\n",
                u_zero_cols, decoded_cols, v_zero_cols, decoded_cols);
         
         if(u_zero_cols > 0 || v_zero_cols > 0) {
