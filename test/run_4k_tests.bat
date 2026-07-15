@@ -84,6 +84,7 @@ echo Running multi-mip selective decode tests...
 %DECODER_EXE% %MEDIA_4K% multimip_2x2_blocks
 %DECODER_EXE% %MEDIA_4K% multimip_sparse
 %DECODER_EXE% %MEDIA_4K% multimip_performance_comparison
+%DECODER_EXE% %MEDIA_4K% invalid_test
 
 REM Single mip1 tile tests
 echo Running individual mip1 tile tests...
@@ -152,6 +153,16 @@ for %%f in (output\*.raw) do (
     python src\convert_tile_to_png.py "%%f"
     if errorlevel 1 (
         echo WARNING: Failed to convert %%f
+    )
+)
+REM Multi-mip tests emit Y4M; convert those too
+for %%f in (output\*.y4m) do (
+    set /a count+=1
+    echo [!count!] Converting %%~nf.y4m to PNG...
+    python src\convert_y4m_to_png.py "%%f"
+    if errorlevel 1 (
+        echo WARNING: Failed to convert %%f - trying alternative method...
+        python src\convert_tile_to_png.py "%%f"
     )
 )
 echo Total files converted: %count%
