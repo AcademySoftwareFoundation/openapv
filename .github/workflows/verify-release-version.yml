@@ -1,0 +1,47 @@
+name: Verify Release Version
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  verify-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.3
+
+      - name: Extract version from tag
+        id: tag_version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          TAG_VERSION=$(echo "$TAG" | cut -d. -f1-4)
+          echo "version=${TAG_VERSION}" >> $GITHUB_OUTPUT
+          echo "Tag version: ${TAG_VERSION}"
+
+      - name: Extract version from oapv.h
+        id: header_version
+        run: |
+          APISET=$(grep "^#define OAPV_VER_APISET" inc/oapv.h | awk '{print $3}')
+          MAJOR=$(grep "^#define OAPV_VER_MAJOR" inc/oapv.h | awk '{print $3}')
+          MINOR=$(grep "^#define OAPV_VER_MINOR" inc/oapv.h | awk '{print $3}')
+          PATCH=$(grep "^#define OAPV_VER_PATCH" inc/oapv.h | awk '{print $3}')
+          HEADER_VERSION="${APISET}.${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=${HEADER_VERSION}" >> $GITHUB_OUTPUT
+          echo "Header version: ${HEADER_VERSION}"
+
+      - name: Verify versions match
+        run: |
+          TAG_VERSION="${{ steps.tag_version.outputs.version }}"
+          HEADER_VERSION="${{ steps.header_version.outputs.version }}"
+
+          if [ "$TAG_VERSION" != "$HEADER_VERSION" ]; then
+            echo "❌ Version mismatch!"
+            echo "   Release tag: v${TAG_VERSION}"
+            echo "   oapv.h:      ${HEADER_VERSION}"
+            echo ""
+            echo "Please update OAPV_VER_* in inc/oapv.h to match the release tag."
+            exit 1
+          fi
+
+          echo "✅ Versions match: ${TAG_VERSION}"
