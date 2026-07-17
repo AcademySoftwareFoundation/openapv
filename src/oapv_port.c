@@ -35,8 +35,16 @@
 
 static oapv_memory_callbacks_t memory_callbacks = { NULL, NULL, NULL, NULL };
 
+/* See oapv.h for usage contract (NULL resets to defaults; not safe to call
+ * while codec instances are live). */
 int oapv_set_memory_callbacks(const oapv_memory_callbacks_t *callbacks)
 {
+    // Passing NULL resets to the default (libc) allocators.
+    if(callbacks == NULL) {
+        oapv_memory_callbacks_t defaults = { NULL, NULL, NULL, NULL };
+        memory_callbacks = defaults;
+        return OAPV_OK;
+    }
     // Make sure all the callbacks are properly set.
     if(callbacks->malloc && callbacks->calloc && callbacks->realloc && callbacks->free) {
         memory_callbacks = *callbacks;

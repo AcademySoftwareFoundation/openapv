@@ -40,7 +40,7 @@
 
 static oapv_log_callback_t current_log_callback = NULL;
 static void* current_log_user_data = NULL;
-static int current_log_verbosity = OAPV_LOG_DEBUG;
+static int current_log_verbosity = OAPV_LOG_WARNING;
 
 static oapv_cputrace_callbacks_t cputrace_callbacks = { NULL, NULL };
 
@@ -65,7 +65,7 @@ static void log_msg(int verbosity, const char *fmt, ...)
     char str[1024] = { '\0' };
     va_list args;
     va_start(args, fmt);
-    vsprintf(str + strlen(str), fmt, args);
+    vsnprintf(str, sizeof(str), fmt, args);
     va_end(args);
 
     if (current_log_callback != NULL) {
@@ -2648,6 +2648,7 @@ typedef struct {
     int first_tile_idx;     // First tile in this block
     int num_tiles;          // Number of tiles in block
     u8 *buffer;             // Allocated memory for block
+    int read_failed;        // Set if the block's read came up short
 } tile_read_block_t;
 
 // Performance metrics structure
@@ -2703,7 +2704,9 @@ static int oapvd_validate_stream(oapvd_istream_t *istream, oapv_stream_info_t *s
     istream->seek(istream, 0, SEEK_SET);
 
     u8 size_buf[4];
-    istream->read(istream, size_buf, 4, 1);
+    if(istream->read(istream, size_buf, 4, 1) != 1) {
+        return OAPV_ERR_MALFORMED_BITSTREAM;
+    }
     stream_info->au_size = ((u32)size_buf[0] << 24) | ((u32)size_buf[1] << 16) |
                           ((u32)size_buf[2] << 8) | (u32)size_buf[3];
     if(metrics) metrics->bytes_read += 4;
@@ -2712,7 +2715,9 @@ static int oapvd_validate_stream(oapvd_istream_t *istream, oapv_stream_info_t *s
 
     // Verify APV signature
     u8 sig_buf[4];
-    istream->read(istream, sig_buf, 4, 1);
+    if(istream->read(istream, sig_buf, 4, 1) != 1) {
+        return OAPV_ERR_MALFORMED_BITSTREAM;
+    }
     stream_info->signature = ((u32)sig_buf[0] << 24) | ((u32)sig_buf[1] << 16) |
                             ((u32)sig_buf[2] << 8) | (u32)sig_buf[3];
     if(stream_info->signature != 0x61507631) {
@@ -2770,7 +2775,9 @@ static int oapvd_locate_all_mips(oapvd_istream_t *istream, oapv_stream_info_t *s
 
         // Read PBU size
         u8 pbu_size_buf[4];
-        istream->read(istream, pbu_size_buf, 4, 1);
+        if(istream->read(istream, pbu_size_buf, 4, 1) != 1) {
+            return OAPV_ERR_MALFORMED_BITSTREAM;
+        }
         u32 pbu_size = ((u32)pbu_size_buf[0] << 24) | ((u32)pbu_size_buf[1] << 16) |
                        ((u32)pbu_size_buf[2] << 8) | (u32)pbu_size_buf[3];
 
@@ -2784,8 +2791,10 @@ static int oapvd_locate_all_mips(oapvd_istream_t *istream, oapv_stream_info_t *s
 
         // Read and parse PBU header
         u8 pbu_header_buf[4];
-        istream->read(istream, pbu_header_buf, 4, 1);
-        
+        if(istream->read(istream, pbu_header_buf, 4, 1) != 1) {
+            return OAPV_ERR_MALFORMED_BITSTREAM;
+        }
+
         if(metrics) {
             metrics->bytes_read += 4;
         }
@@ -2854,7 +2863,10 @@ static int oapvd_parse_frame_headers(oapvd_istream_t *istream, oapv_mip_location
     // Read PBU header and initial frame data
     istream->seek(istream, location->frame_file_pos + 4, SEEK_SET); // Skip PBU size
     u8 pbu_header_buf[4];
-    istream->read(istream, pbu_header_buf, 4, 1);
+    if(istream->read(istream, pbu_header_buf, 4, 1) != 1) {
+        oapv_mfree(frame_buffer);
+        return OAPV_ERR_MALFORMED_BITSTREAM;
+    }
     if(metrics) metrics->bytes_read += 4;
 
     // Copy PBU header and read initial frame data
@@ -2863,7 +2875,11 @@ static int oapvd_parse_frame_headers(oapvd_istream_t *istream, oapv_mip_location
     if(remaining_to_read > location->pbu_size - 4) {
         remaining_to_read = location->pbu_size - 4;
     }
-    istream->read(istream, frame_buffer + 4, remaining_to_read, 1);
+    if(remaining_to_read > 0 &&
+       istream->read(istream, frame_buffer + 4, remaining_to_read, 1) != 1) {
+        oapv_mfree(frame_buffer);
+        return OAPV_ERR_MALFORMED_BITSTREAM;
+    }
     if(metrics) metrics->bytes_read += remaining_to_read;
 
     // Progressive parsing with buffer expansion
@@ -2875,69 +2891,50 @@ static int oapvd_parse_frame_headers(oapvd_istream_t *istream, oapv_mip_location
         // Initialize bitstream for VLC parsing
         oapv_bsr_init(&pbu_bs, frame_buffer, header_buffer_size, NULL);
 
-        // Try parsing PBU header
+        // Try parsing PBU header, then frame header. Both use the same
+        // grow-and-retry policy, so share it via this loop body.
         int ret = oapvd_vlc_pbu_header(&pbu_bs, &pbuh_check);
-        if(OAPV_FAILED(ret)) {
-            // Check if we need more data
-            long bytes_consumed = BSR_GET_CUR(&pbu_bs) - pbu_bs.beg;
-            if(bytes_consumed >= (long)(header_buffer_size * 0.9) &&
-               header_buffer_size < location->pbu_size) {
-                // Expand buffer
-                u32 new_size = header_buffer_size * 2;
-                if(new_size > location->pbu_size) new_size = location->pbu_size;
-                if(new_size > MAX_HEADER_CHUNK) new_size = MAX_HEADER_CHUNK;
-
-                u8 *new_buffer = (u8 *)oapv_realloc(frame_buffer, new_size);
-                if(!new_buffer) {
-                    oapv_mfree(frame_buffer);
-                    return OAPV_ERR_OUT_OF_MEMORY;
-                }
-                frame_buffer = new_buffer;
-
-                // Read additional data
-                u32 additional_bytes = new_size - header_buffer_size;
-                istream->read(istream, frame_buffer + header_buffer_size, additional_bytes, 1);
-                if(metrics) metrics->bytes_read += additional_bytes;
-                header_buffer_size = new_size;
-                continue;
-            } else {
-                oapv_mfree(frame_buffer);
-                return ret;
-            }
+        if(OAPV_SUCCEEDED(ret)) {
+            ret = oapvd_vlc_frame_header(&pbu_bs, frame_header);
         }
 
-        // Try parsing frame header
-        ret = oapvd_vlc_frame_header(&pbu_bs, frame_header);
-        if(OAPV_FAILED(ret)) {
-            // Check if we need more data
-            long bytes_consumed = BSR_GET_CUR(&pbu_bs) - pbu_bs.beg;
-            if(bytes_consumed >= (long)(header_buffer_size * 0.9) &&
-               header_buffer_size < location->pbu_size) {
-                // Expand buffer
-                u32 new_size = header_buffer_size * 2;
-                if(new_size > location->pbu_size) new_size = location->pbu_size;
-                if(new_size > MAX_HEADER_CHUNK) new_size = MAX_HEADER_CHUNK;
-
-                u8 *new_buffer = (u8 *)oapv_realloc(frame_buffer, new_size);
-                if(!new_buffer) {
-                    oapv_mfree(frame_buffer);
-                    return OAPV_ERR_OUT_OF_MEMORY;
-                }
-                frame_buffer = new_buffer;
-
-                // Read additional data
-                u32 additional_bytes = new_size - header_buffer_size;
-                istream->read(istream, frame_buffer + header_buffer_size, additional_bytes, 1);
-                if(metrics) metrics->bytes_read += additional_bytes;
-                header_buffer_size = new_size;
-                continue;
-            } else {
-                oapv_mfree(frame_buffer);
-                return ret;
-            }
+        if(OAPV_SUCCEEDED(ret)) {
+            parse_success = 1;
+            break;
         }
 
-        parse_success = 1;
+        // Parse failed. Grow the buffer and retry only if we consumed almost
+        // all of it (i.e. we likely ran out of data, not hit a real error) AND
+        // the buffer can actually grow. Growth is capped at MAX_HEADER_CHUNK and
+        // pbu_size; if new_size == header_buffer_size we cannot make progress,
+        // so we must stop instead of spinning forever (headers over 64 KB or a
+        // truncated/malformed stream both land here).
+        long bytes_consumed = BSR_GET_CUR(&pbu_bs) - pbu_bs.beg;
+        u32 new_size = header_buffer_size * 2;
+        if(new_size > location->pbu_size) new_size = location->pbu_size;
+        if(new_size > MAX_HEADER_CHUNK) new_size = MAX_HEADER_CHUNK;
+
+        int can_grow = (new_size > header_buffer_size);
+        if(bytes_consumed < (long)(header_buffer_size * 0.9) || !can_grow) {
+            oapv_mfree(frame_buffer);
+            return ret;
+        }
+
+        u8 *new_buffer = (u8 *)oapv_realloc(frame_buffer, new_size);
+        if(!new_buffer) {
+            oapv_mfree(frame_buffer);
+            return OAPV_ERR_OUT_OF_MEMORY;
+        }
+        frame_buffer = new_buffer;
+
+        // Read additional data
+        u32 additional_bytes = new_size - header_buffer_size;
+        if(istream->read(istream, frame_buffer + header_buffer_size, additional_bytes, 1) != 1) {
+            oapv_mfree(frame_buffer);
+            return OAPV_ERR_MALFORMED_BITSTREAM;
+        }
+        if(metrics) metrics->bytes_read += additional_bytes;
+        header_buffer_size = new_size;
     }
 
     if(!parse_success) {
@@ -2965,8 +2962,6 @@ typedef struct {
     perf_metrics_t *metrics;
 
     // Pipeline synchronization for batched I/O
-    volatile int *tiles_ready;      // Count of tiles with data loaded (NOT_DECODED status)
-    volatile int *io_complete;      // Flag: 1 when all I/O finished
     volatile int *next_tile_idx;    // Atomic counter for next tile to claim (eliminates O(n²) scanning)
 } multi_mip_worker_t;
 
@@ -2995,9 +2990,10 @@ static int dec_thread_tile_selective_multi_mip(void *arg)
         tile_work_t *work = &work_queue[tile_idx];
 
         // Wait for tile data to be loaded (batched I/O)
+        int current_status;
         while(1) {
             oapv_tpool_enter_cs(worker->sync_obj);
-            int current_status = work->status;
+            current_status = work->status;
             oapv_tpool_leave_cs(worker->sync_obj);
 
             if(current_status != DEC_TILE_STAT_NOT_READY) {
@@ -3008,15 +3004,15 @@ static int dec_thread_tile_selective_multi_mip(void *arg)
             oapv_tpool_yield();
         }
 
+        // Skip tiles whose coalesced block failed to load (short/failed read):
+        // their buffer is not fully populated, so they must not be decoded.
+        if(current_status == DEC_TILE_STAT_ERROR) {
+            continue;
+        }
+
         // Tile ownership is guaranteed via atomic counter.
 
         BEGIN_CPU_TRACE("DecodeTile");
-
-        // Commenting out unnecessary ON_DECODING assignment.
-        //
-        //oapv_tpool_enter_cs(worker->sync_obj);
-        //work->status = DEC_TILE_STAT_ON_DECODING;
-        //oapv_tpool_leave_cs(worker->sync_obj);
 
         oapv_bs_t tile_bs;
         oapv_bsr_init(&tile_bs, work->data, work->size, NULL);
@@ -3231,8 +3227,7 @@ int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream,
     mip_info_t *mip_infos = (mip_info_t*)oapv_calloc(multi_mip_decode->num_mips, sizeof(mip_info_t));
     if(!mip_infos) {
         oapv_mfree(mip_contexts);
-        oapv_mfree(mip_contexts);
-            oapv_mfree(work_queue);
+        oapv_mfree(work_queue);
         return OAPV_ERR_OUT_OF_MEMORY;
     }
 
@@ -3304,7 +3299,10 @@ int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream,
 
     BEGIN_CPU_TRACE("Parse headers");
 
-    /* Parse frame headers and initialize decode context for each mip */
+    /* Parse frame headers and initialize decode context for each mip.
+     * Per-mip failures are recorded in mip_req->status (the designed per-request
+     * error channel); the function itself still returns OAPV_OK unless a fatal
+     * (shared) error occurs. Use a local status so `ret` is not clobbered. */
     for(int m = 0; m < multi_mip_decode->num_mips; m++) {
         mip_info_t *mip_info = &mip_infos[m];
         if(!mip_info->found) continue;
@@ -3314,9 +3312,20 @@ int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream,
         location.pbu_size = mip_info->pbu_size;
         location.found = 1;
 
-        ret = oapvd_parse_frame_headers(istream, &location, ctx, &ctx->fh, &metrics);
-        if(OAPV_FAILED(ret)) {
-            mip_info->mip_req->status = ret;
+        int hret = oapvd_parse_frame_headers(istream, &location, ctx, &ctx->fh, &metrics);
+        if(OAPV_FAILED(hret)) {
+            mip_info->mip_req->status = hret;
+            continue;
+        }
+
+        /* This feature requires per-tile sizes carried in the frame header so
+         * the decoder can index individual tiles. Without the flag the tile
+         * offsets below are undefined; fail loudly rather than decode garbage. */
+        if(!ctx->fh.tile_size_present_in_fh_flag) {
+            log_msg(OAPV_LOG_ERROR,
+                    "Multi-mip decode requires tile_size_present_in_fh_flag=1 "
+                    "(encode with --tmv-mips); mip %d rejected\n", mip_info->mip_level);
+            mip_info->mip_req->status = OAPV_ERR_UNSUPPORTED;
             continue;
         }
 
@@ -3334,9 +3343,12 @@ int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream,
         u8 dummy_tile_data = 0;
         oapv_bsr_init(&ctx->bs, &dummy_tile_data, 0, NULL);
 
-        ret = dec_frm_prepare_selective(ctx, &dummy_imgb);
-        if(OAPV_FAILED(ret)) {
-            mip_info->mip_req->status = ret;
+        hret = dec_frm_prepare_selective(ctx, &dummy_imgb);
+        /* dec_frm_prepare_selective stored the stack dummy_imgb in ctx->imgb;
+         * clear it now so nothing dereferences it after this scope. */
+        ctx->imgb = NULL;
+        if(OAPV_FAILED(hret)) {
+            mip_info->mip_req->status = hret;
             continue;
         }
 
@@ -3346,6 +3358,34 @@ int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream,
         /* Transfer tile_size array ownership from ctx to mip_info */
         mip_info->num_tiles_in_frame = ctx->num_tiles;
         ctx->fh.tile_size = NULL;
+
+        /* Validate tile sizes against the PBU bounds before they are used to
+         * compute file offsets and allocate/read coalesced blocks. A truncated
+         * or malicious stream must not drive reads past the frame's payload. */
+        if(mip_info->num_tiles_in_frame > OAPV_MAX_TILES ||
+           mip_info->frame_header.tile_size == NULL) {
+            log_msg(OAPV_LOG_ERROR, "Invalid tile count %d for mip %d\n",
+                    mip_info->num_tiles_in_frame, mip_info->mip_level);
+            mip_info->mip_req->status = OAPV_ERR_MALFORMED_BITSTREAM;
+            continue;
+        }
+        {
+            /* Bytes available for tile payload = end-of-PBU - start-of-tile-data. */
+            int64_t pbu_end = mip_info->frame_file_offset + 4 + (int64_t)mip_info->pbu_size;
+            int64_t avail   = pbu_end - mip_info->frame_data_offset;
+            u64 required = 0;
+            for(int t = 0; t < mip_info->num_tiles_in_frame; t++) {
+                /* +4 for each per-tile size prefix (see work-queue builder). */
+                required += (u64)mip_info->frame_header.tile_size[t] + 4;
+            }
+            if(avail < 0 || required > (u64)avail) {
+                log_msg(OAPV_LOG_ERROR,
+                        "Tile sizes for mip %d exceed frame payload (need %llu, have %lld)\n",
+                        mip_info->mip_level, (unsigned long long)required, (long long)avail);
+                mip_info->mip_req->status = OAPV_ERR_MALFORMED_BITSTREAM;
+                continue;
+            }
+        }
 
         mip_info->mip_req->frame_width_mb_aligned = oapv_align_value(ctx->fh.fi.frame_width, OAPV_MB_W);
         mip_info->mip_req->frame_height_mb_aligned = oapv_align_value(ctx->fh.fi.frame_height, OAPV_MB_H);
@@ -3367,6 +3407,12 @@ int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream,
         mip_info_t *mip_info = &mip_infos[m];
         if(!mip_info->found) {
             mip_info->mip_req->status = OAPV_ERR_NOT_FOUND;
+            continue;
+        }
+
+        /* Skip mips that failed header parse/validation above: their
+         * frame_header is unpopulated (division-by-zero / garbage offsets). */
+        if(OAPV_FAILED(mip_info->mip_req->status)) {
             continue;
         }
 
@@ -3526,8 +3572,6 @@ int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream,
     /* Pipeline synchronization variables */
     oapv_sync_obj_t sync_obj = oapv_tpool_sync_obj_create();
     volatile int tiles_completed = 0;
-    volatile int tiles_ready = 0;      // Count of tiles ready to decode
-    volatile int io_complete = 0;       // Flag: all I/O finished
     volatile int next_tile_idx = 0;     // Atomic counter for tile claiming
 
     /* Load first batch BEFORE starting worker threads to avoid spinning */
@@ -3536,16 +3580,24 @@ int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream,
     int batch_size = num_threads;  // Tiles per batch
     int tiles_loaded = 0;
     int block_idx = 0;  // Track current read block
+    int io_error = 0;   // Set if any coalesced block read comes up short
 
     /* Load first batch synchronously */
     int tile_idx_in_block = 0;  // Track position within current block
     while(tiles_loaded < batch_size && block_idx < num_blocks) {
         int b = block_idx;
 
-        /* Read coalesced block if we're starting a new block */
+        /* Read coalesced block if we're starting a new block. On a short read
+         * the buffer is only partly filled, so its tiles are flagged ERROR and
+         * skipped by the workers rather than decoded from stale memory. */
         if(tile_idx_in_block == 0) {
             istream->seek(istream, (int64_t)read_blocks[b].start_offset, SEEK_SET);
-            istream->read(istream, read_blocks[b].buffer, read_blocks[b].total_size, 1);
+            if(istream->read(istream, read_blocks[b].buffer, read_blocks[b].total_size, 1) != 1) {
+                log_msg(OAPV_LOG_ERROR, "Short read of tile block (offset %lld, %u bytes)\n",
+                        (long long)read_blocks[b].start_offset, read_blocks[b].total_size);
+                read_blocks[b].read_failed = 1;
+                io_error = 1;
+            }
             metrics.bytes_read += read_blocks[b].total_size;
         }
 
@@ -3554,7 +3606,8 @@ int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream,
             int tile_idx = read_blocks[b].first_tile_idx + t;
             u64 tile_offset_in_block = work_queue[tile_idx].file_offset - read_blocks[b].start_offset;
             work_queue[tile_idx].data = read_blocks[b].buffer + tile_offset_in_block;
-            work_queue[tile_idx].status = DEC_TILE_STAT_NOT_DECODED;  /* Mark ready */
+            work_queue[tile_idx].status = read_blocks[b].read_failed
+                ? DEC_TILE_STAT_ERROR : DEC_TILE_STAT_NOT_DECODED;  /* Mark ready */
             tiles_loaded++;
 
             if(tiles_loaded >= batch_size) {
@@ -3569,7 +3622,6 @@ int oapvd_decode_selective_multi_mips(oapvd_t did, oapvd_istream_t *istream,
     }
 
 first_batch_done:
-    tiles_ready = tiles_loaded;
 
     metrics.decode_start_ns = get_time_ns();
 
@@ -3581,14 +3633,16 @@ first_batch_done:
     worker.num_tiles = work_queue_idx;
     worker.sync_obj = sync_obj;
     worker.tiles_completed = &tiles_completed;
-    worker.tiles_ready = &tiles_ready;
-    worker.io_complete = &io_complete;
     worker.next_tile_idx = &next_tile_idx;
     worker.metrics = &metrics;
 
     oapv_tpool_t *tpool = ctx->tpool;
     multi_mip_worker_t **thread_workers = NULL;
-    int num_worker_threads = num_threads;
+    /* Spawn one fewer worker than num_threads: the main thread participates in
+     * decoding using ctx->core[num_threads-1], so workers must use cores
+     * 0..num_threads-2. Sharing a core between two threads corrupts its
+     * coef/prev_dc/q_mat state (matches the regular decode path). */
+    int num_worker_threads = num_threads - 1;
 
     if(num_threads > 1) {
         thread_workers = (multi_mip_worker_t **)oapv_malloc(num_worker_threads * sizeof(multi_mip_worker_t *));
@@ -3633,7 +3687,19 @@ first_batch_done:
 
         if(start_tile == 0) {
             istream->seek(istream, (int64_t)read_blocks[b].start_offset, SEEK_SET);
-            istream->read(istream, read_blocks[b].buffer, read_blocks[b].total_size, 1);
+            if(istream->read(istream, read_blocks[b].buffer, read_blocks[b].total_size, 1) != 1) {
+                log_msg(OAPV_LOG_ERROR, "Short read of tile block (offset %lld, %u bytes)\n",
+                        (long long)read_blocks[b].start_offset, read_blocks[b].total_size);
+                read_blocks[b].read_failed = 1;
+                io_error = 1;
+                /* Flag this block's tiles ERROR under the CS so the promotion
+                 * loop below skips them and workers never decode stale data. */
+                oapv_tpool_enter_cs(sync_obj);
+                for(int t = 0; t < read_blocks[b].num_tiles; t++) {
+                    work_queue[read_blocks[b].first_tile_idx + t].status = DEC_TILE_STAT_ERROR;
+                }
+                oapv_tpool_leave_cs(sync_obj);
+            }
             metrics.bytes_read += read_blocks[b].total_size;
         }
 
@@ -3666,16 +3732,11 @@ first_batch_done:
                     }
                 }
 
-                /* Signal workers that there are new tiles available for decoding */
-                tiles_ready = batch_end;
-
                 oapv_tpool_leave_cs(sync_obj);
             }
         }
     }
 
-    /* Signal I/O complete */
-    io_complete = 1;
     metrics.io_end_ns = get_time_ns();
 
     END_CPU_TRACE();
@@ -3703,7 +3764,7 @@ first_batch_done:
     }
     oapv_mfree(read_blocks);
     oapv_mfree(mip_contexts);
-            oapv_mfree(work_queue);
+    oapv_mfree(work_queue);
 
     metrics.decode_end_ns = get_time_ns();
     metrics.tiles_decoded = tiles_completed;
@@ -3725,7 +3786,14 @@ first_batch_done:
         stat->read = metrics.bytes_read;
     }
 
-    return ret;
+    /* A short read on any coalesced block means the stream was truncated
+     * mid-payload: report it as a fatal (shared) error. Otherwise the operation
+     * completed and per-mip outcomes are reported through
+     * multi_mip_decode->mip_requests[m].status. */
+    if(io_error) {
+        return OAPV_ERR_MALFORMED_BITSTREAM;
+    }
+    return OAPV_OK;
 }
 
 #endif // ENABLE_DECODER
@@ -3754,8 +3822,16 @@ void oapv_set_logging_verbosity(int verbosity)
     current_log_verbosity = verbosity;
 }
 
+/* See oapv.h for usage contract (NULL resets to defaults; not safe to call
+ * while codec instances are live). */
 int oapv_set_cputrace_callbacks(const oapv_cputrace_callbacks_t *callbacks)
 {
+    // Passing NULL resets to the default (no-op) trace callbacks.
+    if(callbacks == NULL) {
+        oapv_cputrace_callbacks_t defaults = { NULL, NULL };
+        cputrace_callbacks = defaults;
+        return OAPV_OK;
+    }
     // Make sure all the callbacks are properly set.
     if(callbacks->begin_event && callbacks->end_event) {
         cputrace_callbacks = *callbacks;

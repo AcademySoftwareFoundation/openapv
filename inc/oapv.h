@@ -915,11 +915,27 @@ OAPV_EXPORT void oapv_set_logging_verbosity(int verbosity);
 
 /*****************************************************************************
  * openapv memory callbacks
+ *
+ * Installs custom allocators. All four callbacks (malloc/calloc/realloc/free)
+ * must be non-NULL, or the call fails with OAPV_ERR_INVALID_ARGUMENT. Passing
+ * a NULL 'callbacks' pointer resets to the default (libc) allocators.
+ *
+ * Not thread-safe and not safe to call while any codec instance is live: set
+ * this once during process initialization, before creating any encoder or
+ * decoder, and do not change it afterward.
  *****************************************************************************/
 OAPV_EXPORT int oapv_set_memory_callbacks(const oapv_memory_callbacks_t* callbacks);
 
 /*****************************************************************************
  * cpu event tracing callbacks
+ *
+ * Installs CPU trace callbacks. Both callbacks (begin_event/end_event) must be
+ * non-NULL, or the call fails with OAPV_ERR_INVALID_ARGUMENT. Passing a NULL
+ * 'callbacks' pointer resets to the default (no-op) trace callbacks.
+ *
+ * Not thread-safe and not safe to call while any codec instance is live: set
+ * this once during process initialization, before creating any encoder or
+ * decoder, and do not change it afterward.
  *****************************************************************************/
 OAPV_EXPORT int oapv_set_cputrace_callbacks(const oapv_cputrace_callbacks_t *callbacks);
 
