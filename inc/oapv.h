@@ -800,8 +800,6 @@ struct oapv_pbu_info {
     int  group_id;
 };
 
-OAPV_EXPORT int oapv2d_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat);
-
 OAPV_EXPORT int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_info);
 OAPV_EXPORT int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info, oapv_tile_info_t *tile_info);
 
