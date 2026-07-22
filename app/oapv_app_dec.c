@@ -105,11 +105,6 @@ static const args_opt_t dec_args_opts[] = {
         "      Note: this option is just for testing tile-based decoding method and\n"
         "            API set 1 option is required to support this"
     },
-    {
-        ARGS_NO_KEY,  "disable-companding", ARGS_VAL_TYPE_NONE, 0, NULL, 0,
-        "forcely disable companding process\n"
-        "      Note: this option forces to output 12 bits picture in case of 444/4444-16C12 profile"
-    },
     {ARGS_END_KEY, "", ARGS_VAL_TYPE_NONE, 0, NULL, 0, ""} /* termination */
 };
 
