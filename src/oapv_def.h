@@ -272,6 +272,7 @@ struct oapve_ctx {
     u32                        magic; // magic code
     oapve_t                    id;    // identifier
     oapve_cdesc_t              cdesc;
+    oapv_ops_mem_t             ops_mem; // effective memory allocator
     oapve_core_t              *core[OAPV_MAX_THREADS];
     oapv_imgb_t               *imgb_i;
     oapv_imgb_t               *imgb_r;
@@ -390,6 +391,7 @@ struct oapvd_ctx {
     u32                     magic; // magic code
     oapvd_t                 id;    // identifier
     oapvd_cdesc_t           cdesc;
+    oapv_ops_mem_t          ops_mem; // effective memory allocator
     oapvd_core_t           *core[OAPV_MAX_THREADS];
     oapv_bs_t               bs;
     oapv_imgb_t            *imgb;

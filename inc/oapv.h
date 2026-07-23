@@ -641,6 +641,29 @@ struct oapve_param {
 #define OAPV_CDESC_THREADS_AUTO          0
 
 /*****************************************************************************
+ * memory operations interface
+ *
+ * Custom allocator for a single codec instance, supplied through the codec
+ * descriptor (cdesc) at creation time and copied into the codec context;
+ * there is no process-global allocator state. When a function pointer is
+ * NULL the library uses the corresponding standard C routine. 'udata' is an
+ * opaque, caller-owned pointer passed back to every callback (e.g. the host
+ * allocator/arena object); it must stay valid for the codec's lifetime.
+ *****************************************************************************/
+#define OAPV_OPS_MAGIC_CODE_MEM 0x30504D4D /* 0PMM */
+
+typedef struct oapv_ops_mem oapv_ops_mem_t;
+struct oapv_ops_mem {
+    // set to OAPV_OPS_MAGIC_CODE_MEM for custom allocators; 0 => libc
+    unsigned int magic;
+    void *(*malloc)(void *udata, unsigned int size);
+    void *(*calloc)(void *udata, unsigned int count, unsigned int size);
+    void *(*realloc)(void *udata, void *ptr, unsigned int size);
+    void (*free)(void *udata, void *ptr);
+    void *udata;
+};
+
+/*****************************************************************************
  * description for encoder creation
  *****************************************************************************/
 typedef struct oapve_cdesc oapve_cdesc_t;
@@ -653,6 +676,8 @@ struct oapve_cdesc {
     int           threads;
     // encoding parameters
     oapve_param_t param[OAPV_MAX_NUM_FRAMES];
+    // custom memory allocator interface, or NULL for standard C library
+    const oapv_ops_mem_t *ops_mem;
 };
 
 /*****************************************************************************
@@ -675,6 +700,8 @@ typedef struct oapvd_cdesc oapvd_cdesc_t;
 struct oapvd_cdesc {
     // max number of threads (or OAPV_CDESC_THREADS_AUTO for auto-assignment)
     int threads;
+    // custom memory allocator interface, or NULL for standard C library
+    const oapv_ops_mem_t *ops_mem;
 };
 
 /*****************************************************************************

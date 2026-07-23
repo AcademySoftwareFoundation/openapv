@@ -173,8 +173,8 @@ void oapv_trace_line(char *pre);
         }                  \
     }
 
-void *oapv_malloc_align32(int size);
-void oapv_mfree_align32(void *p);
+/* Fill 'dst' with the default standard-C-library allocator interface. */
+void oapv_ops_mem_default(oapv_ops_mem_t *dst);
 
 #define oapv_mcpy(dst, src, size)    memcpy((dst), (src), (size))
 #define oapv_mset(dst, v, size)      memset((dst), (v), (size))

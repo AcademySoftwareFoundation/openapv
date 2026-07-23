@@ -450,6 +450,9 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         goto ERR;
     }
 
+    // clear descriptor so unset fields (e.g. ops_mem) default to zero
+    memset(&cdesc, 0, sizeof(oapvd_cdesc_t));
+
     // create decoder
     if(!strcmp(args_var->threads, "auto")){
         cdesc.threads = OAPV_CDESC_THREADS_AUTO;
@@ -802,6 +805,9 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         ptinfo_in_frm = NULL;
         ptinfo_dec = NULL;
     }
+
+    // clear descriptor so unset fields (e.g. ops_mem) default to zero
+    memset(&cdesc, 0, sizeof(oapvd_cdesc_t));
 
     // create decoder
     if(!strcmp(args_var->threads, "auto")){
