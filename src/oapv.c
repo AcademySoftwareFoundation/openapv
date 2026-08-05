@@ -602,6 +602,13 @@ static int enc_ready(oapve_ctx_t *ctx)
 
     ctx->rc_param.alpha = OAPV_RC_ALPHA;
     ctx->rc_param.beta = OAPV_RC_BETA;
+    /* Per-frame-index RC state: each frame slot keeps its own alpha/beta so
+     * the controller adapts per frame index rather than across frames. */
+    for(int i = 0; i < OAPV_MAX_NUM_FRAMES; i++) {
+        oapv_mset(&ctx->rc_param_frm[i], 0, sizeof(oapve_rc_param_t));
+        ctx->rc_param_frm[i].alpha = OAPV_RC_ALPHA;
+        ctx->rc_param_frm[i].beta = OAPV_RC_BETA;
+    }
     ctx->au_bs_fmt = OAPV_CFG_VAL_AU_BS_FMT_RBAU; // default: enable raw bitstream format
 
     return OAPV_OK;
@@ -1225,6 +1232,11 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         ret = enc_frm_prepare(ctx, &ctx->cdesc.param[i], frm->imgb, (rfrms != NULL) ? rfrms->frm[i].imgb : NULL);
         oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
+        /* Load this frame slot's RC state into the working ctx->rc_param so
+         * enc_frame and oapve_rc_update_after_pic operate on per-slot alpha/beta. */
+        int rc_slot = (i < OAPV_MAX_NUM_FRAMES) ? i : (OAPV_MAX_NUM_FRAMES - 1);
+        ctx->rc_param = ctx->rc_param_frm[rc_slot];
+
         // write headers
         bs_pos_pbu_beg = oapv_bsw_sink(bs);            /* store pbu pos to calculate size */
         DUMP_SAVE(0);
@@ -1233,6 +1245,9 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         // encode a frame
         ret = enc_frame(ctx, bs);
         oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+        /* Save the updated RC state back into this slot for the next AU. */
+        ctx->rc_param_frm[rc_slot] = ctx->rc_param;
 
         // rewrite pbu_size
         int pbu_size = ((u8 *)oapv_bsw_sink(bs)) - bs_pos_pbu_beg - 4;

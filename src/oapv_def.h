@@ -279,6 +279,11 @@ struct oapve_ctx {
     oapv_fh_t                  fh;
     oapve_tile_t               tile[OAPV_MAX_TILES];
     oapve_rc_param_t           rc_param;
+    /* per-frame RC working slots: rc_param is loaded from rc_param_frm[i] at
+     * the start of each frame and saved back after oapve_rc_update_after_pic,
+     * so alpha/beta drift from one frame doesn't pollute the next AU's other
+     * frames. Keyed by frame index in the AU (0 = primary, 1..N = others). */
+    oapve_rc_param_t           rc_param_frm[OAPV_MAX_NUM_FRAMES];
     oapv_tpool_t              *tpool;
     oapv_thread_t              thread_id[OAPV_MAX_THREADS];
     oapv_sync_obj_t            sync_obj;
