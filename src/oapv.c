@@ -1010,6 +1010,7 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
 
     // set bitstream buffer for each tile
     int buf_size = ctx->cdesc.max_bs_buf_size / ctx->num_tiles;
+    oapv_assert_rv(buf_size >= OAPV_MIN_TILE_BS_BUF, OAPV_ERR_OUT_OF_BS_BUF);
     ctx->tile[0].bs_buf = ctx->bs_buf;
     ctx->tile[0].bs_buf_max = buf_size;
     for(i = 1; i < ctx->num_tiles; i++) {

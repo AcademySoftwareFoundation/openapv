@@ -147,6 +147,10 @@ struct oapv_fh {
  * Tile header
  *****************************************************************************/
 #define OAPV_TILE_SIZE_LEN 4 /* u(32), 4byte */
+
+/* minimum per-tile share of the bitstream buffer; a smaller share cannot
+   hold even a trivial coded tile, so it is rejected before encoding starts */
+#define OAPV_MIN_TILE_BS_BUF (4096)
 typedef struct oapv_th oapv_th_t;
 struct oapv_th {
     int tile_header_size;    /* u(16) */
