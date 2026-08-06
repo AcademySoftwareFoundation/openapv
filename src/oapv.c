@@ -1234,7 +1234,7 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
 
         /* Load this frame slot's RC state into the working ctx->rc_param so
          * enc_frame and oapve_rc_update_after_pic operate on per-slot alpha/beta. */
-        int rc_slot = (i < OAPV_MAX_NUM_FRAMES) ? i : (OAPV_MAX_NUM_FRAMES - 1);
+        int rc_slot = oapv_min(i, OAPV_MAX_NUM_FRAMES - 1);
         ctx->rc_param = ctx->rc_param_frm[rc_slot];
 
         // write headers
