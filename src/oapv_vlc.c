@@ -320,7 +320,7 @@ void oapve_set_frame_header(oapve_ctx_t *ctx, oapv_fh_t *fh)
             }
         }
     }
-    fh->tile_size_present_in_fh_flag = 0;
+    fh->tile_size_present_in_fh_flag = ctx->tile_size_in_fh[ctx->frm_idx] ? 1 : 0;
 }
 
 void oapve_set_tile_header(oapve_ctx_t *ctx, oapv_th_t *th, int tile_idx, int qp)

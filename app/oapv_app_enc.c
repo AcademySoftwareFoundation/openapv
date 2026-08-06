@@ -277,6 +277,10 @@ static const args_opt_t enc_args_opts[] = {
         "embed frame hash value for conformance checking in decoding"
     },
     {
+        ARGS_NO_KEY,  "disable-tile-size-in-fh", ARGS_VAL_TYPE_NONE, 0, NULL, 0,
+        "do not write tile size values into the frame header"
+    },
+    {
         ARGS_NO_KEY,  "master-display", ARGS_VAL_TYPE_STRING, 0, NULL, 0,
         "mastering display color volume metadata"
     },
@@ -298,6 +302,7 @@ typedef struct args_var {
     char           fname_rec[256];
     int            max_au;
     int            hash;
+    int            disable_tile_size_in_fh;
     int            input_depth;
     int            input_csp;
     int            seek;
@@ -356,6 +361,7 @@ static args_var_t *args_init_vars(args_parser_t *args, oapve_param_t *param)
     args_set_variable_by_key_long(opts, "recon", vars->fname_rec, sizeof(vars->fname_rec));
     args_set_variable_by_key_long(opts, "max-au", &vars->max_au, 0);
     args_set_variable_by_key_long(opts, "hash", &vars->hash, 0);
+    args_set_variable_by_key_long(opts, "disable-tile-size-in-fh", &vars->disable_tile_size_in_fh, 0);
     args_set_variable_by_key_long(opts, "verbose", &op_verbose, 0);
     op_verbose = VERBOSE_SIMPLE; /* default */
     args_set_variable_by_key_long(opts, "input-depth", &vars->input_depth, 0);
@@ -520,9 +526,18 @@ static int set_extra_config(oapve_t id, args_var_t *vars, oapve_param_t *param)
     if(vars->hash) {
         value = 1;
         size = 4;
-        ret = oapve_config(id, OAPV_CFG_FRM(OAPV_CFG_SET_USE_FRM_HASH, 0), &value, &size);
+        ret = oapve_config(id, OAPV_CFG_FRM(OAPV_CFG_SET_USE_FRM_HASH, FRM_IDX), &value, &size);
         if(OAPV_FAILED(ret)) {
             logerr("ERR: failed to set config for using frame hash\n");
+            return -1;
+        }
+    }
+    if(vars->disable_tile_size_in_fh) {
+        value = 0;
+        size = 4;
+        ret = oapve_config(id, OAPV_CFG_FRM(OAPV_CFG_SET_TILE_SIZE_IN_FH, FRM_IDX), &value, &size);
+        if(OAPV_FAILED(ret)) {
+            logerr("ERR: failed to set config for tile size in frame header\n");
             return -1;
         }
     }
