@@ -2276,6 +2276,7 @@ int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info)
     oapv_fh_t    fh;
     int          ret = OAPV_OK;
 
+    oapv_assert_rv(pbu != NULL && frm_info != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(pbu_size >= (OAPV_PBU_HEADER_BYTE + OAPV_FRAME_INFO_BYTE), OAPV_ERR_INVALID_ARGUMENT);
     oapv_bsr_init(&bs, pbu, pbu_size, NULL);
 
@@ -2306,7 +2307,8 @@ int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *nu
     int          i, j, ret = OAPV_OK;
     int          pic_w_mb, pic_h_mb, tile_cols, tile_rows, n;
 
-    oapv_assert_rv(num_tiles != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(pbu != NULL && num_tiles != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(pos_tiles == NULL || *num_tiles >= 0, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(pbu_size >= (OAPV_PBU_HEADER_BYTE + OAPV_FRAME_INFO_BYTE), OAPV_ERR_INVALID_ARGUMENT);
     oapv_bsr_init(&bs, pbu, pbu_size, NULL);
 
@@ -2380,6 +2382,10 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
 
     ctx = dec_id_to_ctx(did);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(bitb != NULL && bitb->addr != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(imgb != NULL && stat != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(num_part_tiles >= 0, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(num_part_tiles == 0 || part_tile_idxs != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_mset(stat, 0, sizeof(oapvd_stat_t));
 
     oapv_bs_t   *bs;
