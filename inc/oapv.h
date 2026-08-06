@@ -257,6 +257,15 @@ extern "C" {
 #define OAPV_PROFILE_444_16C12          (140)
 #define OAPV_PROFILE_4444_16C12         (144)
 
+/* OpenAPV profile extensions */
+#define OAPV_PROFILE_422_10_UNCONST     (43)
+#define OAPV_PROFILE_422_12_UNCONST     (54)
+#define OAPV_PROFILE_444_10_UNCONST     (65)
+#define OAPV_PROFILE_444_12_UNCONST     (76)
+#define OAPV_PROFILE_4444_10_UNCONST    (87)
+#define OAPV_PROFILE_4444_12_UNCONST    (98)
+#define OAPV_PROFILE_400_10_UNCONST     (109)
+
 
 /*****************************************************************************
  * family
@@ -500,6 +509,13 @@ static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
     {"4444-12",     OAPV_PROFILE_4444_12},
     {"400-10",      OAPV_PROFILE_400_10},
     {"4444-16C12",  OAPV_PROFILE_4444_16C12},
+    {"422-10-UNCONST",  OAPV_PROFILE_422_10_UNCONST},
+    {"422-12-UNCONST",  OAPV_PROFILE_422_12_UNCONST},
+    {"444-10-UNCONST",  OAPV_PROFILE_444_10_UNCONST},
+    {"444-12-UNCONST",  OAPV_PROFILE_444_12_UNCONST},
+    {"4444-10-UNCONST", OAPV_PROFILE_4444_10_UNCONST},
+    {"4444-12-UNCONST", OAPV_PROFILE_4444_12_UNCONST},
+    {"400-10-UNCONST",  OAPV_PROFILE_400_10_UNCONST},
     {"", 0} // termination
 };
 

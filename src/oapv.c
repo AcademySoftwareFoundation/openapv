@@ -571,7 +571,11 @@ static void enc_flush(oapve_ctx_t *ctx)
         ctx->core[i] = NULL;
     }
 
-    oapv_ops_free(ctx, ctx->tile[0].bs_buf);
+    oapv_ops_free(ctx, ctx->bs_buf);
+    ctx->bs_buf = NULL;
+    oapv_ops_free(ctx, ctx->tile);
+    ctx->tile = NULL;
+    ctx->tile_cap = 0;
 }
 
 static int enc_ready(oapve_ctx_t *ctx)
@@ -608,11 +612,8 @@ static int enc_ready(oapve_ctx_t *ctx)
         }
     }
 
-    for(int i = 0; i < OAPV_MAX_TILES; i++) {
-        ctx->tile[i].stat = ENC_TILE_STAT_NOT_ENCODED;
-    }
-    ctx->tile[0].bs_buf = (u8 *)oapv_ops_malloc(ctx, ctx->cdesc.max_bs_buf_size);
-    oapv_assert_gv(ctx->tile[0].bs_buf, ret, OAPV_ERR_UNKNOWN, ERR);
+    ctx->bs_buf = (u8 *)oapv_ops_malloc(ctx, ctx->cdesc.max_bs_buf_size);
+    oapv_assert_gv(ctx->bs_buf, ret, OAPV_ERR_UNKNOWN, ERR);
 
     ctx->rc_param.alpha = OAPV_RC_ALPHA;
     ctx->rc_param.beta = OAPV_RC_BETA;
@@ -833,6 +834,13 @@ static int enc_profile_spec[][5] = {
     {OAPV_PROFILE_4444_12, 2, 4, 10, 12},
     {OAPV_PROFILE_400_10, 0, 0, 10, 10},
     {OAPV_PROFILE_4444_16C12, 3, 4, 16, 16},
+    {OAPV_PROFILE_422_10_UNCONST, 2, 2, 10, 10},
+    {OAPV_PROFILE_422_12_UNCONST, 2, 2, 10, 12},
+    {OAPV_PROFILE_444_10_UNCONST, 2, 3, 10, 10},
+    {OAPV_PROFILE_444_12_UNCONST, 2, 3, 10, 12},
+    {OAPV_PROFILE_4444_10_UNCONST, 2, 4, 10, 10},
+    {OAPV_PROFILE_4444_12_UNCONST, 2, 4, 10, 12},
+    {OAPV_PROFILE_400_10_UNCONST, 0, 0, 10, 10},
     {0, 0, 0, 0, 0} // termination
 };
 
@@ -985,12 +993,23 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     // padding input picture, if needs
     ctx->fn_imgb_pad(imgb_i, ctx->w, ctx->h, ctx->c_sft);
 
+    // allocate tile array to fit this frame's tile partitioning
+    int num_tiles = oapv_div_round_up(ctx->w, param->tile_w) * oapv_div_round_up(ctx->h, param->tile_h);
+    if(num_tiles > ctx->tile_cap) {
+        oapv_ops_free(ctx, ctx->tile);
+        ctx->tile = (oapve_tile_t *)oapv_ops_malloc(ctx, sizeof(oapve_tile_t) * num_tiles);
+        oapv_assert_rv(ctx->tile != NULL, OAPV_ERR_OUT_OF_MEMORY);
+        oapv_mset(ctx->tile, 0, sizeof(oapve_tile_t) * num_tiles);
+        ctx->tile_cap = num_tiles;
+    }
+
     // calculate tile info
     ret = enc_set_tile_info(ctx->tile, ctx->w, ctx->h, param->tile_w, param->tile_h, &ctx->num_tile_cols, &ctx->num_tile_rows, &ctx->num_tiles);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     // set bitstream buffer for each tile
     int buf_size = ctx->cdesc.max_bs_buf_size / ctx->num_tiles;
+    ctx->tile[0].bs_buf = ctx->bs_buf;
     ctx->tile[0].bs_buf_max = buf_size;
     for(i = 1; i < ctx->num_tiles; i++) {
         ctx->tile[i].bs_buf = ctx->tile[i - 1].bs_buf + buf_size;
@@ -1106,7 +1125,7 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
         oapv_assert_gv(bs_tile_pos + ctx->tile[i].bs_size <= bs->end, ret, OAPV_ERR_OUT_OF_BS_BUF, ERR);
         oapv_mcpy(bs_tile_pos, ctx->tile[i].bs_buf, ctx->tile[i].bs_size);
         bs_tile_pos = bs_tile_pos + ctx->tile[i].bs_size;
-        ctx->fh.tile_size[i] = ctx->tile[i].bs_size - OAPV_TILE_SIZE_LEN;
+        ctx->tile[i].tile_size = ctx->tile[i].bs_size - OAPV_TILE_SIZE_LEN;
     }
     BSW_MOVE_CUR(bs, bs_tile_pos); // move bs to at the end of tiles
 
@@ -1624,8 +1643,17 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, int num_part_tiles, const int *part
     ctx->num_tile_cols = (ctx->w + (tile_w - 1)) / tile_w;
     ctx->num_tile_rows = (ctx->h + (tile_h - 1)) / tile_h;
 
-    ret = oapv_validate_tile_topology(ctx->num_tile_cols, ctx->num_tile_rows, &ctx->num_tiles);
+    ret = oapv_validate_tile_topology(ctx->fh.fi.profile_idc, ctx->num_tile_cols, ctx->num_tile_rows, &ctx->num_tiles);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+    // allocate tile array to fit this frame's tile partitioning
+    if(ctx->num_tiles > ctx->tile_cap) {
+        oapv_ops_free(ctx, ctx->tile);
+        ctx->tile = (oapvd_tile_t *)oapv_ops_malloc(ctx, sizeof(oapvd_tile_t) * ctx->num_tiles);
+        oapv_assert_rv(ctx->tile != NULL, OAPV_ERR_OUT_OF_MEMORY);
+        oapv_mset(ctx->tile, 0, sizeof(oapvd_tile_t) * ctx->num_tiles);
+        ctx->tile_cap = ctx->num_tiles;
+    }
 
     dec_set_tile_info(ctx->tile, ctx->w, ctx->h, tile_w, tile_h, ctx->num_tile_cols, ctx->num_tiles);
 
@@ -1871,6 +1899,10 @@ static void dec_flush(oapvd_ctx_t *ctx)
     for(int i = 0; i < ctx->threads; i++) {
         dec_core_free(ctx, ctx->core[i]);
     }
+
+    oapv_ops_free(ctx, ctx->tile);
+    ctx->tile = NULL;
+    ctx->tile_cap = 0;
 }
 
 static int dec_ready(oapvd_ctx_t *ctx)
@@ -2296,7 +2328,7 @@ int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *nu
     tile_cols = oapv_div_round_up(pic_w_mb, fh.tile_width_in_mbs);
     tile_rows = oapv_div_round_up(pic_h_mb, fh.tile_height_in_mbs);
 
-    ret = oapv_validate_tile_topology(tile_cols, tile_rows, &n);
+    ret = oapv_validate_tile_topology(fh.fi.profile_idc, tile_cols, tile_rows, &n);
     oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
     if(pos_tiles == NULL) { // query the number of tiles only

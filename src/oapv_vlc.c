@@ -197,8 +197,8 @@ static int enc_vlc_tile_info(oapv_bs_t *bs, oapve_ctx_t *ctx, oapv_fh_t *fh)
     DUMP_HLS(fh->tile_size_present_in_fh_flag, fh->tile_size_present_in_fh_flag);
     if(fh->tile_size_present_in_fh_flag) {
         for(int i = 0; i < ctx->num_tiles; i++) {
-            oapv_bsw_write(bs, fh->tile_size[i], 32);
-            DUMP_HLS(fh->tile_size, fh->tile_size[i]);
+            oapv_bsw_write(bs, ctx->tile[i].tile_size, 32);
+            DUMP_HLS(fh->tile_size, ctx->tile[i].tile_size);
         }
     }
     return 0;
@@ -836,7 +836,7 @@ static int dec_vlc_tile_info(oapv_bs_t *bs, oapv_fh_t *fh)
     tile_cols = (pic_w + (tile_w - 1)) / tile_w;
     tile_rows = (pic_h + (tile_h - 1)) / tile_h;
 
-    ret = oapv_validate_tile_topology(tile_cols, tile_rows, NULL);
+    ret = oapv_validate_tile_topology(fh->fi.profile_idc, tile_cols, tile_rows, NULL);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     fh->tile_size_present_in_fh_flag = oapv_bsr_read1(bs);
@@ -844,9 +844,9 @@ static int dec_vlc_tile_info(oapv_bs_t *bs, oapv_fh_t *fh)
 
     if(fh->tile_size_present_in_fh_flag) {
         for(int i = 0; i < tile_cols * tile_rows; i++) {
-            fh->tile_size[i] = oapv_bsr_read(bs, 32);
-            DUMP_HLS(fh->tile_size, fh->tile_size[i]);
-            oapv_assert_rv(fh->tile_size[i] > 0, OAPV_ERR_MALFORMED_BITSTREAM);
+            u32 tile_size = oapv_bsr_read(bs, 32); // parsed for validation only
+            DUMP_HLS(fh->tile_size, tile_size);
+            oapv_assert_rv(tile_size > 0, OAPV_ERR_MALFORMED_BITSTREAM);
         }
     }
     return OAPV_OK;
