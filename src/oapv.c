@@ -1114,9 +1114,7 @@ ERR:
 static int enc_platform_init(oapve_ctx_t *ctx)
 {
     // default settings
-    ctx->fn_sad = oapv_tbl_fn_sad_16b;
     ctx->fn_ssd = oapv_tbl_fn_ssd_16b;
-    ctx->fn_diff = oapv_tbl_fn_diff_16b;
     ctx->fn_itx_part = oapv_tbl_fn_itx_part;
     ctx->fn_itx = oapv_tbl_fn_itx;
     ctx->fn_itx_adj = oapv_tbl_fn_itx_adj;
@@ -1132,9 +1130,7 @@ static int enc_platform_init(oapve_ctx_t *ctx)
     support_avx2 = (check_cpu >> 2) & 1;
 
     if(support_avx2) {
-        ctx->fn_sad = oapv_tbl_fn_sad_16b_avx;
         ctx->fn_ssd = oapv_tbl_fn_ssd_16b_avx;
-        ctx->fn_diff = oapv_tbl_fn_diff_16b_avx;
         ctx->fn_itx_part = oapv_tbl_fn_itx_part_avx;
         ctx->fn_itx = oapv_tbl_fn_itx_avx;
         ctx->fn_itx_adj = oapv_tbl_fn_itx_adj_avx;
@@ -1148,9 +1144,7 @@ static int enc_platform_init(oapve_ctx_t *ctx)
         ctx->fn_had8x8 = oapv_dc_removed_had8x8_sse;
     }
 #elif ARM_NEON
-    ctx->fn_sad = oapv_tbl_fn_sad_16b_neon;
     ctx->fn_ssd = oapv_tbl_fn_ssd_16b_neon;
-    ctx->fn_diff = oapv_tbl_fn_diff_16b_neon;
     ctx->fn_itx = oapv_tbl_fn_itx_neon;
     ctx->fn_txb = oapv_tbl_fn_txb_neon;
     ctx->fn_quant = oapv_tbl_fn_quant_neon;

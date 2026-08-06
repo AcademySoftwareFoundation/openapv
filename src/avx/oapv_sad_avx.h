@@ -36,9 +36,7 @@
 #if X86_SSE
 #include <immintrin.h>
 
-extern const oapv_fn_sad_t oapv_tbl_fn_sad_16b_avx[2];
 extern const oapv_fn_ssd_t oapv_tbl_fn_ssd_16b_avx[2];
-extern const oapv_fn_diff_t oapv_tbl_fn_diff_16b_avx[2];
 #endif /* X86_SSE */
 
 #endif /* _OAPV_SAD_AVX_H_ */
