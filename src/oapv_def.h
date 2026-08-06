@@ -432,7 +432,8 @@ struct oapvd_ctx {
     int                     num_c;         // number of components
     int                     c_sft[N_C][2]; // width or height shift value of each compoents, 0: width, 1: height
     int                     use_frm_hash;
-    int                     disable_companding; // flag of companding
+    int                     disable_companding; // flag of companding, derived per frame
+    int                     force_disable_companding; // config override to force companding off
 
     const oapv_fn_itx_t    *fn_itx;
     const oapv_fn_dquant_t *fn_dquant;

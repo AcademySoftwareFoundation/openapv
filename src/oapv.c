@@ -1611,7 +1611,8 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, int num_part_tiles, const int *part
     ctx->h = oapv_align_value(ctx->fh.fi.frame_height, OAPV_MB_H);
 
     if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
-        ctx->disable_companding = 0;
+        // companding is the default for 16C12 profiles; the config can force it off
+        ctx->disable_companding = ctx->force_disable_companding;
     }
 
     if(OAPV_CS_GET_FORMAT(imgb->cs) == OAPV_CF_PLANAR2) {
@@ -2186,7 +2187,7 @@ int oapvd_config(oapvd_t did, int cfg, void *buf, int *size)
         break;
 
     case OAPV_CFG_SET_DISABLE_COMPANDING:
-        ctx->disable_companding = (*((int *)buf)) ? 1 : 0;
+        ctx->force_disable_companding = (*((int *)buf)) ? 1 : 0;
         break;
     default:
         oapv_assert_rv(0, OAPV_ERR_UNSUPPORTED);
