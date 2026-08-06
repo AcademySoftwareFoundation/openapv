@@ -99,5 +99,92 @@ const oapv_fn_ssd_t oapv_tbl_fn_ssd_16b_avx[2] =
     NULL
 };
 
+int oapv_dc_removed_had8x8_avx(pel* org, int s_org)
+{
+    /* first pass is register-wise on 128-bit row vectors; after a transpose
+       the second pass runs register-wise on 256-bit s32 vectors, since its
+       values can reach 64 * 4095 and do not fit in s16 */
+    __m128i r0 = _mm_loadu_si128((__m128i*)(org)); org += s_org;
+    __m128i r1 = _mm_loadu_si128((__m128i*)(org)); org += s_org;
+    __m128i r2 = _mm_loadu_si128((__m128i*)(org)); org += s_org;
+    __m128i r3 = _mm_loadu_si128((__m128i*)(org)); org += s_org;
+    __m128i r4 = _mm_loadu_si128((__m128i*)(org)); org += s_org;
+    __m128i r5 = _mm_loadu_si128((__m128i*)(org)); org += s_org;
+    __m128i r6 = _mm_loadu_si128((__m128i*)(org)); org += s_org;
+    __m128i r7 = _mm_loadu_si128((__m128i*)(org));
+
+    /* pass 1: vertical butterflies */
+    __m128i a0 = _mm_add_epi16(r0, r4), a4 = _mm_sub_epi16(r0, r4);
+    __m128i a1 = _mm_add_epi16(r1, r5), a5 = _mm_sub_epi16(r1, r5);
+    __m128i a2 = _mm_add_epi16(r2, r6), a6 = _mm_sub_epi16(r2, r6);
+    __m128i a3 = _mm_add_epi16(r3, r7), a7 = _mm_sub_epi16(r3, r7);
+
+    __m128i b0 = _mm_add_epi16(a0, a2), b2 = _mm_sub_epi16(a0, a2);
+    __m128i b1 = _mm_add_epi16(a1, a3), b3 = _mm_sub_epi16(a1, a3);
+    __m128i b4 = _mm_add_epi16(a4, a6), b6 = _mm_sub_epi16(a4, a6);
+    __m128i b5 = _mm_add_epi16(a5, a7), b7 = _mm_sub_epi16(a5, a7);
+
+    r0 = _mm_add_epi16(b0, b1); r1 = _mm_sub_epi16(b0, b1);
+    r2 = _mm_add_epi16(b2, b3); r3 = _mm_sub_epi16(b2, b3);
+    r4 = _mm_add_epi16(b4, b5); r5 = _mm_sub_epi16(b4, b5);
+    r6 = _mm_add_epi16(b6, b7); r7 = _mm_sub_epi16(b6, b7);
+
+    /* 8x8 s16 transpose */
+    __m128i t0 = _mm_unpacklo_epi16(r0, r1), t1 = _mm_unpackhi_epi16(r0, r1);
+    __m128i t2 = _mm_unpacklo_epi16(r2, r3), t3 = _mm_unpackhi_epi16(r2, r3);
+    __m128i t4 = _mm_unpacklo_epi16(r4, r5), t5 = _mm_unpackhi_epi16(r4, r5);
+    __m128i t6 = _mm_unpacklo_epi16(r6, r7), t7 = _mm_unpackhi_epi16(r6, r7);
+    __m128i u0 = _mm_unpacklo_epi32(t0, t2), u1 = _mm_unpackhi_epi32(t0, t2);
+    __m128i u2 = _mm_unpacklo_epi32(t1, t3), u3 = _mm_unpackhi_epi32(t1, t3);
+    __m128i u4 = _mm_unpacklo_epi32(t4, t6), u5 = _mm_unpackhi_epi32(t4, t6);
+    __m128i u6 = _mm_unpacklo_epi32(t5, t7), u7 = _mm_unpackhi_epi32(t5, t7);
+    r0 = _mm_unpacklo_epi64(u0, u4); r1 = _mm_unpackhi_epi64(u0, u4);
+    r2 = _mm_unpacklo_epi64(u1, u5); r3 = _mm_unpackhi_epi64(u1, u5);
+    r4 = _mm_unpacklo_epi64(u2, u6); r5 = _mm_unpackhi_epi64(u2, u6);
+    r6 = _mm_unpacklo_epi64(u3, u7); r7 = _mm_unpackhi_epi64(u3, u7);
+
+    /* widen to s32 and run pass 2 register-wise */
+    __m256i w0 = _mm256_cvtepi16_epi32(r0);
+    __m256i w1 = _mm256_cvtepi16_epi32(r1);
+    __m256i w2 = _mm256_cvtepi16_epi32(r2);
+    __m256i w3 = _mm256_cvtepi16_epi32(r3);
+    __m256i w4 = _mm256_cvtepi16_epi32(r4);
+    __m256i w5 = _mm256_cvtepi16_epi32(r5);
+    __m256i w6 = _mm256_cvtepi16_epi32(r6);
+    __m256i w7 = _mm256_cvtepi16_epi32(r7);
+
+    __m256i c0 = _mm256_add_epi32(w0, w4), c4 = _mm256_sub_epi32(w0, w4);
+    __m256i c1 = _mm256_add_epi32(w1, w5), c5 = _mm256_sub_epi32(w1, w5);
+    __m256i c2 = _mm256_add_epi32(w2, w6), c6 = _mm256_sub_epi32(w2, w6);
+    __m256i c3 = _mm256_add_epi32(w3, w7), c7 = _mm256_sub_epi32(w3, w7);
+
+    __m256i d0 = _mm256_add_epi32(c0, c2), d2 = _mm256_sub_epi32(c0, c2);
+    __m256i d1 = _mm256_add_epi32(c1, c3), d3 = _mm256_sub_epi32(c1, c3);
+    __m256i d4 = _mm256_add_epi32(c4, c6), d6 = _mm256_sub_epi32(c4, c6);
+    __m256i d5 = _mm256_add_epi32(c5, c7), d7 = _mm256_sub_epi32(c5, c7);
+
+    w0 = _mm256_abs_epi32(_mm256_add_epi32(d0, d1));
+    w1 = _mm256_abs_epi32(_mm256_sub_epi32(d0, d1));
+    w2 = _mm256_abs_epi32(_mm256_add_epi32(d2, d3));
+    w3 = _mm256_abs_epi32(_mm256_sub_epi32(d2, d3));
+    w4 = _mm256_abs_epi32(_mm256_add_epi32(d4, d5));
+    w5 = _mm256_abs_epi32(_mm256_sub_epi32(d4, d5));
+    w6 = _mm256_abs_epi32(_mm256_add_epi32(d6, d7));
+    w7 = _mm256_abs_epi32(_mm256_sub_epi32(d6, d7));
+
+    __m256i sum = _mm256_add_epi32(w0, w1);
+    sum = _mm256_add_epi32(sum, _mm256_add_epi32(w2, w3));
+    sum = _mm256_add_epi32(sum, _mm256_add_epi32(w4, w5));
+    sum = _mm256_add_epi32(sum, _mm256_add_epi32(w6, w7));
+
+    __m128i s128 = _mm_add_epi32(_mm256_castsi256_si128(sum), _mm256_extracti128_si256(sum, 1));
+    s128 = _mm_add_epi32(s128, _mm_srli_si128(s128, 8));
+    s128 = _mm_add_epi32(s128, _mm_srli_si128(s128, 4));
+
+    int satd = _mm_cvtsi128_si32(s128) - _mm_cvtsi128_si32(_mm256_castsi256_si128(w0)); // remove DC
+    return (satd + 2) >> 2;
+}
+
+
 /* DIFF ***********************************************************************/
 #endif

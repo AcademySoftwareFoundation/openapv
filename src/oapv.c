@@ -1137,7 +1137,7 @@ static int enc_platform_init(oapve_ctx_t *ctx)
         ctx->fn_txb = oapv_tbl_fn_txb_avx;
         ctx->fn_quant = oapv_tbl_fn_quant_avx;
         ctx->fn_dquant = oapv_tbl_fn_dquant_avx;
-        ctx->fn_had8x8 = oapv_dc_removed_had8x8_sse;
+        ctx->fn_had8x8 = oapv_dc_removed_had8x8_avx;
     }
     else if(support_sse) {
         ctx->fn_ssd = oapv_tbl_fn_ssd_16b_sse;
