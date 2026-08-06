@@ -290,6 +290,8 @@ struct oapve_ctx {
     oapv_sync_obj_t            sync_obj;
     int                        threads; // num of thread for encoding
     int                        au_bs_fmt; // access unit bitstream format
+    int                        tile_size_in_fh[OAPV_MAX_NUM_FRAMES]; // write tile sizes in frame header, per frame
+    int                        frm_idx; // index of the frame being encoded in the current access unit
     int                        num_tiles_frms[OAPV_MAX_NUM_FRAMES];
     int                        num_tiles;
     int                        num_tile_cols;

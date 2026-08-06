@@ -183,6 +183,7 @@ extern "C" {
 #define OAPV_CFG_SET_QP_MAX             (209)
 #define OAPV_CFG_SET_USE_FRM_HASH       (301)
 #define OAPV_CFG_SET_AU_BS_FMT          (302)
+#define OAPV_CFG_SET_TILE_SIZE_IN_FH    (303)
 #define OAPV_CFG_SET_DISABLE_COMPANDING (400)
 #define OAPV_CFG_GET_QP_MIN             (600)
 #define OAPV_CFG_GET_QP_MAX             (601)
@@ -194,6 +195,7 @@ extern "C" {
 #define OAPV_CFG_GET_WIDTH              (701)
 #define OAPV_CFG_GET_HEIGHT             (702)
 #define OAPV_CFG_GET_AU_BS_FMT          (802)
+#define OAPV_CFG_GET_TILE_SIZE_IN_FH    (803)
 
 /* Target a specific frame's parameters in oapve_config(): the upper 16 bits of
  * 'cfg' carry the frame index, the lower 16 bits the config id above. Legacy

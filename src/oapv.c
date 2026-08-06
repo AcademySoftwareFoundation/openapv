@@ -611,6 +611,9 @@ static int enc_ready(oapve_ctx_t *ctx)
         ctx->rc_param_frm[i].beta = OAPV_RC_BETA;
     }
     ctx->au_bs_fmt = OAPV_CFG_VAL_AU_BS_FMT_RBAU; // default: enable raw bitstream format
+    for(int i = 0; i < OAPV_MAX_NUM_FRAMES; i++) {
+        ctx->tile_size_in_fh[i] = 1; // default: write tile sizes in frame header
+    }
 
     return OAPV_OK;
 ERR:
@@ -1242,8 +1245,9 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
 
         /* Load this frame slot's RC state into the working ctx->rc_param so
          * enc_frame and oapve_rc_update_after_pic operate on per-slot alpha/beta. */
-        int rc_slot = oapv_min(i, OAPV_MAX_NUM_FRAMES - 1);
-        ctx->rc_param = ctx->rc_param_frm[rc_slot];
+        // 'i' is bounded by the num_frms check at the top of this function
+        ctx->rc_param = ctx->rc_param_frm[i];
+        ctx->frm_idx = i;
 
         // write headers
         bs_pos_pbu_beg = oapv_bsw_sink(bs);            /* store pbu pos to calculate size */
@@ -1255,7 +1259,7 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
         /* Save the updated RC state back into this slot for the next AU. */
-        ctx->rc_param_frm[rc_slot] = ctx->rc_param;
+        ctx->rc_param_frm[i] = ctx->rc_param;
 
         // rewrite pbu_size
         int pbu_size = ((u8 *)oapv_bsw_sink(bs)) - bs_pos_pbu_beg - 4;
@@ -1372,6 +1376,10 @@ int oapve_config(oapve_t eid, int cfg, void *buf, int *size)
         oapv_assert_rv(t0 == OAPV_CFG_VAL_AU_BS_FMT_RBAU || t0 == OAPV_CFG_VAL_AU_BS_FMT_NONE, OAPV_ERR_INVALID_ARGUMENT);
         ctx->au_bs_fmt = t0;
         break;
+    case OAPV_CFG_SET_TILE_SIZE_IN_FH:
+        oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
+        ctx->tile_size_in_fh[frm_idx] = (*((int *)buf)) ? 1 : 0;
+        break;
     /* get config *******************************************************/
     case OAPV_CFG_GET_QP:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
@@ -1400,6 +1408,10 @@ int oapve_config(oapve_t eid, int cfg, void *buf, int *size)
     case OAPV_CFG_GET_AU_BS_FMT:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         *((int *)buf) = ctx->au_bs_fmt;
+        break;
+    case OAPV_CFG_GET_TILE_SIZE_IN_FH:
+        oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
+        *((int *)buf) = ctx->tile_size_in_fh[frm_idx];
         break;
     default:
         oapv_trace("unknown config value (%d)\n", cfg);
