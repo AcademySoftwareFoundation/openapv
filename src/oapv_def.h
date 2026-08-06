@@ -303,7 +303,7 @@ struct oapve_ctx {
     int                        bit_depth;     // bit-depth of internal part
     int                        bit_depth_inp; // bit-depth of input video
     int                        c_sft[N_C][2]; // width or height shift value of each compoents, 0: width, 1: height
-    int                        use_frm_hash;
+    int                        use_frm_hash[OAPV_MAX_NUM_FRAMES]; // embed frame hash metadata, per frame
     int                        use_companding;
 
     const oapv_fn_itx_part_t  *fn_itx_part;
