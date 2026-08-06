@@ -519,6 +519,12 @@ static int oapv_quant_neon(s16* coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_
         uint16x8_t sign_mask   = vcltq_s16(coef_row, zero_vector);
         int16x8_t coef_row_abs = vabsq_s16(coef_row);
 
+        // Widen the sign to 32-bit masks; the sign is applied before the
+        // final saturating narrow so negative levels clip to -32768 like the
+        // C version
+        int32x4_t sign_low_32b  = vmovl_s16(vget_low_s16(vreinterpretq_s16_u16(sign_mask)));
+        int32x4_t sign_high_32b = vmovl_high_s16(vreinterpretq_s16_u16(sign_mask));
+
         // Split abs coef-vec and unpack to s32
         int32x4_t coef_low_32b  = vmovl_s16(vget_low_s16(coef_row_abs));
         int32x4_t coef_high_32b = vmovl_high_s16(coef_row_abs);
@@ -540,15 +546,16 @@ static int oapv_quant_neon(s16* coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_
         coef_high_32b_first_half  = vshlq_s64(coef_high_32b_first_half, shift_vector);
         coef_high_32b_second_half = vshlq_s64(coef_high_32b_second_half, shift_vector);
 
-        // Combine 2X: 64x2 registers into one 32x4 register
-        coef_low_32b  = vcombine_u32(vmovn_s64(coef_low_32b_first_half),  vmovn_s64(coef_low_32b_second_half));
-        coef_high_32b = vcombine_u32(vmovn_s64(coef_high_32b_first_half), vmovn_s64(coef_high_32b_second_half));
+        // Combine 2X: 64x2 registers into one 32x4 register (saturating)
+        coef_low_32b  = vcombine_s32(vqmovn_s64(coef_low_32b_first_half),  vqmovn_s64(coef_low_32b_second_half));
+        coef_high_32b = vcombine_s32(vqmovn_s64(coef_high_32b_first_half), vqmovn_s64(coef_high_32b_second_half));
 
-        // Combine 2X: 32x4 registers into one 16x8 register
-        int16x8_t output_vector = vcombine_u16(vmovn_s32(coef_low_32b), vmovn_s32(coef_high_32b));
+        // Apply extracted coef sign in the 32-bit domain
+        coef_low_32b  = vbslq_s32(vreinterpretq_u32_s32(sign_low_32b),  vnegq_s32(coef_low_32b),  coef_low_32b);
+        coef_high_32b = vbslq_s32(vreinterpretq_u32_s32(sign_high_32b), vnegq_s32(coef_high_32b), coef_high_32b);
 
-        // Apply extracted coef sign to result
-        output_vector = vbslq_s16(sign_mask,  vnegq_s16(output_vector), output_vector);
+        // Combine 2X: 32x4 registers into one 16x8 register (saturating)
+        int16x8_t output_vector = vcombine_s16(vqmovn_s32(coef_low_32b), vqmovn_s32(coef_high_32b));
 
         // Store result row into buffer
         vst1q_s16(coef + i, output_vector);

@@ -41,7 +41,6 @@
 
 extern const oapv_fn_tx_t oapv_tbl_fn_txb_neon[2];
 extern const oapv_fn_quant_t oapv_tbl_fn_quant_neon[2];
-extern const oapv_fn_dquant_t oapv_tbl_fn_dquant_neon[2];
 extern const oapv_fn_itx_t oapv_tbl_fn_itx_neon[2];
 
 #define CALCU_2x8(c0, c1, d0, d1)  \
