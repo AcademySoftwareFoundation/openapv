@@ -328,7 +328,7 @@ void oapve_set_tile_header(oapve_ctx_t *ctx, oapv_th_t *th, int tile_idx, int qp
     oapv_mset(th, 0, sizeof(oapv_th_t));
 
     for(int c = 0; c < ctx->num_c; c++) {
-        th->tile_qp[c] = oapv_clip3(MIN_QUANT, MAX_QUANT(10), qp + ctx->qp_offset[c]);
+        th->tile_qp[c] = oapv_clip3(MIN_QUANT, MAX_QUANT(ctx->bit_depth), qp + ctx->qp_offset[c]);
     }
     th->tile_index = tile_idx;
 

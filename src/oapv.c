@@ -820,6 +820,20 @@ static int enc_profile_spec[][5] = {
     {0, 0, 0, 0, 0} // termination
 };
 
+// max valid QP for a profile, derived from its max coded bit depth
+static int enc_profile_max_qp(int profile_idc)
+{
+    int idx = 0;
+    while(enc_profile_spec[idx][0] != 0) {
+        if(profile_idc == enc_profile_spec[idx][0]) {
+            int bd = oapv_min(enc_profile_spec[idx][4], 12); // coded bit depth is capped to 12
+            return MAX_QUANT(bd);
+        }
+        idx++;
+    }
+    return MAX_QUANT(10);
+}
+
 static int enc_check_profile(int profile_idc, int cfi, int bit_depth)
 {
     int idx = 0;
@@ -843,7 +857,6 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     // check basic parameters
     oapv_assert_rv(param->w == imgb_i->w[0], OAPV_ERR_INVALID_WIDTH);
     oapv_assert_rv(param->h == imgb_i->h[0], OAPV_ERR_INVALID_HEIGHT);
-    oapv_assert_rv((param->qp >= MIN_QUANT && param->qp <= MAX_QUANT(10)) || param->qp == OAPVE_PARAM_QP_AUTO, OAPV_ERR_INVALID_QP);
 
     // q_matrix entries are divisors during quantization; reject zeros
     if(param->use_q_matrix) {
@@ -876,15 +889,6 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     ctx->w = oapv_div_round_up(param->w, OAPV_MB_W) * OAPV_MB_W;
     ctx->h = oapv_div_round_up(param->h, OAPV_MB_H) * OAPV_MB_H;
 
-    // set QP values
-    ctx->qp_offset[Y_C] = 0;
-    ctx->qp_offset[U_C] = param->qp_offset_c1;
-    ctx->qp_offset[V_C] = param->qp_offset_c2;
-    ctx->qp_offset[X_C] = param->qp_offset_c3;
-
-    for(i = 0; i < N_C; i++) {
-        ctx->qp[i] = oapv_clip3(MIN_QUANT, MAX_QUANT(10), param->qp + ctx->qp_offset[i]);
-    }
     // color information
     ctx->cfi = color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb_i->cs));
     ctx->bit_depth_inp = OAPV_CS_GET_BIT_DEPTH(imgb_i->cs);
@@ -902,6 +906,17 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     else {
         ctx->bit_depth = ctx->bit_depth_inp;
         ctx->use_companding = 0;
+    }
+
+    // set QP values; the valid QP range depends on the coded bit depth
+    oapv_assert_rv((param->qp >= MIN_QUANT && param->qp <= MAX_QUANT(ctx->bit_depth)) || param->qp == OAPVE_PARAM_QP_AUTO, OAPV_ERR_INVALID_QP);
+    ctx->qp_offset[Y_C] = 0;
+    ctx->qp_offset[U_C] = param->qp_offset_c1;
+    ctx->qp_offset[V_C] = param->qp_offset_c2;
+    ctx->qp_offset[X_C] = param->qp_offset_c3;
+
+    for(i = 0; i < N_C; i++) {
+        ctx->qp[i] = oapv_clip3(MIN_QUANT, MAX_QUANT(ctx->bit_depth), param->qp + ctx->qp_offset[i]);
     }
 
     // shift parameter for each color component
@@ -1035,14 +1050,14 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
 
         ctx->rc_param.lambda = oapve_rc_estimate_pic_lambda(ctx, cost_sum);
         if (ctx->param->qp == OAPVE_PARAM_QP_AUTO || ctx->rc_param.is_updated != 0) {
-            ctx->rc_param.qp = oapve_rc_estimate_pic_qp(ctx->rc_param.lambda);
+            ctx->rc_param.qp = oapve_rc_estimate_pic_qp(ctx, ctx->rc_param.lambda);
         }
         else {
             ctx->rc_param.qp = ctx->param->qp;
         }
 
         for(int c = 0; c < ctx->num_c; c++) {
-            ctx->qp[c] = oapv_clip3(MIN_QUANT, MAX_QUANT(10), ctx->rc_param.qp + ctx->qp_offset[c]);
+            ctx->qp[c] = oapv_clip3(MIN_QUANT, MAX_QUANT(ctx->bit_depth), ctx->rc_param.qp + ctx->qp_offset[c]);
         }
     }
 
@@ -1340,7 +1355,9 @@ int oapve_config(oapve_t eid, int cfg, void *buf, int *size)
     case OAPV_CFG_SET_QP:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         t0 = *((int *)buf);
-        oapv_assert_rv(t0 >= MIN_QUANT && t0 <= MAX_QUANT(10),
+        // input bit depth is unknown here; the exact bound is checked when
+        // encoding a frame
+        oapv_assert_rv(t0 >= MIN_QUANT && t0 <= enc_profile_max_qp(param->profile_idc),
                        OAPV_ERR_INVALID_ARGUMENT);
         param->qp = t0;
         break;
