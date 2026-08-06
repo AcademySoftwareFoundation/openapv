@@ -1140,6 +1140,7 @@ int main(int argc, const char **argv)
         param->profile_idc == OAPV_PROFILE_422_12_UNCONST ||
         param->profile_idc == OAPV_PROFILE_444_12_UNCONST ||
         param->profile_idc == OAPV_PROFILE_4444_12_UNCONST) ? 12 : (
+        param->profile_idc == OAPV_PROFILE_444_16C12 ||
         param->profile_idc == OAPV_PROFILE_4444_16C12) ? 16 : 0;
 
     if (codec_depth == 0) {

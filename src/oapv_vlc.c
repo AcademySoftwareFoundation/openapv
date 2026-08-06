@@ -1058,7 +1058,7 @@ int oapvd_vlc_frame_info(oapv_bs_t *bs, oapv_fi_t *fi)
 
     fi->use_companding = oapv_bsr_read1(bs);
     DUMP_HLS(fi->use_companding, fi->use_companding);
-    if(fi->profile_idc != OAPV_PROFILE_4444_16C12) {
+    if(fi->profile_idc != OAPV_PROFILE_444_16C12 && fi->profile_idc != OAPV_PROFILE_4444_16C12) {
         oapv_assert_rv(fi->use_companding == 0, OAPV_ERR_MALFORMED_BITSTREAM);
     }
 

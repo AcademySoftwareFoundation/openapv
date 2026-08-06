@@ -508,6 +508,7 @@ static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
     {"4444-10",     OAPV_PROFILE_4444_10},
     {"4444-12",     OAPV_PROFILE_4444_12},
     {"400-10",      OAPV_PROFILE_400_10},
+    {"444-16C12",   OAPV_PROFILE_444_16C12},
     {"4444-16C12",  OAPV_PROFILE_4444_16C12},
     {"422-10-UNCONST",  OAPV_PROFILE_422_10_UNCONST},
     {"422-12-UNCONST",  OAPV_PROFILE_422_12_UNCONST},
