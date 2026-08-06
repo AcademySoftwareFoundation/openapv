@@ -157,8 +157,9 @@ void oapv_trace_line(char *pre);
 /*****************************************************************************
  * memory operations
  *****************************************************************************/
-#define oapv_malloc(size)      malloc((size))
-#define oapv_malloc_fast(size) oapv_malloc((size))
+#define oapv_malloc(size)         malloc((size))
+#define oapv_mcalloc(count, size) calloc((count), (size))
+#define oapv_mrealloc(ptr, size)  realloc((ptr), (size))
 
 #define oapv_mfree(m) \
     {                 \
@@ -166,15 +167,19 @@ void oapv_trace_line(char *pre);
             free(m);  \
         }             \
     }
-#define oapv_mfree_fast(m) \
-    {                      \
-        if(m) {            \
-            oapv_mfree(m); \
-        }                  \
-    }
 
-void *oapv_malloc_align32(int size);
-void oapv_mfree_align32(void *p);
+/* Fill 'dst' with the default standard-C-library allocator interface. */
+void oapv_ops_mem_default(oapv_ops_mem_t *dst);
+
+/* Resolve caller-supplied 'src' into 'dst'. NULL or an all-NULL interface
+   selects the default; a partially-filled one is rejected. */
+int oapv_ops_mem_set(oapv_ops_mem_t *dst, const oapv_ops_mem_t *src);
+
+/* allocate/free through the instance's resolved memory interface */
+#define oapv_ops_malloc(ctx, size) \
+    ((ctx)->ops_mem.malloc((ctx)->ops_mem.udata, (size)))
+#define oapv_ops_free(ctx, ptr) \
+    ((ctx)->ops_mem.free((ctx)->ops_mem.udata, (ptr)))
 
 #define oapv_mcpy(dst, src, size)    memcpy((dst), (src), (size))
 #define oapv_mset(dst, v, size)      memset((dst), (v), (size))

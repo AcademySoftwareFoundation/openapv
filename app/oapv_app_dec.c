@@ -423,6 +423,7 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     oapvd_t          did = NULL;
     oapvm_t          mid = NULL;
     oapvd_cdesc_t    cdesc;
+    oapvm_cdesc_t    mdesc;
     oapv_au_info_t   aui;
     oapvd_stat_t     stat;
     unsigned char   *bs_buf = NULL;
@@ -449,6 +450,9 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         ret = -1;
         goto ERR;
     }
+
+    // clear descriptor so unset fields (e.g. ops_mem) default to zero
+    memset(&cdesc, 0, sizeof(oapvd_cdesc_t));
 
     // create decoder
     if(!strcmp(args_var->threads, "auto")){
@@ -480,7 +484,8 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     au_cnt = 0;
 
     /* create metadata container */
-    mid = oapvm_create(&ret);
+    memset(&mdesc, 0, sizeof(oapvm_cdesc_t));
+    mid = oapvm_create(&mdesc, &ret);
     if(OAPV_FAILED(ret)) {
         logerr("ERR: cannot create OAPV metadata container (err=%d)\n", ret);
         ret = -1;
@@ -802,6 +807,9 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         ptinfo_in_frm = NULL;
         ptinfo_dec = NULL;
     }
+
+    // clear descriptor so unset fields (e.g. ops_mem) default to zero
+    memset(&cdesc, 0, sizeof(oapvd_cdesc_t));
 
     // create decoder
     if(!strcmp(args_var->threads, "auto")){

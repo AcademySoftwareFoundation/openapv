@@ -31,6 +31,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "oapv_def.h"
 #include "oapv_tpool.h"
 #if defined(WIN32) || defined(WIN64)
 #include <windows.h>
@@ -58,10 +59,12 @@ typedef struct thread_ctx {
     tpool_result_t         t_result;
     int                    thread_id;
     int                    task_ret; // return value of task function
+    oapv_ops_mem_t         ops_mem;  // memory allocator of the owning pool
 } thread_ctx_t;
 
 typedef struct thread_mutex {
     pthread_mutex_t lmutex;
+    oapv_ops_mem_t  ops_mem;
 } thread_mutex_t;
 
 static void *tpool_worker_thread(void *arg)
@@ -122,11 +125,12 @@ static oapv_thread_t tpool_create_thread(oapv_tpool_t *tp, int thread_id)
 
     thread_ctx_t *tctx = NULL;
 
-    tctx = (thread_ctx_t *)malloc(sizeof(thread_ctx_t));
+    tctx = (thread_ctx_t *)oapv_ops_malloc(tp, sizeof(thread_ctx_t));
 
     if(!tctx) {
         return NULL; // error management, bad alloc
     }
+    tctx->ops_mem = tp->ops_mem;
 
     int result = 1;
 
@@ -182,7 +186,7 @@ ERR_WCOND:
 ERR_MUTEX:
     pthread_mutex_destroy(&tctx->c_section);
 ERR_FREE:
-    free(tctx);
+    oapv_ops_free(tp, tctx);
 
     return NULL; // can't create a worker thread with proper initialization
 }
@@ -272,7 +276,7 @@ static tpool_result_t tpool_terminate_thread(oapv_thread_t *thread_id)
     pthread_cond_destroy(&t_context->r_event);
 
     // delete the thread context memory
-    free(t_context);
+    oapv_ops_free(t_context, t_context);
     (*thread_id) = NULL;
     return TPOOL_SUCCESS;
 }
@@ -291,18 +295,19 @@ static int tpool_threadsafe_decrement(oapv_sync_obj_t sobj, volatile int *pcnt)
     return temp;
 }
 
-oapv_sync_obj_t oapv_tpool_sync_obj_create()
+oapv_sync_obj_t oapv_tpool_sync_obj_create(const oapv_ops_mem_t *ops)
 {
-    thread_mutex_t *imutex = (thread_mutex_t *)malloc(sizeof(thread_mutex_t));
+    thread_mutex_t *imutex = (thread_mutex_t *)ops->malloc(ops->udata, sizeof(thread_mutex_t));
     if(0 == imutex) {
         return 0; // failure case
     }
+    imutex->ops_mem = *ops;
 
     // intialize the mutex
     int result = pthread_mutex_init(&imutex->lmutex, NULL);
     if(result) {
         if(imutex) {
-            free(imutex);
+            ops->free(ops->udata, imutex);
         }
         imutex = 0;
     }
@@ -320,7 +325,7 @@ tpool_result_t oapv_tpool_sync_obj_delete(oapv_sync_obj_t *sobj)
     pthread_mutex_destroy(&imutex->lmutex);
 
     // free the memory
-    free(imutex);
+    oapv_ops_free(imutex, imutex);
     *sobj = NULL;
 
     return TPOOL_SUCCESS;
@@ -353,6 +358,7 @@ typedef struct thread_ctx {
     tpool_result_t         t_result;
     int                    task_ret;
     int                    thread_id;
+    oapv_ops_mem_t         ops_mem; // memory allocator of the owning pool
 
 } thread_ctx_t;
 
@@ -362,6 +368,7 @@ typedef struct thread_mutex {
 #else
     CRITICAL_SECTION c_section; // critical section for fast synchronization
 #endif
+    oapv_ops_mem_t ops_mem;
 
 } thread_mutex_t;
 
@@ -415,11 +422,12 @@ static oapv_thread_t tpool_create_thread(oapv_tpool_t *tp, int thread_id)
     }
 
     thread_ctx_t *thread_context = NULL;
-    thread_context = (thread_ctx_t *)malloc(sizeof(thread_ctx_t));
+    thread_context = (thread_ctx_t *)oapv_ops_malloc(tp, sizeof(thread_ctx_t));
 
     if(!thread_context) {
         return NULL; // error management, bad alloc
     }
+    thread_context->ops_mem = tp->ops_mem;
 
     // create waiting event
     // create waiting event as automatic reset, only one thread can come out of waiting state
@@ -461,7 +469,7 @@ TERROR:
     }
     DeleteCriticalSection(&thread_context->c_section);
     if(thread_context) {
-        free(thread_context);
+        oapv_ops_free(tp, thread_context);
     }
 
     return NULL; // error handling, can't create a worker thread with proper initialization
@@ -553,7 +561,7 @@ tpool_result_t tpool_terminate_thread(oapv_thread_t *thread_id)
     DeleteCriticalSection(&t_context->c_section);
 
     // delete the thread context memory
-    free(t_context);
+    oapv_ops_free(t_context, t_context);
     (*thread_id) = NULL;
 
     return TPOOL_SUCCESS;
@@ -593,19 +601,20 @@ static int tpool_threadsafe_decrement(oapv_sync_obj_t sobj, volatile int *pcnt)
     return temp;
 }
 
-oapv_sync_obj_t oapv_tpool_sync_obj_create()
+oapv_sync_obj_t oapv_tpool_sync_obj_create(const oapv_ops_mem_t *ops)
 {
-    thread_mutex_t *imutex = (thread_mutex_t *)malloc(sizeof(thread_mutex_t));
+    thread_mutex_t *imutex = (thread_mutex_t *)ops->malloc(ops->udata, sizeof(thread_mutex_t));
     if(0 == imutex) {
         return 0; // failure case
     }
+    imutex->ops_mem = *ops;
 
 #if WINDOWS_MUTEX_SYNC
     // initialize the created mutex instance
     imutex->lmutex = CreateMutex(NULL, FALSE, NULL);
     if(0 == imutex->lmutex) {
         if(imutex) {
-            free(imutex);
+            ops->free(ops->udata, imutex);
         }
         return 0;
     }
@@ -630,7 +639,7 @@ tpool_result_t oapv_tpool_sync_obj_delete(oapv_sync_obj_t *sobj)
 #endif
 
     // free the memory
-    free(imutex);
+    oapv_ops_free(imutex, imutex);
     *sobj = NULL;
 
     return TPOOL_SUCCESS;
@@ -649,12 +658,13 @@ void oapv_tpool_leave_cs(oapv_sync_obj_t sobj)
 
 #endif
 
-tpool_result_t oapv_tpool_init(oapv_tpool_t *tp, int maxtask)
+tpool_result_t oapv_tpool_init(oapv_tpool_t *tp, const oapv_ops_mem_t *ops, int maxtask)
 {
-    if(tp == NULL) return TPOOL_INVALID_ARG;
+    if(tp == NULL || ops == NULL) return TPOOL_INVALID_ARG;
     // assign handles to threadcontroller object
     // handles for create, run, join and terminate will be given to controller  object
 
+    tp->ops_mem = *ops;
     tp->create = tpool_create_thread;
     tp->run = tpool_assign_task;
     tp->join = tpool_retrieve_result;

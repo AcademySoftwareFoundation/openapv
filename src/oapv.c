@@ -175,24 +175,25 @@ static oapve_ctx_t *enc_id_to_ctx(oapve_t id)
     return ctx;
 }
 
-static oapve_ctx_t *enc_ctx_alloc(void)
+static oapve_ctx_t *enc_ctx_alloc(const oapv_ops_mem_t *ops)
 {
     oapve_ctx_t *ctx;
-    ctx = (oapve_ctx_t *)oapv_malloc_fast(sizeof(oapve_ctx_t));
+    ctx = (oapve_ctx_t *)ops->malloc(ops->udata, sizeof(oapve_ctx_t));
     oapv_assert_rv(ctx, NULL);
     oapv_mset_x64a(ctx, 0, sizeof(oapve_ctx_t));
+    ctx->ops_mem = *ops;
     return ctx;
 }
 
 static void enc_ctx_free(oapve_ctx_t *ctx)
 {
-    oapv_mfree_fast(ctx);
+    ctx->ops_mem.free(ctx->ops_mem.udata, ctx);
 }
 
-static oapve_core_t *enc_core_alloc()
+static oapve_core_t *enc_core_alloc(oapve_ctx_t *ctx)
 {
     oapve_core_t *core;
-    core = (oapve_core_t *)oapv_malloc_fast(sizeof(oapve_core_t));
+    core = (oapve_core_t *)oapv_ops_malloc(ctx, sizeof(oapve_core_t));
 
     oapv_assert_rv(core, NULL);
     oapv_mset_x64a(core, 0, sizeof(oapve_core_t));
@@ -200,9 +201,9 @@ static oapve_core_t *enc_core_alloc()
     return core;
 }
 
-static void enc_core_free(oapve_core_t *core)
+static void enc_core_free(oapve_ctx_t *ctx, oapve_core_t *core)
 {
-    oapv_mfree_fast(core);
+    oapv_ops_free(ctx, core);
 }
 
 static int enc_core_init(oapve_core_t *core, oapve_ctx_t *ctx, int tile_idx, int thread_idx)
@@ -544,7 +545,7 @@ static void enc_flush(oapve_ctx_t *ctx)
             }
             // deinitialize the tc
             oapv_tpool_deinit(ctx->tpool);
-            oapv_mfree_fast(ctx->tpool);
+            oapv_ops_free(ctx, ctx->tpool);
             ctx->tpool = NULL;
         }
     }
@@ -553,11 +554,11 @@ static void enc_flush(oapve_ctx_t *ctx)
         oapv_tpool_sync_obj_delete(&ctx->sync_obj);
     }
     for(int i = 0; i < ctx->threads; i++) {
-        enc_core_free(ctx->core[i]);
+        enc_core_free(ctx, ctx->core[i]);
         ctx->core[i] = NULL;
     }
 
-    oapv_mfree_fast(ctx->tile[0].bs_buf);
+    oapv_ops_free(ctx, ctx->tile[0].bs_buf);
 }
 
 static int enc_ready(oapve_ctx_t *ctx)
@@ -570,7 +571,7 @@ static int enc_ready(oapve_ctx_t *ctx)
     oapv_assert_g(ret == OAPV_OK, ERR);
 
     for(int i = 0; i < ctx->threads; i++) {
-        core = enc_core_alloc();
+        core = enc_core_alloc(ctx);
         oapv_assert_gv(core != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
         ctx->core[i] = core;
     }
@@ -581,13 +582,13 @@ static int enc_ready(oapve_ctx_t *ctx)
     }
 
     // get the context synchronization handle
-    ctx->sync_obj = oapv_tpool_sync_obj_create();
+    ctx->sync_obj = oapv_tpool_sync_obj_create(&ctx->ops_mem);
     oapv_assert_gv(ctx->sync_obj != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
 
     if(ctx->threads >= 1) {
-        ctx->tpool = oapv_malloc(sizeof(oapv_tpool_t));
+        ctx->tpool = oapv_ops_malloc(ctx, sizeof(oapv_tpool_t));
         oapv_assert_gv(ctx->tpool != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
-        oapv_tpool_init(ctx->tpool, ctx->threads);
+        oapv_tpool_init(ctx->tpool, &ctx->ops_mem, ctx->threads);
         for(int i = 0; i < ctx->threads; i++) {
             ctx->thread_id[i] = ctx->tpool->create(ctx->tpool, i);
             oapv_assert_gv(ctx->thread_id[i] != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
@@ -597,7 +598,7 @@ static int enc_ready(oapve_ctx_t *ctx)
     for(int i = 0; i < OAPV_MAX_TILES; i++) {
         ctx->tile[i].stat = ENC_TILE_STAT_NOT_ENCODED;
     }
-    ctx->tile[0].bs_buf = (u8 *)oapv_malloc(ctx->cdesc.max_bs_buf_size);
+    ctx->tile[0].bs_buf = (u8 *)oapv_ops_malloc(ctx, ctx->cdesc.max_bs_buf_size);
     oapv_assert_gv(ctx->tile[0].bs_buf, ret, OAPV_ERR_UNKNOWN, ERR);
 
     ctx->rc_param.alpha = OAPV_RC_ALPHA;
@@ -1144,6 +1145,7 @@ oapve_t oapve_create(oapve_cdesc_t *cdesc, int *err)
 {
     oapve_ctx_t *ctx;
     int          ret;
+    oapv_ops_mem_t ops;
 
     DUMP_CREATE(1);
 
@@ -1156,8 +1158,14 @@ oapve_t oapve_create(oapve_cdesc_t *cdesc, int *err)
         return NULL;
     }
 
+    ret = oapv_ops_mem_set(&ops, cdesc->ops_mem);
+    if(ret != OAPV_OK) {
+        if(err) *err = ret;
+        return NULL;
+    }
+
     /* memory allocation for ctx and core structure */
-    ctx = (oapve_ctx_t *)enc_ctx_alloc();
+    ctx = (oapve_ctx_t *)enc_ctx_alloc(&ops);
     if(ctx != NULL) {
         oapv_mcpy(&ctx->cdesc, cdesc, sizeof(oapve_cdesc_t));
         ret = enc_platform_init(ctx);
@@ -1419,28 +1427,29 @@ static oapvd_ctx_t *dec_id_to_ctx(oapvd_t id)
     return ctx;
 }
 
-static oapvd_ctx_t *dec_ctx_alloc(void)
+static oapvd_ctx_t *dec_ctx_alloc(const oapv_ops_mem_t *ops)
 {
     oapvd_ctx_t *ctx;
 
-    ctx = (oapvd_ctx_t *)oapv_malloc_fast(sizeof(oapvd_ctx_t));
+    ctx = (oapvd_ctx_t *)ops->malloc(ops->udata, sizeof(oapvd_ctx_t));
 
     oapv_assert_rv(ctx != NULL, NULL);
     oapv_mset_x64a(ctx, 0, sizeof(oapvd_ctx_t));
+    ctx->ops_mem = *ops;
 
     return ctx;
 }
 
 static void dec_ctx_free(oapvd_ctx_t *ctx)
 {
-    oapv_mfree_fast(ctx);
+    ctx->ops_mem.free(ctx->ops_mem.udata, ctx);
 }
 
-static oapvd_core_t *dec_core_alloc(void)
+static oapvd_core_t *dec_core_alloc(oapvd_ctx_t *ctx)
 {
     oapvd_core_t *core;
 
-    core = (oapvd_core_t *)oapv_malloc_fast(sizeof(oapvd_core_t));
+    core = (oapvd_core_t *)oapv_ops_malloc(ctx, sizeof(oapvd_core_t));
 
     oapv_assert_rv(core, NULL);
     oapv_mset_x64a(core, 0, sizeof(oapvd_core_t));
@@ -1448,9 +1457,9 @@ static oapvd_core_t *dec_core_alloc(void)
     return core;
 }
 
-static void dec_core_free(oapvd_core_t *core)
+static void dec_core_free(oapvd_ctx_t *ctx, oapvd_core_t *core)
 {
-    oapv_mfree_fast(core);
+    oapv_ops_free(ctx, core);
 }
 
 static int dec_block(oapvd_ctx_t *ctx, oapvd_core_t *core, int log2_w, int log2_h, int c)
@@ -1807,7 +1816,7 @@ static void dec_flush(oapvd_ctx_t *ctx)
             }
             // deinitialize the tpool
             oapv_tpool_deinit(ctx->tpool);
-            oapv_mfree(ctx->tpool);
+            oapv_ops_free(ctx, ctx->tpool);
             ctx->tpool = NULL;
         }
     }
@@ -1817,7 +1826,7 @@ static void dec_flush(oapvd_ctx_t *ctx)
     }
 
     for(int i = 0; i < ctx->threads; i++) {
-        dec_core_free(ctx->core[i]);
+        dec_core_free(ctx, ctx->core[i]);
     }
 }
 
@@ -1837,7 +1846,7 @@ static int dec_ready(oapvd_ctx_t *ctx)
     if(ctx->core[0] == NULL) {
         // create cores
         for(i = 0; i < ctx->threads; i++) {
-            ctx->core[i] = dec_core_alloc();
+            ctx->core[i] = dec_core_alloc(ctx);
             oapv_assert_gv(ctx->core[i], ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
             ctx->core[i]->ctx = ctx;
         }
@@ -1849,13 +1858,13 @@ static int dec_ready(oapvd_ctx_t *ctx)
     }
 
     // get the context synchronization handle
-    ctx->sync_obj = oapv_tpool_sync_obj_create();
+    ctx->sync_obj = oapv_tpool_sync_obj_create(&ctx->ops_mem);
     oapv_assert_gv(ctx->sync_obj != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
 
     if(ctx->threads >= 2) {
-        ctx->tpool = oapv_malloc(sizeof(oapv_tpool_t));
+        ctx->tpool = oapv_ops_malloc(ctx, sizeof(oapv_tpool_t));
         oapv_assert_gv(ctx->tpool != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
-        oapv_tpool_init(ctx->tpool, ctx->threads - 1);
+        oapv_tpool_init(ctx->tpool, &ctx->ops_mem, ctx->threads - 1);
         for(i = 0; i < ctx->threads - 1; i++) {
             ctx->thread_id[i] = ctx->tpool->create(ctx->tpool, i);
             oapv_assert_gv(ctx->thread_id[i] != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
@@ -1901,6 +1910,7 @@ oapvd_t oapvd_create(oapvd_cdesc_t *cdesc, int *err)
 {
     oapvd_ctx_t *ctx;
     int          ret;
+    oapv_ops_mem_t ops;
 
     DUMP_CREATE(0);
     ctx = NULL;
@@ -1914,8 +1924,14 @@ oapvd_t oapvd_create(oapvd_cdesc_t *cdesc, int *err)
         return NULL;
     }
 
+    ret = oapv_ops_mem_set(&ops, cdesc->ops_mem);
+    if(ret != OAPV_OK) {
+        if(err) *err = ret;
+        return NULL;
+    }
+
     /* memory allocation for ctx and core structure */
-    ctx = (oapvd_ctx_t *)dec_ctx_alloc();
+    ctx = (oapvd_ctx_t *)dec_ctx_alloc(&ops);
     oapv_assert_gv(ctx != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
     oapv_mcpy(&ctx->cdesc, cdesc, sizeof(oapvd_cdesc_t));
 

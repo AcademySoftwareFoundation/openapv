@@ -313,15 +313,17 @@ int oapv_set_md5_pld(oapvm_t mid, int group_id, oapv_imgb_t *rec)
 {
     int ret = oapv_imgb_set_md5(rec);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
-    u8 *mdp_data = oapv_malloc((16 * rec->np) + 16);
+    oapvm_ctx_t *mctx = oapvm_id_to_ctx(mid);
+    oapv_assert_rv(mctx != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    u8 *mdp_data = oapv_ops_malloc(mctx, (16 * rec->np) + 16);
     oapv_assert_rv(mdp_data != NULL, OAPV_ERR_OUT_OF_MEMORY);
     memcpy(mdp_data, uuid_frm_hash, 16);
     for(int i = 0; i < rec->np; i++) {
         memcpy(mdp_data + ((i + 1) * 16), rec->hash[i], 16);
     }
     ret = oapvm_set(mid, group_id, OAPV_METADATA_USER_DEFINED, mdp_data, 16 * rec->np + 16);
+    oapv_ops_free(mctx, mdp_data);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
-    oapv_mfree(mdp_data);
     return OAPV_OK;
 }
 

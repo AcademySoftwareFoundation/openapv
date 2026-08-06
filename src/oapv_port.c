@@ -30,32 +30,60 @@
  */
 
 #include <stdarg.h>
-#include "oapv_port.h"
+#include "oapv_def.h"
 
-void *oapv_malloc_align32(int size)
+static void *oapv_ops_mem_alloc_libc(void *udata, unsigned int size)
 {
-    void *p = NULL;
-
-    // p variable is covered under ap. It's user rosponsibility to free it using funcion oapv_mfree_align32.
-    p = oapv_malloc(size + 32 + sizeof(void *));
-    if(p) {
-
-#ifdef _IS64BIT // for 64bit CPU
-        void **ap = (void **)(((u64)(p) + 32 + sizeof(void *) - 1) & (~0x1F));
-#else // for 32bit CPU
-        void **ap = (void **)(((u32)(p) + 32 + sizeof(void *) - 1) & (~0x1F));
-#endif
-        ap[-1] = (void *)p;
-        return (void *)ap;
-    }
-    return NULL;
+    (void)udata;
+    return oapv_malloc(size);
 }
 
-void oapv_mfree_align32(void *p)
+static void *oapv_ops_mem_calloc_libc(void *udata, unsigned int count, unsigned int size)
 {
-    if(p) {
-        oapv_mfree(((void **)p)[-1]);
+    (void)udata;
+    return oapv_mcalloc(count, size);
+}
+
+static void *oapv_ops_mem_realloc_libc(void *udata, void *ptr, unsigned int size)
+{
+    (void)udata;
+    return oapv_mrealloc(ptr, size);
+}
+
+static void oapv_ops_mem_free_libc(void *udata, void *ptr)
+{
+    (void)udata;
+    oapv_mfree(ptr);
+}
+
+void oapv_ops_mem_default(oapv_ops_mem_t *dst)
+{
+    dst->magic   = OAPV_OPS_MAGIC_CODE_MEM;
+    dst->malloc  = oapv_ops_mem_alloc_libc;
+    dst->calloc  = oapv_ops_mem_calloc_libc;
+    dst->realloc = oapv_ops_mem_realloc_libc;
+    dst->free    = oapv_ops_mem_free_libc;
+    dst->udata   = NULL;
+}
+
+int oapv_ops_mem_set(oapv_ops_mem_t *dst, const oapv_ops_mem_t *src)
+{
+    int nset;
+    if(src == NULL) {
+        oapv_ops_mem_default(dst);
+        return OAPV_OK;
     }
+    nset = (src->malloc != NULL) + (src->calloc != NULL) +
+           (src->realloc != NULL) + (src->free != NULL);
+    if(nset == 0) {
+        oapv_ops_mem_default(dst);
+        return OAPV_OK;
+    }
+    if(nset == 4 && src->magic == OAPV_OPS_MAGIC_CODE_MEM) {
+        *dst = *src;
+        return OAPV_OK;
+    }
+    return OAPV_ERR_INVALID_ARGUMENT;
 }
 
 void oapv_trace0(char *filename, int line, const char *fmt, ...)

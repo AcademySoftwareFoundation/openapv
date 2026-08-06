@@ -116,6 +116,90 @@ Decoding:
 
     oapv_app_dec -i encoded.apv -o output.y4m
 
+## Custom memory allocator
+
+By default the library allocates with the standard C library. An application
+can instead supply its own allocator **per instance** through the
+`ops_mem` field of the creation descriptor (`oapve_cdesc_t` / `oapvd_cdesc_t` /
+`oapvm_cdesc_t`). This is useful for integrating with a host memory manager
+(e.g. a game-engine allocator) or for memory tracking. There is no global
+allocator state.
+
+The interface is `oapv_ops_mem_t` (declared in `oapv.h`):
+
+```c
+typedef struct oapv_ops_mem {
+    unsigned int magic;   // set to OAPV_OPS_MAGIC_CODE_MEM when used
+    void *(*malloc) (void *udata, unsigned int size);
+    void *(*calloc) (void *udata, unsigned int count, unsigned int size);
+    void *(*realloc)(void *udata, void *ptr, unsigned int size);
+    void  (*free)   (void *udata, void *ptr);
+    void  *udata;         // opaque pointer passed back to every callback
+} oapv_ops_mem_t;
+```
+
+Rules:
+- Provide **all four** function pointers (custom), or **none** — leave
+  `ops_mem` as `NULL` to use the standard C library. A partially-filled
+  interface is rejected with `OAPV_ERR_INVALID_ARGUMENT`.
+- When providing custom allocators, set `magic` to `OAPV_OPS_MAGIC_CODE_MEM`.
+- `udata` is passed unchanged to every callback; the object it points to must
+  stay valid for the lifetime of the codec instance.
+- `free` must accept a `NULL` pointer (like standard `free`).
+- Zero-initialize the descriptor so `ops_mem` defaults to `NULL` when not used.
+
+Example (encoder; the decoder is identical via `oapvd_cdesc_t.ops_mem`):
+
+```c
+static void *my_malloc(void *u, unsigned int s)
+{
+    return my_alloc((MyHeap *)u, s);
+}
+
+static void *my_calloc(void *u, unsigned int c, unsigned int s)
+{
+    return my_zalloc((MyHeap *)u, c, s);
+}
+
+static void *my_realloc(void *u, void *p, unsigned int s)
+{
+    return my_realloc_((MyHeap *)u, p, s);
+}
+
+static void my_free(void *u, void *p)
+{
+    my_free_((MyHeap *)u, p);
+}
+
+int main(void)
+{
+    MyHeap heap = /* ... */;
+    oapv_ops_mem_t ops = {
+        OAPV_OPS_MAGIC_CODE_MEM,
+        my_malloc, my_calloc, my_realloc, my_free,
+        &heap
+    };
+
+    oapve_cdesc_t cdesc;
+    memset(&cdesc, 0, sizeof(cdesc)); // ops_mem defaults to NULL
+    /* ... set other cdesc fields ... */
+    cdesc.ops_mem = &ops;             // opt in to the custom allocator
+
+    int err;
+    oapve_t eid = oapve_create(&cdesc, &err);
+}
+```
+
+The metadata container takes the same interface through `oapvm_cdesc_t`:
+
+```c
+oapvm_cdesc_t mdesc;
+memset(&mdesc, 0, sizeof(mdesc)); // ops_mem defaults to NULL
+mdesc.ops_mem = &ops;             // opt in to the custom allocator
+
+oapvm_t mid = oapvm_create(&mdesc, &err);
+```
+
 ## Utility
 
 ### Graphical APV bitstream parser
