@@ -1273,7 +1273,7 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         fh_to_finfo(&ctx->fh, frm->pbu_type, frm->group_id, &stat->aui.frm_info[i]);
 
         // add frame hash value of reconstructed frame into metadata list
-        if(ctx->use_frm_hash) {
+        if(ctx->use_frm_hash[i]) {
             if(frm->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME ||
                frm->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME) {
                 oapv_assert_rv(mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
@@ -1368,7 +1368,7 @@ int oapve_config(oapve_t eid, int cfg, void *buf, int *size)
         break;
     case OAPV_CFG_SET_USE_FRM_HASH:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
-        ctx->use_frm_hash = (*((int *)buf)) ? 1 : 0;
+        ctx->use_frm_hash[frm_idx] = (*((int *)buf)) ? 1 : 0;
         break;
     case OAPV_CFG_SET_AU_BS_FMT:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
