@@ -175,32 +175,6 @@ static oapve_ctx_t *enc_id_to_ctx(oapve_t id)
     return ctx;
 }
 
-/* allocate/free through the instance's resolved memory interface */
-#define oapv_ops_malloc(ctx, size) \
-    ((ctx)->ops_mem.malloc((ctx)->ops_mem.udata, (size)))
-#define oapv_ops_free(ctx, ptr) \
-    ((ctx)->ops_mem.free((ctx)->ops_mem.udata, (ptr)))
-
-static int set_ops_mem(oapv_ops_mem_t *dst, const oapv_ops_mem_t *src)
-{
-    int nset;
-    if(src == NULL) {
-        oapv_ops_mem_default(dst);
-        return OAPV_OK;
-    }
-    nset = (src->malloc != NULL) + (src->calloc != NULL) +
-           (src->realloc != NULL) + (src->free != NULL);
-    if(nset == 0) {
-        oapv_ops_mem_default(dst);
-        return OAPV_OK;
-    }
-    if(nset == 4 && src->magic == OAPV_OPS_MAGIC_CODE_MEM) {
-        *dst = *src;
-        return OAPV_OK;
-    }
-    return OAPV_ERR_INVALID_ARGUMENT;
-}
-
 static oapve_ctx_t *enc_ctx_alloc(const oapv_ops_mem_t *ops)
 {
     oapve_ctx_t *ctx;
@@ -1177,7 +1151,7 @@ oapve_t oapve_create(oapve_cdesc_t *cdesc, int *err)
         return NULL;
     }
 
-    ret = set_ops_mem(&ops, cdesc->ops_mem);
+    ret = oapv_ops_mem_set(&ops, cdesc->ops_mem);
     if(ret != OAPV_OK) {
         if(err) *err = ret;
         return NULL;
@@ -1935,7 +1909,7 @@ oapvd_t oapvd_create(oapvd_cdesc_t *cdesc, int *err)
         return NULL;
     }
 
-    ret = set_ops_mem(&ops, cdesc->ops_mem);
+    ret = oapv_ops_mem_set(&ops, cdesc->ops_mem);
     if(ret != OAPV_OK) {
         if(err) *err = ret;
         return NULL;

@@ -875,6 +875,7 @@ int main(int argc, const char **argv)
     oapve_t        id = NULL;
     oapvm_t        mid = NULL;
     oapve_cdesc_t  cdesc;
+    oapvm_cdesc_t  mdesc;
     oapve_param_t *param = NULL;
     oapv_bitb_t    bitb;
     oapve_stat_t   stat;
@@ -1076,7 +1077,8 @@ int main(int argc, const char **argv)
     }
 
     /* create metadata handler */
-    mid = oapvm_create(&ret);
+    memset(&mdesc, 0, sizeof(oapvm_cdesc_t));
+    mid = oapvm_create(&mdesc, &ret);
     if(mid == NULL || OAPV_FAILED(ret)) {
         logerr("ERR: cannot create OAPV metadata handler\n");
         ret = -1;

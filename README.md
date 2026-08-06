@@ -119,9 +119,9 @@ Decoding:
 ## Custom memory allocator
 
 By default the library allocates with the standard C library. An application
-can instead supply its own allocator **per codec instance** through the
-`ops_mem` field of the encoder/decoder descriptor (`oapve_cdesc_t` /
-`oapvd_cdesc_t`). This is useful for integrating with a host memory manager
+can instead supply its own allocator **per instance** through the
+`ops_mem` field of the creation descriptor (`oapve_cdesc_t` / `oapvd_cdesc_t` /
+`oapvm_cdesc_t`). This is useful for integrating with a host memory manager
 (e.g. a game-engine allocator) or for memory tracking. There is no global
 allocator state.
 
@@ -188,6 +188,16 @@ int main(void)
     int err;
     oapve_t eid = oapve_create(&cdesc, &err);
 }
+```
+
+The metadata container takes the same interface through `oapvm_cdesc_t`:
+
+```c
+oapvm_cdesc_t mdesc;
+memset(&mdesc, 0, sizeof(mdesc)); // ops_mem defaults to NULL
+mdesc.ops_mem = &ops;             // opt in to the custom allocator
+
+oapvm_t mid = oapvm_create(&mdesc, &err);
 ```
 
 ## Utility

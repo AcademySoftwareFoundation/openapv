@@ -730,13 +730,22 @@ struct oapvm_payload {
 };
 
 /*****************************************************************************
+ * description for metadata container creation
+ *****************************************************************************/
+typedef struct oapvm_cdesc oapvm_cdesc_t;
+struct oapvm_cdesc {
+    // custom memory allocator interface, or NULL for standard C library
+    const oapv_ops_mem_t *ops_mem;
+};
+
+/*****************************************************************************
  * interface for metadata container
  *****************************************************************************/
 /* instance identifier for OAPV metadata container*/
 typedef void       *oapvm_t;
 
 /* main APIs *****************************************************************/
-OAPV_EXPORT oapvm_t oapvm_create(int *err);
+OAPV_EXPORT oapvm_t oapvm_create(oapvm_cdesc_t *cdesc, int *err);
 OAPV_EXPORT void oapvm_delete(oapvm_t mid);
 OAPV_EXPORT int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size);
 OAPV_EXPORT int oapvm_get(oapvm_t mid, int group_id, int type, void **data, int *size, unsigned char *uuid);

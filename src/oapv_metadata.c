@@ -32,7 +32,7 @@
 #include "oapv_def.h"
 #include "oapv_metadata.h"
 
-static oapvm_ctx_t *meta_id_to_ctx(oapvm_t id)
+oapvm_ctx_t *oapvm_id_to_ctx(oapvm_t id)
 {
     oapvm_ctx_t *ctx;
     oapv_assert_rv(id, NULL);
@@ -101,7 +101,7 @@ static oapv_mdp_t *meta_md_find_mdp_with_prev(oapv_md_t *md, int type, unsigned 
     return (type == OAPV_METADATA_USER_DEFINED) ? meta_mdp_find_ud(md, uuid, prev_mdp) : meta_mdp_find_non_ud(md, type, prev_mdp);
 }
 
-static int meta_rm_mdp(oapv_md_t *md, int mdt, unsigned char *uuid)
+static int meta_rm_mdp(oapvm_ctx_t *ctx, oapv_md_t *md, int mdt, unsigned char *uuid)
 {
     oapv_mdp_t *mdp, *mdp_prev;
     mdp = meta_md_find_mdp_with_prev(md, mdt, uuid, &mdp_prev);
@@ -113,8 +113,8 @@ static int meta_rm_mdp(oapv_md_t *md, int mdt, unsigned char *uuid)
         mdp_prev->next = mdp->next;
     }
 
-    oapv_mfree(mdp->pld_data);
-    oapv_mfree(mdp);
+    oapv_ops_free(ctx, mdp->pld_data);
+    oapv_ops_free(ctx, mdp);
     md->mdp_num--;
     return OAPV_OK;
 }
@@ -170,14 +170,14 @@ static int meta_verify_mdp_data(int type, int size, u8 *data)
     return OAPV_OK;
 }
 
-static void meta_free_md(oapv_md_t *md)
+static void meta_free_md(oapvm_ctx_t *ctx, oapv_md_t *md)
 {
     oapv_mdp_t *mdp = md->md_payload;
     while(mdp != NULL) {
-        oapv_mfree(mdp->pld_data);
+        oapv_ops_free(ctx, mdp->pld_data);
         oapv_mdp_t *mdp_t = mdp;
         mdp = mdp->next;
-        oapv_mfree(mdp_t);
+        oapv_ops_free(ctx, mdp_t);
     }
 }
 
@@ -282,7 +282,7 @@ int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size)
     int          ret = OAPV_OK;
     u8          *uuid = NULL;
 
-    oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
+    oapvm_ctx_t *ctx = oapvm_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv((data != NULL && size > 0) || (data == NULL && size == 0), OAPV_ERR_INVALID_ARGUMENT);
 
@@ -294,7 +294,7 @@ int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size)
     }
 
     if(size > 0) {
-        pld_data_new = oapv_malloc(size);
+        pld_data_new = oapv_ops_malloc(ctx, size);
         oapv_assert_rv(pld_data_new != NULL, OAPV_ERR_OUT_OF_MEMORY);
         oapv_mcpy(pld_data_new, data, size);
     }
@@ -314,7 +314,7 @@ int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size)
 
     oapv_mdp_t *mdp_t = meta_find_mdp(md, type, uuid);
     if(mdp_t == NULL) { // add new one
-        mdp_new = oapv_malloc(sizeof(oapv_mdp_t));
+        mdp_new = oapv_ops_malloc(ctx, sizeof(oapv_mdp_t));
         oapv_assert_gv(mdp_new != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
         mdp_new->pld_size = size;
         mdp_new->pld_type = type;
@@ -326,22 +326,22 @@ int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size)
     }
     else { // replace the exist one
         mdp_t->pld_size = size;
-        oapv_mfree(mdp_t->pld_data);
+        oapv_ops_free(ctx, mdp_t->pld_data);
         mdp_t->pld_data = pld_data_new;
     }
     return OAPV_OK;
 
 ERR:
     if(mdp_new)
-        oapv_mfree(mdp_new);
+        oapv_ops_free(ctx, mdp_new);
     if(pld_data_new)
-        oapv_mfree(pld_data_new);
+        oapv_ops_free(ctx, pld_data_new);
     return ret;
 }
 
 int oapvm_get(oapvm_t mid, int group_id, int type, void **data, int *size, unsigned char *uuid)
 {
-    oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
+    oapvm_ctx_t *ctx = oapvm_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(data != NULL && size != NULL, OAPV_ERR_INVALID_ARGUMENT);
     // user-defined lookup compares a 16-byte uuid; it must be provided
@@ -361,13 +361,13 @@ ERR:
 
 int oapvm_rem(oapvm_t mid, int group_id, int type, unsigned char *uuid)
 {
-    oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
+    oapvm_ctx_t *ctx = oapvm_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
     // user-defined lookup compares a 16-byte uuid; it must be provided
     oapv_assert_rv(type != OAPV_METADATA_USER_DEFINED || uuid != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_md_t   *md = meta_find_md(ctx, group_id);
     oapv_assert_g(md != NULL, ERR);
-    return meta_rm_mdp(md, type, uuid);
+    return meta_rm_mdp(ctx, md, type, uuid);
 
 ERR:
     return OAPV_ERR_NOT_FOUND;
@@ -391,7 +391,7 @@ ERR:
 
 int oapvm_get_all(oapvm_t mid, oapvm_payload_t *pld, int *num_plds)
 {
-    oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
+    oapvm_ctx_t *ctx = oapvm_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(num_plds != NULL, OAPV_ERR_INVALID_ARGUMENT);
     if(pld == NULL) {
@@ -429,35 +429,70 @@ int oapvm_get_all(oapvm_t mid, oapvm_payload_t *pld, int *num_plds)
 
 void oapvm_rem_all(oapvm_t mid)
 {
-    oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
+    oapvm_ctx_t *ctx = oapvm_id_to_ctx(mid);
     oapv_assert_r(ctx != NULL);
     for(int i = 0; i < ctx->num; i++) {
-        meta_free_md(&ctx->md_arr[i]);
+        meta_free_md(ctx, &ctx->md_arr[i]);
         oapv_mset(&ctx->md_arr[i], 0, sizeof(oapv_md_t));
     }
     ctx->num = 0;
 }
 
-oapvm_t oapvm_create(int *err)
+static oapvm_ctx_t *meta_ctx_alloc(const oapv_ops_mem_t *ops)
 {
     oapvm_ctx_t *ctx;
-    ctx = oapv_malloc(sizeof(oapvm_ctx_t));
+
+    ctx = (oapvm_ctx_t *)ops->malloc(ops->udata, sizeof(oapvm_ctx_t));
+
+    oapv_assert_rv(ctx != NULL, NULL);
+    oapv_mset(ctx, 0, sizeof(oapvm_ctx_t));
+    ctx->ops_mem = *ops;
+
+    return ctx;
+}
+
+static void meta_ctx_free(oapvm_ctx_t *ctx)
+{
+    ctx->ops_mem.free(ctx->ops_mem.udata, ctx);
+}
+
+oapvm_t oapvm_create(oapvm_cdesc_t *cdesc, int *err)
+{
+    oapvm_ctx_t   *ctx;
+    int            ret;
+    oapv_ops_mem_t ops;
+
+    if(cdesc == NULL) {
+        if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
+        return NULL;
+    }
+
+    ret = oapv_ops_mem_set(&ops, cdesc->ops_mem);
+    if(ret != OAPV_OK) {
+        if(err) *err = ret;
+        return NULL;
+    }
+
+    ctx = meta_ctx_alloc(&ops);
     if(ctx == NULL) {
         if(err) *err = OAPV_ERR_OUT_OF_MEMORY;
         return NULL;
     }
-    oapv_mset(ctx, 0, sizeof(oapvm_ctx_t));
+    oapv_mcpy(&ctx->cdesc, cdesc, sizeof(oapvm_cdesc_t));
 
     ctx->magic = OAPVM_MAGIC_CODE;
+    if(err) {
+        *err = OAPV_OK;
+    }
     return ctx;
 }
 
 void oapvm_delete(oapvm_t mid)
 {
-    oapvm_ctx_t *ctx = meta_id_to_ctx(mid);
+    oapvm_ctx_t *ctx = oapvm_id_to_ctx(mid);
     oapv_assert_r(ctx != NULL);
     for(int i = 0; i < ctx->num; i++) {
-        meta_free_md(&ctx->md_arr[i]);
+        meta_free_md(ctx, &ctx->md_arr[i]);
     }
-    oapv_mfree(ctx);
+    meta_ctx_free(ctx);
 }

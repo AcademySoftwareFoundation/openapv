@@ -423,6 +423,7 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     oapvd_t          did = NULL;
     oapvm_t          mid = NULL;
     oapvd_cdesc_t    cdesc;
+    oapvm_cdesc_t    mdesc;
     oapv_au_info_t   aui;
     oapvd_stat_t     stat;
     unsigned char   *bs_buf = NULL;
@@ -483,7 +484,8 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     au_cnt = 0;
 
     /* create metadata container */
-    mid = oapvm_create(&ret);
+    memset(&mdesc, 0, sizeof(oapvm_cdesc_t));
+    mid = oapvm_create(&mdesc, &ret);
     if(OAPV_FAILED(ret)) {
         logerr("ERR: cannot create OAPV metadata container (err=%d)\n", ret);
         ret = -1;

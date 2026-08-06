@@ -55,10 +55,14 @@ struct oapv_md {
 
 typedef struct oapvm_ctx oapvm_ctx_t;
 struct oapvm_ctx {
-    u32       magic; // magic code
-    oapv_md_t md_arr[OAPV_MAX_NUM_METAS];
-    int       num;
+    u32            magic; // magic code
+    oapvm_cdesc_t  cdesc;
+    oapv_ops_mem_t ops_mem; // effective memory allocator
+    oapv_md_t      md_arr[OAPV_MAX_NUM_METAS];
+    int            num;
 };
+
+oapvm_ctx_t *oapvm_id_to_ctx(oapvm_t id);
 
 /* Filler metadata */
 typedef struct oapv_md_fm oapv_md_fm_t;
