@@ -13,6 +13,7 @@ The OpenAPV supports the following features:
 - Various metadata including HDR10/10+ and user-defined format
 - Constant QP (CQP) and average bitrate (ABR) rate control algorithms
 - [APV Family](/readme/apv_family.md) configurations for typical target bitrate setting of encoder
+- [APV Profile Extensions](/docs/profile_ext.md) defined by the OpenAPV project on top of the RFC 9924 profiles
 
 
 ## APV codec
