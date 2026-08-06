@@ -158,7 +158,6 @@ void oapv_trace_line(char *pre);
  * memory operations
  *****************************************************************************/
 #define oapv_malloc(size)         malloc((size))
-#define oapv_malloc_fast(size)    oapv_malloc((size))
 #define oapv_mcalloc(count, size) calloc((count), (size))
 #define oapv_mrealloc(ptr, size)  realloc((ptr), (size))
 
@@ -167,12 +166,6 @@ void oapv_trace_line(char *pre);
         if(m) {       \
             free(m);  \
         }             \
-    }
-#define oapv_mfree_fast(m) \
-    {                      \
-        if(m) {            \
-            oapv_mfree(m); \
-        }                  \
     }
 
 /* Fill 'dst' with the default standard-C-library allocator interface. */

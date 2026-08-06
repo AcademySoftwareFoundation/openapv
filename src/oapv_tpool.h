@@ -69,12 +69,14 @@ struct oapv_tpool {
     tpool_result_t (*release)(oapv_thread_t *thread_id);
     // handle for mask number of allowed thread
     int max_task_cnt;
+    // memory allocator of the owning codec instance
+    oapv_ops_mem_t ops_mem;
 };
 
-tpool_result_t oapv_tpool_init(oapv_tpool_t *tp, int maxtask);
+tpool_result_t oapv_tpool_init(oapv_tpool_t *tp, const oapv_ops_mem_t *ops, int maxtask);
 tpool_result_t oapv_tpool_deinit(oapv_tpool_t *tp);
 
-oapv_sync_obj_t oapv_tpool_sync_obj_create();
+oapv_sync_obj_t oapv_tpool_sync_obj_create(const oapv_ops_mem_t *ops);
 tpool_result_t oapv_tpool_sync_obj_delete(oapv_sync_obj_t *sobj);
 int oapv_tpool_spinlock_wait(volatile int *addr, int val);
 
