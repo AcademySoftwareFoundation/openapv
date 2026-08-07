@@ -40,97 +40,116 @@
 #define HH(x, y, z) (x ^ y ^ z)
 #define II(x, y, z) (y ^ (x | ~z))
 
-static void md5_trans(u32 *buf, u32 *msg)
+static u32 le32_read(const u8 *p)
+{
+    return (u32)p[0] | ((u32)p[1] << 8) | ((u32)p[2] << 16) | ((u32)p[3] << 24);
+}
+
+static void le32_write(u8 *p, u32 v)
+{
+    p[0] = (u8)v;
+    p[1] = (u8)(v >> 8);
+    p[2] = (u8)(v >> 16);
+    p[3] = (u8)(v >> 24);
+}
+
+static void md5_trans(u32 *buf, const u8 *msg)
 {
     register u32 a, b, c, d;
+    u32 blk[16];
+    int i;
+
+    for(i = 0; i < 16; i++) {
+        blk[i] = le32_read(msg + i * 4);
+    }
 
     a = buf[0];
     b = buf[1];
     c = buf[2];
     d = buf[3];
 
-    MD5FUNC(FF, a, b, c, d, msg[0], 7, 0xd76aa478);  /* 1 */
-    MD5FUNC(FF, d, a, b, c, msg[1], 12, 0xe8c7b756); /* 2 */
-    MD5FUNC(FF, c, d, a, b, msg[2], 17, 0x242070db); /* 3 */
-    MD5FUNC(FF, b, c, d, a, msg[3], 22, 0xc1bdceee); /* 4 */
+    MD5FUNC(FF, a, b, c, d, blk[0], 7, 0xd76aa478);  /* 1 */
+    MD5FUNC(FF, d, a, b, c, blk[1], 12, 0xe8c7b756); /* 2 */
+    MD5FUNC(FF, c, d, a, b, blk[2], 17, 0x242070db); /* 3 */
+    MD5FUNC(FF, b, c, d, a, blk[3], 22, 0xc1bdceee); /* 4 */
 
-    MD5FUNC(FF, a, b, c, d, msg[4], 7, 0xf57c0faf);  /* 5 */
-    MD5FUNC(FF, d, a, b, c, msg[5], 12, 0x4787c62a); /* 6 */
-    MD5FUNC(FF, c, d, a, b, msg[6], 17, 0xa8304613); /* 7 */
-    MD5FUNC(FF, b, c, d, a, msg[7], 22, 0xfd469501); /* 8 */
+    MD5FUNC(FF, a, b, c, d, blk[4], 7, 0xf57c0faf);  /* 5 */
+    MD5FUNC(FF, d, a, b, c, blk[5], 12, 0x4787c62a); /* 6 */
+    MD5FUNC(FF, c, d, a, b, blk[6], 17, 0xa8304613); /* 7 */
+    MD5FUNC(FF, b, c, d, a, blk[7], 22, 0xfd469501); /* 8 */
 
-    MD5FUNC(FF, a, b, c, d, msg[8], 7, 0x698098d8);   /* 9 */
-    MD5FUNC(FF, d, a, b, c, msg[9], 12, 0x8b44f7af);  /* 10 */
-    MD5FUNC(FF, c, d, a, b, msg[10], 17, 0xffff5bb1); /* 11 */
-    MD5FUNC(FF, b, c, d, a, msg[11], 22, 0x895cd7be); /* 12 */
+    MD5FUNC(FF, a, b, c, d, blk[8], 7, 0x698098d8);   /* 9 */
+    MD5FUNC(FF, d, a, b, c, blk[9], 12, 0x8b44f7af);  /* 10 */
+    MD5FUNC(FF, c, d, a, b, blk[10], 17, 0xffff5bb1); /* 11 */
+    MD5FUNC(FF, b, c, d, a, blk[11], 22, 0x895cd7be); /* 12 */
 
-    MD5FUNC(FF, a, b, c, d, msg[12], 7, 0x6b901122);  /* 13 */
-    MD5FUNC(FF, d, a, b, c, msg[13], 12, 0xfd987193); /* 14 */
-    MD5FUNC(FF, c, d, a, b, msg[14], 17, 0xa679438e); /* 15 */
-    MD5FUNC(FF, b, c, d, a, msg[15], 22, 0x49b40821); /* 16 */
+    MD5FUNC(FF, a, b, c, d, blk[12], 7, 0x6b901122);  /* 13 */
+    MD5FUNC(FF, d, a, b, c, blk[13], 12, 0xfd987193); /* 14 */
+    MD5FUNC(FF, c, d, a, b, blk[14], 17, 0xa679438e); /* 15 */
+    MD5FUNC(FF, b, c, d, a, blk[15], 22, 0x49b40821); /* 16 */
 
     /* Round 2 */
-    MD5FUNC(GG, a, b, c, d, msg[1], 5, 0xf61e2562);   /* 17 */
-    MD5FUNC(GG, d, a, b, c, msg[6], 9, 0xc040b340);   /* 18 */
-    MD5FUNC(GG, c, d, a, b, msg[11], 14, 0x265e5a51); /* 19 */
-    MD5FUNC(GG, b, c, d, a, msg[0], 20, 0xe9b6c7aa);  /* 20 */
+    MD5FUNC(GG, a, b, c, d, blk[1], 5, 0xf61e2562);   /* 17 */
+    MD5FUNC(GG, d, a, b, c, blk[6], 9, 0xc040b340);   /* 18 */
+    MD5FUNC(GG, c, d, a, b, blk[11], 14, 0x265e5a51); /* 19 */
+    MD5FUNC(GG, b, c, d, a, blk[0], 20, 0xe9b6c7aa);  /* 20 */
 
-    MD5FUNC(GG, a, b, c, d, msg[5], 5, 0xd62f105d);   /* 21 */
-    MD5FUNC(GG, d, a, b, c, msg[10], 9, 0x2441453);   /* 22 */
-    MD5FUNC(GG, c, d, a, b, msg[15], 14, 0xd8a1e681); /* 23 */
-    MD5FUNC(GG, b, c, d, a, msg[4], 20, 0xe7d3fbc8);  /* 24 */
+    MD5FUNC(GG, a, b, c, d, blk[5], 5, 0xd62f105d);   /* 21 */
+    MD5FUNC(GG, d, a, b, c, blk[10], 9, 0x2441453);   /* 22 */
+    MD5FUNC(GG, c, d, a, b, blk[15], 14, 0xd8a1e681); /* 23 */
+    MD5FUNC(GG, b, c, d, a, blk[4], 20, 0xe7d3fbc8);  /* 24 */
 
-    MD5FUNC(GG, a, b, c, d, msg[9], 5, 0x21e1cde6);  /* 25 */
-    MD5FUNC(GG, d, a, b, c, msg[14], 9, 0xc33707d6); /* 26 */
-    MD5FUNC(GG, c, d, a, b, msg[3], 14, 0xf4d50d87); /* 27 */
-    MD5FUNC(GG, b, c, d, a, msg[8], 20, 0x455a14ed); /* 28 */
+    MD5FUNC(GG, a, b, c, d, blk[9], 5, 0x21e1cde6);  /* 25 */
+    MD5FUNC(GG, d, a, b, c, blk[14], 9, 0xc33707d6); /* 26 */
+    MD5FUNC(GG, c, d, a, b, blk[3], 14, 0xf4d50d87); /* 27 */
+    MD5FUNC(GG, b, c, d, a, blk[8], 20, 0x455a14ed); /* 28 */
 
-    MD5FUNC(GG, a, b, c, d, msg[13], 5, 0xa9e3e905);  /* 29 */
-    MD5FUNC(GG, d, a, b, c, msg[2], 9, 0xfcefa3f8);   /* 30 */
-    MD5FUNC(GG, c, d, a, b, msg[7], 14, 0x676f02d9);  /* 31 */
-    MD5FUNC(GG, b, c, d, a, msg[12], 20, 0x8d2a4c8a); /* 32 */
+    MD5FUNC(GG, a, b, c, d, blk[13], 5, 0xa9e3e905);  /* 29 */
+    MD5FUNC(GG, d, a, b, c, blk[2], 9, 0xfcefa3f8);   /* 30 */
+    MD5FUNC(GG, c, d, a, b, blk[7], 14, 0x676f02d9);  /* 31 */
+    MD5FUNC(GG, b, c, d, a, blk[12], 20, 0x8d2a4c8a); /* 32 */
 
     /* Round 3 */
-    MD5FUNC(HH, a, b, c, d, msg[5], 4, 0xfffa3942);   /* 33 */
-    MD5FUNC(HH, d, a, b, c, msg[8], 11, 0x8771f681);  /* 34 */
-    MD5FUNC(HH, c, d, a, b, msg[11], 16, 0x6d9d6122); /* 35 */
-    MD5FUNC(HH, b, c, d, a, msg[14], 23, 0xfde5380c); /* 36 */
+    MD5FUNC(HH, a, b, c, d, blk[5], 4, 0xfffa3942);   /* 33 */
+    MD5FUNC(HH, d, a, b, c, blk[8], 11, 0x8771f681);  /* 34 */
+    MD5FUNC(HH, c, d, a, b, blk[11], 16, 0x6d9d6122); /* 35 */
+    MD5FUNC(HH, b, c, d, a, blk[14], 23, 0xfde5380c); /* 36 */
 
-    MD5FUNC(HH, a, b, c, d, msg[1], 4, 0xa4beea44);   /* 37 */
-    MD5FUNC(HH, d, a, b, c, msg[4], 11, 0x4bdecfa9);  /* 38 */
-    MD5FUNC(HH, c, d, a, b, msg[7], 16, 0xf6bb4b60);  /* 39 */
-    MD5FUNC(HH, b, c, d, a, msg[10], 23, 0xbebfbc70); /* 40 */
+    MD5FUNC(HH, a, b, c, d, blk[1], 4, 0xa4beea44);   /* 37 */
+    MD5FUNC(HH, d, a, b, c, blk[4], 11, 0x4bdecfa9);  /* 38 */
+    MD5FUNC(HH, c, d, a, b, blk[7], 16, 0xf6bb4b60);  /* 39 */
+    MD5FUNC(HH, b, c, d, a, blk[10], 23, 0xbebfbc70); /* 40 */
 
-    MD5FUNC(HH, a, b, c, d, msg[13], 4, 0x289b7ec6); /* 41 */
-    MD5FUNC(HH, d, a, b, c, msg[0], 11, 0xeaa127fa); /* 42 */
-    MD5FUNC(HH, c, d, a, b, msg[3], 16, 0xd4ef3085); /* 43 */
-    MD5FUNC(HH, b, c, d, a, msg[6], 23, 0x4881d05);  /* 44 */
+    MD5FUNC(HH, a, b, c, d, blk[13], 4, 0x289b7ec6); /* 41 */
+    MD5FUNC(HH, d, a, b, c, blk[0], 11, 0xeaa127fa); /* 42 */
+    MD5FUNC(HH, c, d, a, b, blk[3], 16, 0xd4ef3085); /* 43 */
+    MD5FUNC(HH, b, c, d, a, blk[6], 23, 0x4881d05);  /* 44 */
 
-    MD5FUNC(HH, a, b, c, d, msg[9], 4, 0xd9d4d039);   /* 45 */
-    MD5FUNC(HH, d, a, b, c, msg[12], 11, 0xe6db99e5); /* 46 */
-    MD5FUNC(HH, c, d, a, b, msg[15], 16, 0x1fa27cf8); /* 47 */
-    MD5FUNC(HH, b, c, d, a, msg[2], 23, 0xc4ac5665);  /* 48 */
+    MD5FUNC(HH, a, b, c, d, blk[9], 4, 0xd9d4d039);   /* 45 */
+    MD5FUNC(HH, d, a, b, c, blk[12], 11, 0xe6db99e5); /* 46 */
+    MD5FUNC(HH, c, d, a, b, blk[15], 16, 0x1fa27cf8); /* 47 */
+    MD5FUNC(HH, b, c, d, a, blk[2], 23, 0xc4ac5665);  /* 48 */
 
     /* Round 4 */
-    MD5FUNC(II, a, b, c, d, msg[0], 6, 0xf4292244);   /* 49 */
-    MD5FUNC(II, d, a, b, c, msg[7], 10, 0x432aff97);  /* 50 */
-    MD5FUNC(II, c, d, a, b, msg[14], 15, 0xab9423a7); /* 51 */
-    MD5FUNC(II, b, c, d, a, msg[5], 21, 0xfc93a039);  /* 52 */
+    MD5FUNC(II, a, b, c, d, blk[0], 6, 0xf4292244);   /* 49 */
+    MD5FUNC(II, d, a, b, c, blk[7], 10, 0x432aff97);  /* 50 */
+    MD5FUNC(II, c, d, a, b, blk[14], 15, 0xab9423a7); /* 51 */
+    MD5FUNC(II, b, c, d, a, blk[5], 21, 0xfc93a039);  /* 52 */
 
-    MD5FUNC(II, a, b, c, d, msg[12], 6, 0x655b59c3);  /* 53 */
-    MD5FUNC(II, d, a, b, c, msg[3], 10, 0x8f0ccc92);  /* 54 */
-    MD5FUNC(II, c, d, a, b, msg[10], 15, 0xffeff47d); /* 55 */
-    MD5FUNC(II, b, c, d, a, msg[1], 21, 0x85845dd1);  /* 56 */
+    MD5FUNC(II, a, b, c, d, blk[12], 6, 0x655b59c3);  /* 53 */
+    MD5FUNC(II, d, a, b, c, blk[3], 10, 0x8f0ccc92);  /* 54 */
+    MD5FUNC(II, c, d, a, b, blk[10], 15, 0xffeff47d); /* 55 */
+    MD5FUNC(II, b, c, d, a, blk[1], 21, 0x85845dd1);  /* 56 */
 
-    MD5FUNC(II, a, b, c, d, msg[8], 6, 0x6fa87e4f);   /* 57 */
-    MD5FUNC(II, d, a, b, c, msg[15], 10, 0xfe2ce6e0); /* 58 */
-    MD5FUNC(II, c, d, a, b, msg[6], 15, 0xa3014314);  /* 59 */
-    MD5FUNC(II, b, c, d, a, msg[13], 21, 0x4e0811a1); /* 60 */
+    MD5FUNC(II, a, b, c, d, blk[8], 6, 0x6fa87e4f);   /* 57 */
+    MD5FUNC(II, d, a, b, c, blk[15], 10, 0xfe2ce6e0); /* 58 */
+    MD5FUNC(II, c, d, a, b, blk[6], 15, 0xa3014314);  /* 59 */
+    MD5FUNC(II, b, c, d, a, blk[13], 21, 0x4e0811a1); /* 60 */
 
-    MD5FUNC(II, a, b, c, d, msg[4], 6, 0xf7537e82);   /* 61 */
-    MD5FUNC(II, d, a, b, c, msg[11], 10, 0xbd3af235); /* 62 */
-    MD5FUNC(II, c, d, a, b, msg[2], 15, 0x2ad7d2bb);  /* 63 */
-    MD5FUNC(II, b, c, d, a, msg[9], 21, 0xeb86d391);  /* 64 */
+    MD5FUNC(II, a, b, c, d, blk[4], 6, 0xf7537e82);   /* 61 */
+    MD5FUNC(II, d, a, b, c, blk[11], 10, 0xbd3af235); /* 62 */
+    MD5FUNC(II, c, d, a, b, blk[2], 15, 0x2ad7d2bb);  /* 63 */
+    MD5FUNC(II, b, c, d, a, blk[9], 21, 0xeb86d391);  /* 64 */
 
     buf[0] += a;
     buf[1] += b;
@@ -168,10 +187,10 @@ static void md5_update(oapv_md5_t *md5, void *buf_t, u32 len)
 
     if(len >= part_len) {
         oapv_mcpy(md5->msg + idx, buf, part_len);
-        md5_trans(md5->h, (u32 *)md5->msg);
+        md5_trans(md5->h, md5->msg);
 
         for(i = part_len; i + 63 < len; i += 64) {
-            md5_trans(md5->h, (u32 *)(buf + i));
+            md5_trans(md5->h, buf + i);
         }
         idx = 0;
     }
@@ -186,43 +205,23 @@ static void md5_update(oapv_md5_t *md5, void *buf_t, u32 len)
 
 static void md5_update_16(oapv_md5_t *md5, void *buf_t, u32 len)
 {
-    u16 *buf;
-    u32  i, idx, part_len, j;
-    u8   t[512];
+    u16 *buf = (u16 *)buf_t;
+    u8   t[1024];
+    u32  i, j, chunk_len;
 
-    buf = (u16 *)buf_t;
-    idx = (u32)((md5->bits[0] >> 3) & 0x3f);
+    i = 0;
+    while(i < len) {
+        chunk_len = len - i;
+        if(chunk_len > 512)
+            chunk_len = 512;
 
-    len = len * 2;
-    for(j = 0; j < len; j += 2) {
-        t[j] = (u8)(*(buf));
-        t[j + 1] = *(buf) >> 8;
-        buf++;
-    }
-
-    md5->bits[0] += (len << 3);
-    if(md5->bits[0] < (len << 3)) {
-        (md5->bits[1])++;
-    }
-
-    md5->bits[1] += (len >> 29);
-    part_len = 64 - idx;
-
-    if(len >= part_len) {
-        oapv_mcpy(md5->msg + idx, t, part_len);
-        md5_trans(md5->h, (u32 *)md5->msg);
-
-        for(i = part_len; i + 63 < len; i += 64) {
-            md5_trans(md5->h, (u32 *)(t + i));
+        for(j = 0; j < chunk_len; j++) {
+            t[j * 2]     = (u8)(buf[i + j]);
+            t[j * 2 + 1] = (u8)(buf[i + j] >> 8);
         }
-        idx = 0;
-    }
-    else {
-        i = 0;
-    }
 
-    if(len - i > 0) {
-        oapv_mcpy(md5->msg + idx, t + i, len - i);
+        md5_update(md5, t, chunk_len * 2);
+        i += chunk_len;
     }
 }
 
@@ -238,18 +237,24 @@ static void md5_finish(oapv_md5_t *md5, u8 digest[16])
 
     if(cnt < 8) {
         oapv_mset(pos, 0, cnt);
-        md5_trans(md5->h, (u32 *)md5->msg);
+        md5_trans(md5->h, md5->msg);
         oapv_mset(md5->msg, 0, 56);
     }
     else {
         oapv_mset(pos, 0, cnt - 8);
     }
 
-    oapv_mcpy((md5->msg + 14 * sizeof(u32)), &md5->bits[0], sizeof(u32));
-    oapv_mcpy((md5->msg + 15 * sizeof(u32)), &md5->bits[1], sizeof(u32));
+    /* Append length in bits - Little Endian */
+    le32_write(md5->msg + 56, md5->bits[0]);
+    le32_write(md5->msg + 60, md5->bits[1]);
 
-    md5_trans(md5->h, (u32 *)md5->msg);
-    oapv_mcpy(digest, md5->h, 16);
+    md5_trans(md5->h, md5->msg);
+
+    /* Store state in digest - Little Endian */
+    for(int i = 0; i < 4; i++) {
+        le32_write(digest + i * 4, md5->h[i]);
+    }
+
     oapv_mset(md5, 0, sizeof(oapv_md5_t));
 }
 
@@ -285,6 +290,7 @@ int oapv_imgb_set_md5(oapv_imgb_t *imgb)
 {
     oapv_md5_t md5[N_C];
     int        i, j, ret;
+    int        b_depth = OAPV_CS_GET_BYTE_DEPTH(imgb->cs);
 
     ret = oapv_imgb_is_valid(imgb);
     if(OAPV_FAILED(ret)) {
@@ -296,7 +302,12 @@ int oapv_imgb_set_md5(oapv_imgb_t *imgb)
         md5_init(&md5[i]);
 
         for(j = 0; j < imgb->ah[i]; j++) {
-            md5_update(&md5[i], ((u8 *)imgb->a[i]) + j * imgb->s[i], imgb->aw[i] * 2);
+            if(b_depth >= 2) {
+                md5_update_16(&md5[i], ((u8 *)imgb->a[i]) + j * imgb->s[i], imgb->aw[i]);
+            }
+            else {
+                md5_update(&md5[i], ((u8 *)imgb->a[i]) + j * imgb->s[i], imgb->aw[i]);
+            }
         }
 
         md5_finish(&md5[i], imgb->hash[i]);
