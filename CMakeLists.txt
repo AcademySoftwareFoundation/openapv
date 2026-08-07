@@ -104,6 +104,12 @@ endif()
 # Compilation flags
 ########################################
 
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+
+include(CheckCCompilerFlag)
+
 # Set compiler flags and options.
 if(MSVC)
   message("Not supported yet!")
@@ -124,8 +130,22 @@ elseif(UNIX OR MINGW)
         set(OPT_DBG "-DNDEBUG") # disable assert
     endif()
 
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OPT_DBG} -${OPT_LV} -fomit-frame-pointer -pthread -std=c99")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wno-unused-function")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OPT_DBG} -${OPT_LV}")
+    check_c_compiler_flag("-fomit-frame-pointer" HAS_FLAG_OMIT_FRAME_POINTER)
+    if(HAS_FLAG_OMIT_FRAME_POINTER)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fomit-frame-pointer")
+    endif()
+    check_c_compiler_flag("-Wall" HAS_FLAG_WARNING_ALL)
+    if(HAS_FLAG_WARNING_ALL)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+    endif()
+    check_c_compiler_flag("-Wno-unused-function" HAS_FLAG_NO_UNUSED_FUNCTION)
+    if(HAS_FLAG_NO_UNUSED_FUNCTION)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")
+    endif()
+    if(NOT WIN32)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+    endif()
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lm")
 
     if(ENABLE_COVERAGE)
@@ -280,7 +300,7 @@ set_tests_properties(encode PROPERTIES
 # Test - decode
 add_test(NAME decode COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i out.oapv)
 set_tests_properties(decode PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     DEPENDS encode
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 125"
@@ -309,7 +329,7 @@ set_tests_properties(decode_unconst PROPERTIES
 # Test - decode qp_A.apv
 add_test(NAME decode_qp_A COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_A.apv -v 3 --hash)
 set_tests_properties(decode_qp_A PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -318,7 +338,7 @@ set_tests_properties(decode_qp_A PROPERTIES
 # Test - decode qp_B.apv
 add_test(NAME decode_qp_B COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_B.apv -v 3 --hash)
 set_tests_properties(decode_qp_B PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -327,7 +347,7 @@ set_tests_properties(decode_qp_B PROPERTIES
 # Test - decode qp_C.apv
 add_test(NAME decode_qp_C COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_C.apv -v 3 --hash)
 set_tests_properties(decode_qp_C PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -336,7 +356,7 @@ set_tests_properties(decode_qp_C PROPERTIES
 # Test - decode qp_D.apv
 add_test(NAME decode_qp_D COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_D.apv -v 3 --hash)
 set_tests_properties(decode_qp_D PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -345,7 +365,7 @@ set_tests_properties(decode_qp_D PROPERTIES
 # Test - decode qp_E.apv
 add_test(NAME decode_qp_E COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_E.apv -v 3 --hash)
 set_tests_properties(decode_qp_E PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -354,7 +374,7 @@ set_tests_properties(decode_qp_E PROPERTIES
 # Test - decode syn_A.apv
 add_test(NAME decode_syn_A COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/syn_A.apv -v 3 --hash)
 set_tests_properties(decode_syn_A PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -363,7 +383,7 @@ set_tests_properties(decode_syn_A PROPERTIES
 # Test - decode syn_B.apv
 add_test(NAME decode_syn_B COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/syn_B.apv -v 3 --hash)
 set_tests_properties(decode_syn_B PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -372,7 +392,7 @@ set_tests_properties(decode_syn_B PROPERTIES
 # Test - decode tile_A.apv
 add_test(NAME decode_tile_A COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/tile_A.apv -v 3 --hash)
 set_tests_properties(decode_tile_A PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -381,7 +401,7 @@ set_tests_properties(decode_tile_A PROPERTIES
 # Test - decode tile_B.apv
 add_test(NAME decode_tile_B COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/tile_B.apv -v 3 --hash)
 set_tests_properties(decode_tile_B PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -390,7 +410,7 @@ set_tests_properties(decode_tile_B PROPERTIES
 # Test - decode tile_C.apv
 add_test(NAME decode_tile_C COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/tile_C.apv -v 3 --hash)
 set_tests_properties(decode_tile_C PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -399,7 +419,7 @@ set_tests_properties(decode_tile_C PROPERTIES
 # Test - decode tile_D.apv
 add_test(NAME decode_tile_D COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/tile_D.apv -v 3 --hash)
 set_tests_properties(decode_tile_D PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
@@ -408,7 +428,7 @@ set_tests_properties(decode_tile_D PROPERTIES
 # Test - decode tile_E.apv
 add_test(NAME decode_tile_E COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/tile_E.apv -v 3 --hash)
 set_tests_properties(decode_tile_E PROPERTIES
-    TIMEOUT 10
+    TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"

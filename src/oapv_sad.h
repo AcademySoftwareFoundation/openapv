@@ -34,13 +34,9 @@
 
 #include "oapv_port.h"
 
-int oapv_sad_16b(int w, int h, void *src1, void *src2, int s_src1, int s_src2);
-void oapv_diff_16b(int w, int h, void *src1, void *src2, int s_src1, int s_src2, int s_diff, s16 *diff);
 s64 oapv_ssd_16b(int w, int h, void *src1, void *src2, int s_src1, int s_src2);
 int oapv_dc_removed_had8x8(pel *org, int s_org);
 
-extern const oapv_fn_sad_t  oapv_tbl_fn_sad_16b[2];
 extern const oapv_fn_ssd_t  oapv_tbl_fn_ssd_16b[2];
-extern const oapv_fn_diff_t oapv_tbl_fn_diff_16b[2];
 
 #endif /* _OAPV_SAD_H_ */

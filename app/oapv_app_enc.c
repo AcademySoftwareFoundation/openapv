@@ -34,8 +34,51 @@
 #include "oapv_app_args.h"
 #include "oapv_app_y4m.h"
 
-#define MAX_BS_BUF   (128 * 1024 * 1024)
 #define MAX_NUM_FRMS (1)           // supports only 1-frame in an access unit
+
+/* worst-case bitstream buffer size for encoding one frame of the given
+   resolution and color format; encoding cannot overflow a buffer of the
+   returned size */
+static int enc_max_bs_buf_size(int w, int h, int cf, int *size)
+{
+    long long sz, mbs;
+    int spp2; // samples per two pixels
+
+    if(size == NULL || w <= 0 || h <= 0) return -1;
+
+    switch(cf) {
+    case OAPV_CF_YCBCR400:
+        spp2 = 2;
+        break;
+    case OAPV_CF_YCBCR420:
+        spp2 = 3;
+        break;
+    case OAPV_CF_YCBCR422:
+    case OAPV_CF_PLANAR2:
+        spp2 = 4;
+        break;
+    case OAPV_CF_YCBCR444:
+        spp2 = 6;
+        break;
+    case OAPV_CF_YCBCR4444:
+        spp2 = 8;
+        break;
+    default:
+        return -1;
+    }
+
+    // w * h * spp2 is the raw sample size in bytes (two bytes per sample),
+    // doubled as the worst-case entropy coding margin
+    sz = (long long)w * h * spp2 * 2;
+    // per-tile overhead at the smallest possible tile size (one macroblock),
+    // plus slack for the AU/frame headers and metadata
+    mbs = (long long)((w + 15) >> 4) * ((h + 15) >> 4);
+    sz += mbs * 40 + 16 * 1024;
+    if(sz > INT_MAX) return -1;
+
+    *size = (int)sz;
+    return 0;
+}
 #define FRM_IDX      (0)           // supports only 1-frame in an access unit
 #define MAX_NUM_CC   (OAPV_MAX_CC) // Max number of color components (upto 4:4:4:4)
 
@@ -913,6 +956,7 @@ int main(int argc, const char **argv)
     int            is_out = 0, is_rec = 0;
     char          *errstr = NULL;
     int            cfmt;                      // color format
+    int            bs_buf_size = 0;           // bitstream buffer size
     const int      num_frames = MAX_NUM_FRMS; // number of frames in an access unit
 
     // print logo
@@ -1034,7 +1078,13 @@ int main(int argc, const char **argv)
         goto ERR;
     }
 
-    cdesc.max_bs_buf_size = MAX_BS_BUF; /* maximum bitstream buffer size */
+    /* size the bitstream buffer from the resolution and color format */
+    if(enc_max_bs_buf_size(param->w, param->h, cfmt, &bs_buf_size)) {
+        logerr("ERR: cannot get bitstream buffer size\n");
+        ret = -1;
+        goto ERR;
+    }
+    cdesc.max_bs_buf_size = bs_buf_size; /* maximum bitstream buffer size */
     cdesc.max_num_frms = MAX_NUM_FRMS;
     if(!strcmp(args_var->threads, "auto")){
         cdesc.threads = OAPV_CDESC_THREADS_AUTO;
@@ -1078,9 +1128,9 @@ int main(int argc, const char **argv)
     }
 
     /* allocate bitstream buffer */
-    bs_buf = (unsigned char *)malloc(MAX_BS_BUF);
+    bs_buf = (unsigned char *)malloc(bs_buf_size);
     if(bs_buf == NULL) {
-        logerr("ERR: cannot allocate bitstream buffer, size=%d", MAX_BS_BUF);
+        logerr("ERR: cannot allocate bitstream buffer, size=%d", bs_buf_size);
         ret = -1;
         goto ERR;
     }
@@ -1112,7 +1162,7 @@ int main(int argc, const char **argv)
 
     bitrate_tot = 0;
     bitb.addr = bs_buf;
-    bitb.bsize = MAX_BS_BUF;
+    bitb.bsize = bs_buf_size;
 
     if(args_var->seek > 0) {
         state = STATE_SKIPPING;

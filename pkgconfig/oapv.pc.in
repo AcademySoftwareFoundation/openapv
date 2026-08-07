@@ -1,8 +1,8 @@
 # --- oapv.pc.in file ---
-prefix=@CMAKE_INSTALL_PREFIX@ 
-exec_prefix=@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_BINDIR@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
 libdir=@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_LIBDIR@
-includedir=@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_INCLUDEDIR@/@LIB_NAME_BASE@
+includedir=@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_INCLUDEDIR@
 
 Name: oapv
 Description: Advanced Professional Video Codec
@@ -11,7 +11,7 @@ Version: @VERSION_APISET@.@VERSION_MAJOR@.@VERSION_MINOR@.@VERSION_PATCH@
 
 Requires:
 Libs: -L${libdir} -l@LIB_NAME_BASE@
-Libs.private: -L${libdir}/@LIB_NAME_BASE@ -lm
+Libs.private: -lm
 
-Cflags: -I${includedir} @EXTRA_CFLAGS@
+Cflags: -I${includedir} -I${includedir}/@LIB_NAME_BASE@ @EXTRA_CFLAGS@
 Cflags.private: @EXTRA_CFLAGS_PRIVATE@

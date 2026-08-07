@@ -183,6 +183,20 @@ For generating package ready for distribution (default deb) execute in build dir
 This project is using the following versioning scheme ``API-SET.MAJOR.MINOR.PATCH``. It's mostly based on Semantic Versioning with addition of ``API-SET`` on first place.
 Project and library share a common version number.
 
+## Contributing
+
+Contributions are welcome through pull requests.
+
+- Create a topic branch and keep one feature or fix per pull request
+- Sign off every commit with `git commit -s` (the DCO check requires it)
+- Make sure the CI builds and tests pass
+
+When opening a pull request from a fork, please enable **"Allow edits from
+maintainers"**. This lets maintainers push small fixes (typos, rebase
+conflicts, style adjustments) directly to your branch instead of describing
+them in comments and waiting for your update, which can shorten the review
+cycle considerably.
+
 ## License
 
 See [LICENSE](LICENSE) file for details.

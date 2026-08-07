@@ -14,6 +14,10 @@ file(GLOB LIB_AVX_INC "../src/avx/oapv_*.h" )
 include(GenerateExportHeader)
 include_directories("${CMAKE_BINARY_DIR}/include")
 
+include(CheckCCompilerFlag)
+check_c_compiler_flag("-flax-vector-conversions" HAS_ARM_VECTOR_CONVERSION)
+check_c_compiler_flag("-msse4.1" HAS_SSE41)
+check_c_compiler_flag("-mavx2" HAS_AVX2)
 
 message("SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}")
 
@@ -107,10 +111,35 @@ if(MSVC)
   endif()
 elseif(UNIX OR MINGW)
   if (ARM)
-    set_property(SOURCE ${NEON} APPEND PROPERTY COMPILE_FLAGS "-flax-vector-conversions")
-elseif (X86 OR UNIVERSAL)
-    set_property(SOURCE ${SSE} APPEND PROPERTY COMPILE_FLAGS "-msse4.1")
-    set_property(SOURCE ${AVX} APPEND PROPERTY COMPILE_FLAGS " -mavx2")
+    if(HAS_ARM_VECTOR_CONVERSION)
+      set_property(SOURCE ${NEON} APPEND PROPERTY COMPILE_FLAGS "-flax-vector-conversions")
+    endif()
+  elseif (X86 OR UNIVERSAL)
+    if(HAS_SSE41)
+      set_property(SOURCE ${SSE} APPEND PROPERTY COMPILE_FLAGS "-msse4.1")
+    endif()
+    if(HAS_AVX2)
+      set_property(SOURCE ${AVX} APPEND PROPERTY COMPILE_FLAGS "-mavx2")
+      # check _mm256_setr_m128i is supported
+      include(CheckCSourceCompiles)
+      include(CMakePushCheckState)
+
+      cmake_push_check_state(RESET)
+      set(CMAKE_REQUIRED_FLAGS "-mavx2")
+      check_c_source_compiles("
+      #include <immintrin.h>
+      int main(void)
+      {
+        __m128i a, b;
+        _mm256_setr_m128i(a, b);
+        return 0;
+      }
+      " HAVE_MM256_SETR)
+      cmake_pop_check_state()
+      if(HAVE_MM256_SETR)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_MM256_SETR")
+      endif(HAVE_MM256_SETR)
+    endif()
   endif()
 
   if(OAPV_BUILD_SHARED_LIB)
@@ -142,20 +171,20 @@ set(OAPV_PRIVATE_HEADERS "${LIB_BASE_INC}" "${LIB_SSE_INC}" "${LIB_AVX_INC}" "${
 
 # Install static library and public headers
 #
-# Static library (liboapv.a or oapv.lib) will be installed to <prefix>/lib/oapv
+# Static library (liboapv.a or oapv.lib) will be installed to <prefix>/lib
 # Public headers will be installed to <prefix>/include/oapv
 #
 if(OAPV_BUILD_STATIC_LIB)
   set_target_properties(${LIB_NAME_BASE} PROPERTIES PUBLIC_HEADER "${OAPV_PUBLIC_HEADERS}")
   install(TARGETS ${LIB_NAME_BASE}
-          ARCHIVE COMPONENT Development DESTINATION ${CMAKE_INSTALL_LIBDIR}/${LIB_NAME_BASE}
+          ARCHIVE COMPONENT Development DESTINATION ${CMAKE_INSTALL_LIBDIR}
           PUBLIC_HEADER COMPONENT Development DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${LIB_NAME_BASE}
   )
 endif()
 
 # Install shared library
 #
-# On non-DLL platforms shared library (liboapv.so) will be installed to <prefix>/lib/oapv.
+# On non-DLL platforms shared library (liboapv.so) will be installed to <prefix>/lib.
 # On DLL platforms the shred DLL (oapv.dll) will be installed to <prefix>/bin and its import library will be installed to <prefix>/lib/oapv/import
 #
 if(OAPV_BUILD_SHARED_LIB)
@@ -165,7 +194,7 @@ if(OAPV_BUILD_SHARED_LIB)
           LIBRARY
             COMPONENT Libraries DESTINATION ${CMAKE_INSTALL_LIBDIR}
             NAMELINK_COMPONENT Development DESTINATION ${CMAKE_INSTALL_LIBDIR}
-          ARCHIVE COMPONENT Development DESTINATION ${CMAKE_INSTALL_LIBDIR}/${LIB_NAME_BASE}/import
+          ARCHIVE COMPONENT Development DESTINATION ${CMAKE_INSTALL_LIBDIR}/import
           PUBLIC_HEADER COMPONENT Development DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${LIB_NAME_BASE}
   )
 
@@ -181,6 +210,9 @@ if(NOT MSVC)
     else()
         set(EXTRA_CFLAGS "-DOAPV_STATIC_DEFINE")
         set(EXTRA_CFLAGS_PRIVATE "")
+    endif()
+    if(NOT WIN32)
+        set(EXTRA_CFLAGS_PRIVATE "${EXTRA_CFLAGS_PRIVATE} -pthread")
     endif()
     configure_file(
       "${CMAKE_SOURCE_DIR}/pkgconfig/${LIB_NAME_BASE}.pc.in"

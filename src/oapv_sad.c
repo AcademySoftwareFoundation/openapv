@@ -33,58 +33,7 @@
 #include <math.h>
 
 /* SAD for 16bit **************************************************************/
-int oapv_sad_16b(int w, int h, void *src1, void *src2, int s_src1, int s_src2)
-{
-    s16 *s1;
-    s16 *s2;
-    int  i, j, sad;
-
-    s1 = (s16 *)src1;
-    s2 = (s16 *)src2;
-
-    sad = 0;
-
-    for(i = 0; i < h; i++) {
-        for(j = 0; j < w; j++) {
-            sad += oapv_abs16((s16)s1[j] - (s16)s2[j]);
-        }
-        s1 += s_src1;
-        s2 += s_src2;
-    }
-
-    return sad;
-}
-
-const oapv_fn_sad_t oapv_tbl_fn_sad_16b[2] = {
-    oapv_sad_16b,
-    NULL
-};
-
 /* DIFF **********************************************************************/
-void oapv_diff_16b(int w, int h, void *src1, void *src2, int s_src1, int s_src2, int s_diff, s16 *diff)
-{
-    s16 *s1;
-    s16 *s2;
-    int  i, j;
-
-    s1 = (s16 *)src1;
-    s2 = (s16 *)src2;
-
-    for(i = 0; i < h; i++) {
-        for(j = 0; j < w; j++) {
-            diff[j] = (s16)s1[j] - (s16)s2[j];
-        }
-        diff += s_diff;
-        s1 += s_src1;
-        s2 += s_src2;
-    }
-}
-
-const oapv_fn_diff_t oapv_tbl_fn_diff_16b[2] = {
-    oapv_diff_16b,
-    NULL
-};
-
 /* SSD ***********************************************************************/
 s64 oapv_ssd_16b(int w, int h, void *src1, void *src2, int s_src1, int s_src2)
 {

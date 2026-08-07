@@ -217,11 +217,10 @@ static int read_au_size(FILE *fp, unsigned int *au_size)
     return 1;
 }
 
-static int read_bitstream(FILE *fp, unsigned char *bs_buf, int *bs_buf_size)
+static int read_bitstream(FILE *fp, unsigned char **bs_buf, int *bs_buf_cap, int *bs_buf_size)
 {
     unsigned int  au_size;
     int           read_size = 0;
-    unsigned char b = 0;
     int           ret;
     if(!fseek(fp, 0, SEEK_CUR)) {
         /* read size first */
@@ -241,20 +240,21 @@ static int read_bitstream(FILE *fp, unsigned char *bs_buf, int *bs_buf_size)
                 logerr("ERR: bitstream size (%u bytes) exceeds maximum buffer size (%d bytes)\n", au_size, MAX_BS_BUF);
                 return -1;
             }
-            while(au_size > 0) {
-                /* read byte */
-                if(1 != fread(&b, 1, 1, fp)) {
-                    logerr("ERR: Cannot read bitstream!\n");
+            /* grow the bitstream buffer only when the AU does not fit */
+            if((int)au_size > *bs_buf_cap) {
+                unsigned char *p = realloc(*bs_buf, au_size);
+                if(p == NULL) {
+                    logerr("ERR: cannot allocate bitstream buffer, size=%u\n", au_size);
                     return -1;
                 }
-                if(read_size >= MAX_BS_BUF) {
-                    logerr("ERR: bitstream buffer overflow\n");
-                    return -1;
-                }
-                bs_buf[read_size] = b;
-                read_size++;
-                au_size--;
+                *bs_buf = p;
+                *bs_buf_cap = (int)au_size;
             }
+            if(au_size != fread(*bs_buf, 1, au_size, fp)) {
+                logerr("ERR: Cannot read bitstream!\n");
+                return -1;
+            }
+            read_size = (int)au_size;
             *bs_buf_size = read_size;
         }
         else {
@@ -436,20 +436,12 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     int              i, ret = 0;
     oapv_clk_t       clk_beg, clk_end, clk_tot;
     int              au_cnt, frm_cnt[OAPV_MAX_NUM_FRAMES];
-    int              read_size, bs_buf_size = 0;
+    int              read_size, bs_buf_size = 0, bs_buf_cap = 0;
     int              prev_frm_w = -1, prev_frm_h = -1;
 
     memset(frm_cnt, 0, sizeof(int) * OAPV_MAX_NUM_FRAMES);
     memset(&aui, 0, sizeof(oapv_au_info_t));
     memset(&ofrms, 0, sizeof(oapv_frms_t));
-
-    // create bitstream buffer
-    bs_buf = malloc(MAX_BS_BUF);
-    if(bs_buf == NULL) {
-        logerr("ERR: cannot allocate bitstream buffer, size=%d\n", MAX_BS_BUF);
-        ret = -1;
-        goto ERR;
-    }
 
     // clear descriptor so unset fields (e.g. ops_mem) default to zero
     memset(&cdesc, 0, sizeof(oapvd_cdesc_t));
@@ -494,7 +486,7 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
     /* decoding loop */
     while(args_var->max_au == 0 || (au_cnt < args_var->max_au)) {
-        read_size = read_bitstream(fp_bs, bs_buf, &bs_buf_size);
+        read_size = read_bitstream(fp_bs, &bs_buf, &bs_buf_cap, &bs_buf_size);
         if (read_size == 0) {
             logv3("--> end of bitstream\n")
             break;
@@ -568,7 +560,7 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
         /* main decoding block */
         bitb.addr = bs_buf;
-        bitb.bsize = MAX_BS_BUF;
+        bitb.bsize = bs_buf_cap;
         bitb.ssize = bs_buf_size;
         memset(&stat, 0, sizeof(oapvd_stat_t));
 
@@ -785,14 +777,8 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     int               primary_frm_cnt = 0; // number of decoded primary frame
     int               primary_frm_gid = -1; // group id of primary frame
     unsigned char    *pbu = NULL;
+    int               pbu_cap = 0;
     int               prev_frm_w = -1, prev_frm_h = -1;
-
-    // create bitstream buffer
-    pbu = malloc(MAX_BS_BUF);
-    if(pbu == NULL) {
-        logerr("ERR: cannot allocate bitstream buffer, size=%d\n", MAX_BS_BUF);
-        ret = -1; goto ERR;
-    }
 
     if(args_var->cyclic_tile_decoding && args_var->api_set == 0) {
         logerr("ERR: cyclic tile-based decoding cannot be supported in API set 0\n");
@@ -871,6 +857,17 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             if(pbu_size > MAX_BS_BUF) {
                 logerr("ERR: PBU size (%u bytes) exceeds maximum buffer size (%d bytes)\n", pbu_size, MAX_BS_BUF);
                 ret = -1; goto ERR;
+            }
+
+            /* grow the PBU buffer only when the PBU does not fit */
+            if((int)pbu_size > pbu_cap) {
+                unsigned char *p = realloc(pbu, pbu_size);
+                if(p == NULL) {
+                    logerr("ERR: cannot allocate bitstream buffer, size=%u\n", pbu_size);
+                    ret = -1; goto ERR;
+                }
+                pbu = p;
+                pbu_cap = (int)pbu_size;
             }
 
             /* read a PBU */

@@ -519,6 +519,12 @@ static int oapv_quant_neon(s16* coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_
         uint16x8_t sign_mask   = vcltq_s16(coef_row, zero_vector);
         int16x8_t coef_row_abs = vabsq_s16(coef_row);
 
+        // Widen the sign to 32-bit masks; the sign is applied before the
+        // final saturating narrow so negative levels clip to -32768 like the
+        // C version
+        int32x4_t sign_low_32b  = vmovl_s16(vget_low_s16(vreinterpretq_s16_u16(sign_mask)));
+        int32x4_t sign_high_32b = vmovl_high_s16(vreinterpretq_s16_u16(sign_mask));
+
         // Split abs coef-vec and unpack to s32
         int32x4_t coef_low_32b  = vmovl_s16(vget_low_s16(coef_row_abs));
         int32x4_t coef_high_32b = vmovl_high_s16(coef_row_abs);
@@ -540,15 +546,16 @@ static int oapv_quant_neon(s16* coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_
         coef_high_32b_first_half  = vshlq_s64(coef_high_32b_first_half, shift_vector);
         coef_high_32b_second_half = vshlq_s64(coef_high_32b_second_half, shift_vector);
 
-        // Combine 2X: 64x2 registers into one 32x4 register
-        coef_low_32b  = vcombine_u32(vmovn_s64(coef_low_32b_first_half),  vmovn_s64(coef_low_32b_second_half));
-        coef_high_32b = vcombine_u32(vmovn_s64(coef_high_32b_first_half), vmovn_s64(coef_high_32b_second_half));
+        // Combine 2X: 64x2 registers into one 32x4 register (saturating)
+        coef_low_32b  = vcombine_s32(vqmovn_s64(coef_low_32b_first_half),  vqmovn_s64(coef_low_32b_second_half));
+        coef_high_32b = vcombine_s32(vqmovn_s64(coef_high_32b_first_half), vqmovn_s64(coef_high_32b_second_half));
 
-        // Combine 2X: 32x4 registers into one 16x8 register
-        int16x8_t output_vector = vcombine_u16(vmovn_s32(coef_low_32b), vmovn_s32(coef_high_32b));
+        // Apply extracted coef sign in the 32-bit domain
+        coef_low_32b  = vbslq_s32(vreinterpretq_u32_s32(sign_low_32b),  vnegq_s32(coef_low_32b),  coef_low_32b);
+        coef_high_32b = vbslq_s32(vreinterpretq_u32_s32(sign_high_32b), vnegq_s32(coef_high_32b), coef_high_32b);
 
-        // Apply extracted coef sign to result
-        output_vector = vbslq_s16(sign_mask,  vnegq_s16(output_vector), output_vector);
+        // Combine 2X: 32x4 registers into one 16x8 register (saturating)
+        int16x8_t output_vector = vcombine_s16(vqmovn_s32(coef_low_32b), vqmovn_s32(coef_high_32b));
 
         // Store result row into buffer
         vst1q_s16(coef + i, output_vector);
@@ -561,6 +568,237 @@ const oapv_fn_quant_t oapv_tbl_fn_quant_neon[2] =
 {
     oapv_quant_neon,
         NULL
+};
+
+
+static void oapv_itx_part_neon(s16* src, s16* dst, int shift1, int line)
+{
+    int32x4_t add1 = vdupq_n_s32(1 << (shift1 - 1));
+    int32x4_t sh1 = vdupq_n_s32(-shift1);
+
+    int16x4_t dest0, dest1, dest2, dest3, dest4, dest5, dest6, dest7, dest8, dest9, dest10, dest11, dest12, dest13, dest14, dest15;
+
+    //DCT Pass 1
+    {
+        int16x8_t v_src_0_8 = vld1q_s16(src);
+        int16x8_t v_src_1_9 = vld1q_s16(src + line);
+        int16x8_t v_src_2_10 = vld1q_s16(src + 2 * line);
+        int16x8_t v_src_3_11 = vld1q_s16(src + 3 * line);
+        int16x8_t v_src_4_12 = vld1q_s16(src + 4 * line);
+        int16x8_t v_src_5_13 = vld1q_s16(src + 5 * line);
+        int16x8_t v_src_6_14 = vld1q_s16(src + 6 * line);
+        int16x8_t v_src_7_15 = vld1q_s16(src + 7 * line);
+
+        int16x4_t v_src_0  = vget_low_s16(v_src_0_8);
+        int16x4_t v_src_1  = vget_low_s16(v_src_1_9);
+        int16x4_t v_src_2  = vget_low_s16(v_src_2_10);
+        int16x4_t v_src_3  = vget_low_s16(v_src_3_11);
+        int16x4_t v_src_4  = vget_low_s16(v_src_4_12);
+        int16x4_t v_src_5  = vget_low_s16(v_src_5_13);
+        int16x4_t v_src_6  = vget_low_s16(v_src_6_14);
+        int16x4_t v_src_7  = vget_low_s16(v_src_7_15);
+        int16x4_t v_src_8  = vget_high_s16(v_src_0_8);
+        int16x4_t v_src_9  = vget_high_s16(v_src_1_9);
+        int16x4_t v_src_10 = vget_high_s16(v_src_2_10);
+        int16x4_t v_src_11 = vget_high_s16(v_src_3_11);
+        int16x4_t v_src_12 = vget_high_s16(v_src_4_12);
+        int16x4_t v_src_13 = vget_high_s16(v_src_5_13);
+        int16x4_t v_src_14 = vget_high_s16(v_src_6_14);
+        int16x4_t v_src_15 = vget_high_s16(v_src_7_15);
+
+        int32x4_t temp1 = vaddq_s32(vmull_n_s16(v_src_1, OAPV_INVTX_COEF_0), vmull_n_s16(v_src_3, OAPV_INVTX_COEF_1));
+        int32x4_t temp2 = vsubq_s32(vmull_n_s16(v_src_1, OAPV_INVTX_COEF_1), vmull_n_s16(v_src_3, OAPV_INVTX_COEF_3));
+
+        int32x4_t temp3 = vsubq_s32(vmull_n_s16(v_src_1, OAPV_INVTX_COEF_2), vmull_n_s16(v_src_3, OAPV_INVTX_COEF_0));
+        int32x4_t temp4 = vsubq_s32(vmull_n_s16(v_src_1, OAPV_INVTX_COEF_3), vmull_n_s16(v_src_3, OAPV_INVTX_COEF_2));
+
+        int32x4_t temp5 = vaddq_s32(vmull_n_s16(v_src_5, OAPV_INVTX_COEF_2), vmull_n_s16(v_src_7, OAPV_INVTX_COEF_3));
+        int32x4_t temp6 = vaddq_s32(vmull_n_s16(v_src_5, OAPV_INVTX_COEF_0), vmull_n_s16(v_src_7, OAPV_INVTX_COEF_2));
+        temp6 = vnegq_s32(temp6);
+
+        int32x4_t temp7 = vaddq_s32(vmull_n_s16(v_src_5, OAPV_INVTX_COEF_3), vmull_n_s16(v_src_7, OAPV_INVTX_COEF_1));
+        int32x4_t temp8 = vsubq_s32(vmull_n_s16(v_src_5, OAPV_INVTX_COEF_1), vmull_n_s16(v_src_7, OAPV_INVTX_COEF_0));
+
+        int32x4_t temp9 = vaddq_s32(vmull_n_s16(v_src_9, OAPV_INVTX_COEF_0), vmull_n_s16(v_src_11, OAPV_INVTX_COEF_1));
+        int32x4_t temp10 = vsubq_s32(vmull_n_s16(v_src_9, OAPV_INVTX_COEF_1), vmull_n_s16(v_src_11, OAPV_INVTX_COEF_3));
+
+        int32x4_t temp11 = vsubq_s32(vmull_n_s16(v_src_9, OAPV_INVTX_COEF_2), vmull_n_s16(v_src_11, OAPV_INVTX_COEF_0));
+        int32x4_t temp12 = vsubq_s32(vmull_n_s16(v_src_9, OAPV_INVTX_COEF_3), vmull_n_s16(v_src_11, OAPV_INVTX_COEF_2));
+
+        int32x4_t temp13 = vaddq_s32(vmull_n_s16(v_src_13, OAPV_INVTX_COEF_2), vmull_n_s16(v_src_15, OAPV_INVTX_COEF_3));
+        int32x4_t temp14 = vaddq_s32(vmull_n_s16(v_src_13, OAPV_INVTX_COEF_0), vmull_n_s16(v_src_15, OAPV_INVTX_COEF_2));
+        temp14 = vnegq_s32(temp14);
+
+        int32x4_t temp15 = vaddq_s32(vmull_n_s16(v_src_13, OAPV_INVTX_COEF_3), vmull_n_s16(v_src_15, OAPV_INVTX_COEF_1));
+        int32x4_t temp16 = vsubq_s32(vmull_n_s16(v_src_13, OAPV_INVTX_COEF_1), vmull_n_s16(v_src_15, OAPV_INVTX_COEF_0));
+
+        int32x4_t O0 = vaddq_s32(temp1, temp5);
+        int32x4_t O1 = vaddq_s32(temp2, temp6);
+        int32x4_t O2 = vaddq_s32(temp3, temp7);
+        int32x4_t O3 = vaddq_s32(temp4, temp8);
+        int32x4_t O4 = vaddq_s32(temp9, temp13);
+        int32x4_t O5 = vaddq_s32(temp10, temp14);
+        int32x4_t O6 = vaddq_s32(temp11, temp15);
+        int32x4_t O7 = vaddq_s32(temp12, temp16);
+
+        int32x4_t EO0 = vaddq_s32(vmull_n_s16(v_src_2, OAPV_INVTX_COEF_5), vmull_n_s16(v_src_6, OAPV_INVTX_COEF_6));
+        int32x4_t EO1 = vsubq_s32(vmull_n_s16(v_src_2, OAPV_INVTX_COEF_6), vmull_n_s16(v_src_6, OAPV_INVTX_COEF_5));
+        int32x4_t EE0 = vaddq_s32(vshll_n_s16(v_src_0, OAPV_INVTX_COEF_4_LOG2), vshll_n_s16(v_src_4, OAPV_INVTX_COEF_4_LOG2));
+        int32x4_t EE1 = vsubq_s32(vshll_n_s16(v_src_0, OAPV_INVTX_COEF_4_LOG2), vshll_n_s16(v_src_4, OAPV_INVTX_COEF_4_LOG2));
+        int32x4_t EO2 = vaddq_s32(vmull_n_s16(v_src_10, OAPV_INVTX_COEF_5), vmull_n_s16(v_src_14, OAPV_INVTX_COEF_6));
+        int32x4_t EO3 = vsubq_s32(vmull_n_s16(v_src_10, OAPV_INVTX_COEF_6), vmull_n_s16(v_src_14, OAPV_INVTX_COEF_5));
+        int32x4_t EE2 = vaddq_s32(vshll_n_s16(v_src_8, OAPV_INVTX_COEF_4_LOG2), vshll_n_s16(v_src_12, OAPV_INVTX_COEF_4_LOG2));
+        int32x4_t EE3 = vsubq_s32(vshll_n_s16(v_src_8, OAPV_INVTX_COEF_4_LOG2), vshll_n_s16(v_src_12, OAPV_INVTX_COEF_4_LOG2));
+
+        int32x4_t E0 = vaddq_s32(EE0, EO0);
+        int32x4_t E1 = vaddq_s32(EE1, EO1);
+        int32x4_t E2 = vsubq_s32(EE1, EO1);
+        int32x4_t E3 = vsubq_s32(EE0, EO0);
+        int32x4_t E4 = vaddq_s32(EE2, EO2);
+        int32x4_t E5 = vaddq_s32(EE3, EO3);
+        int32x4_t E6 = vsubq_s32(EE3, EO3);
+        int32x4_t E7 = vsubq_s32(EE2, EO2);
+
+        dest0 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E0, O0), add1), sh1));
+        dest1 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E1, O1), add1), sh1));
+        dest2 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E2, O2), add1), sh1));
+        dest3 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E3, O3), add1), sh1));
+        dest4 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E0, O0), add1), sh1));
+        dest5 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E1, O1), add1), sh1));
+        dest6 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E2, O2), add1), sh1));
+        dest7 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E3, O3), add1), sh1));
+        dest8 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E4, O4), add1), sh1));
+        dest9 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E5, O5), add1), sh1));
+        dest10 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E6, O6), add1), sh1));
+        dest11 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E7, O7), add1), sh1));
+        dest12 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E4, O4), add1), sh1));
+        dest13 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E5, O5), add1), sh1));
+        dest14 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E6, O6), add1), sh1));
+        dest15 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E7, O7), add1), sh1));
+
+        int16x4_t t0 = vzip1_s16(dest0, dest1);
+        int16x4_t t1 = vzip1_s16(dest2, dest3);
+        int16x4_t t2 = vzip2_s16(dest0, dest1);
+        int16x4_t t3 = vzip2_s16(dest2, dest3);
+        int16x4_t t4 = vzip1_s16(dest8, dest9);
+        int16x4_t t5 = vzip1_s16(dest10, dest11);
+        int16x4_t t6 = vzip2_s16(dest8, dest9);
+        int16x4_t t7 = vzip2_s16(dest10, dest11);
+
+        dest0 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t0), vreinterpret_s32_s16(t1)));
+        dest1 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t0), vreinterpret_s32_s16(t1)));
+        dest2 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t2), vreinterpret_s32_s16(t3)));
+        dest3 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t2), vreinterpret_s32_s16(t3)));
+        dest8 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t4), vreinterpret_s32_s16(t5)));
+        dest9 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t4), vreinterpret_s32_s16(t5)));
+        dest10 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t6), vreinterpret_s32_s16(t7)));
+        dest11 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t6), vreinterpret_s32_s16(t7)));
+
+        int16x4_t t8 = vzip1_s16(dest5, dest4);
+        int16x4_t t9 = vzip1_s16(dest7, dest6);
+        int16x4_t t10 = vzip2_s16(dest5, dest4);
+        int16x4_t t11 = vzip2_s16(dest7, dest6);
+        int16x4_t t12 = vzip1_s16(dest13, dest12);
+        int16x4_t t13 = vzip1_s16(dest15, dest14);
+        int16x4_t t14 = vzip2_s16(dest13, dest12);
+        int16x4_t t15 = vzip2_s16(dest15, dest14);
+
+        dest4 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t9), vreinterpret_s32_s16(t8)));
+        dest5 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t9), vreinterpret_s32_s16(t8)));
+        dest6 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t11), vreinterpret_s32_s16(t10)));
+        dest7 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t11), vreinterpret_s32_s16(t10)));
+        dest12 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t13), vreinterpret_s32_s16(t12)));
+        dest13 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t13), vreinterpret_s32_s16(t12)));
+        dest14 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t15), vreinterpret_s32_s16(t14)));
+        dest15 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t15), vreinterpret_s32_s16(t14)));
+    }
+
+    // store in the row layout of the C version (dst[j * 8 + k])
+    vst1_s16(dst + 0 * 8 + 0, dest0);
+    vst1_s16(dst + 0 * 8 + 4, dest4);
+    vst1_s16(dst + 1 * 8 + 0, dest1);
+    vst1_s16(dst + 1 * 8 + 4, dest5);
+    vst1_s16(dst + 2 * 8 + 0, dest2);
+    vst1_s16(dst + 2 * 8 + 4, dest6);
+    vst1_s16(dst + 3 * 8 + 0, dest3);
+    vst1_s16(dst + 3 * 8 + 4, dest7);
+    vst1_s16(dst + 4 * 8 + 0, dest8);
+    vst1_s16(dst + 4 * 8 + 4, dest12);
+    vst1_s16(dst + 5 * 8 + 0, dest9);
+    vst1_s16(dst + 5 * 8 + 4, dest13);
+    vst1_s16(dst + 6 * 8 + 0, dest10);
+    vst1_s16(dst + 6 * 8 + 4, dest14);
+    vst1_s16(dst + 7 * 8 + 0, dest11);
+    vst1_s16(dst + 7 * 8 + 4, dest15);
+}
+
+const oapv_fn_itx_part_t oapv_tbl_fn_itx_part_neon[2] =
+{
+    oapv_itx_part_neon,
+    NULL
+};
+
+static void oapv_dquant_neon(s16* coef, s16 q_matrix[OAPV_BLK_D], int log2_w, int log2_h, s8 shift)
+{
+    int i;
+    int pixels = (1 << (log2_w + log2_h));
+
+    if(shift > 0) {
+        int32x4_t sh = vdupq_n_s32(-shift); // rounding right shift via vrshlq
+        for(i = 0; i < pixels; i += 8) {
+            int16x8_t c = vld1q_s16(coef + i);
+            int16x8_t q = vld1q_s16(q_matrix + i);
+            int32x4_t p0 = vmull_s16(vget_low_s16(c), vget_low_s16(q));
+            int32x4_t p1 = vmull_high_s16(c, q);
+            p0 = vrshlq_s32(p0, sh);
+            p1 = vrshlq_s32(p1, sh);
+            vst1q_s16(coef + i, vcombine_s16(vqmovn_s32(p0), vqmovn_s32(p1)));
+        }
+    }
+    else {
+        int32x4_t sh = vdupq_n_s32(-shift);
+        for(i = 0; i < pixels; i += 8) {
+            int16x8_t c = vld1q_s16(coef + i);
+            int16x8_t q = vld1q_s16(q_matrix + i);
+            int32x4_t p0 = vshlq_s32(vmull_s16(vget_low_s16(c), vget_low_s16(q)), sh);
+            int32x4_t p1 = vshlq_s32(vmull_high_s16(c, q), sh);
+            vst1q_s16(coef + i, vcombine_s16(vqmovn_s32(p0), vqmovn_s32(p1)));
+        }
+    }
+}
+
+const oapv_fn_dquant_t oapv_tbl_fn_dquant_neon[2] =
+{
+    oapv_dquant_neon,
+    NULL
+};
+
+static void oapv_adjust_itrans_neon(int* src, int* dst, int itrans_diff_idx, int diff_step, int shift)
+{
+    int32x4_t offset = vdupq_n_s32(1 << (shift - 1));
+    int32x4_t sh = vdupq_n_s32(-shift);
+    // diff_step is used as a 16-bit value; clamp like the C version
+    int16x4_t step = vdup_n_s16((s16)oapv_clip3(-32768, 32767, diff_step));
+    s16* diff = oapv_itrans_diff[itrans_diff_idx];
+    // row remap of the C version: 0-3, 8-11, 4-7, 12-15 within each group
+    static const int remap[4] = { 0, 8, 4, 12 };
+
+    for(int k = 0; k < 4; k++) {
+        for(int g = 0; g < 4; g++) {
+            int16x4_t d = vld1_s16(diff + remap[g]);
+            int32x4_t adj = vshlq_s32(vaddq_s32(vmull_s16(d, step), offset), sh);
+            vst1q_s32(dst + g * 4, vaddq_s32(vld1q_s32(src + g * 4), adj));
+        }
+        diff += 16;
+        dst += 16;
+        src += 16;
+    }
+}
+
+const oapv_fn_itx_adj_t oapv_tbl_fn_itx_adj_neon[2] =
+{
+    oapv_adjust_itrans_neon,
+    NULL
 };
 
 #endif /* ARM_NEON */

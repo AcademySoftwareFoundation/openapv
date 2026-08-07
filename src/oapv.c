@@ -148,6 +148,16 @@ static void fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info
     finfo->tile_cols = 0;
     finfo->tile_rows = 0;
     finfo->num_tiles = 0;
+
+    // frame_info() does not carry the fields below, so set the defaults that
+    // apply when they are not signalled in the frame header
+    finfo->color_description_present_flag = 0;
+    finfo->color_primaries = 2;          // unspecified
+    finfo->transfer_characteristics = 2; // unspecified
+    finfo->matrix_coefficients = 2;      // unspecified
+    finfo->full_range_flag = 0;          // limited range
+    finfo->use_q_matrix = 0;
+    oapv_mset(finfo->q_matrix, 16, sizeof(finfo->q_matrix));
 }
 
 static void fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo)
@@ -796,20 +806,19 @@ static int enc_thread_tile(void *arg)
     oapve_core_t *core = (oapve_core_t *)arg;
     oapve_ctx_t  *ctx = core->ctx;
     oapve_tile_t *tile = ctx->tile;
-    int           ret = OAPV_OK, i;
+    int           ret = OAPV_OK;
 
     while(1) {
         // find not encoded tile
         oapv_tpool_enter_cs(ctx->sync_obj);
-        for(i = 0; i < ctx->num_tiles; i++) {
-            if(tile[i].stat == ENC_TILE_STAT_NOT_ENCODED) {
-                tile[i].stat = ENC_TILE_STAT_ON_ENCODING;
-                core->tile_idx = i;
-                break;
-            }
+        core->tile_idx = ctx->tile_idx;
+        if (ctx->tile_idx < ctx->num_tiles) {
+            oapv_assert(tile[core->tile_idx].stat == ENC_TILE_STAT_NOT_ENCODED);
+            tile[core->tile_idx].stat = ENC_TILE_STAT_ON_ENCODING;
+            ++ctx->tile_idx;
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
-        if(i == ctx->num_tiles) {
+        if(core->tile_idx == ctx->num_tiles) {
             break;
         }
 
@@ -1008,14 +1017,27 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     ret = enc_set_tile_info(ctx->tile, ctx->w, ctx->h, param->tile_w, param->tile_h, &ctx->num_tile_cols, &ctx->num_tile_rows, &ctx->num_tiles);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
-    // set bitstream buffer for each tile
-    int buf_size = ctx->cdesc.max_bs_buf_size / ctx->num_tiles;
-    oapv_assert_rv(buf_size >= OAPV_MIN_TILE_BS_BUF, OAPV_ERR_OUT_OF_BS_BUF);
-    ctx->tile[0].bs_buf = ctx->bs_buf;
-    ctx->tile[0].bs_buf_max = buf_size;
-    for(i = 1; i < ctx->num_tiles; i++) {
-        ctx->tile[i].bs_buf = ctx->tile[i - 1].bs_buf + buf_size;
-        ctx->tile[i].bs_buf_max = buf_size;
+    // set bitstream buffer for each tile, sized in proportion to the tile
+    // area so a larger tile in a non-uniform grid gets a larger share
+    {
+        s64 area_sum = 0, off = 0;
+        for(i = 0; i < ctx->num_tiles; i++) {
+            area_sum += (s64)ctx->tile[i].w * ctx->tile[i].h;
+        }
+        for(i = 0; i < ctx->num_tiles; i++) {
+            s64 buf_size = (s64)ctx->cdesc.max_bs_buf_size * ((s64)ctx->tile[i].w * ctx->tile[i].h) / area_sum;
+            // reject a buffer too small for this tile before encoding starts;
+            // a tile smaller than OAPV_MIN_TILE_BS_BUF only needs twice its
+            // raw size
+            s64 raw = 0;
+            for(int c = 0; c < ctx->num_c; c++) {
+                raw += ((s64)ctx->tile[i].w >> ctx->c_sft[c][0]) * (ctx->tile[i].h >> ctx->c_sft[c][1]) * 2;
+            }
+            oapv_assert_rv(buf_size >= oapv_min(OAPV_MIN_TILE_BS_BUF, raw * 2), OAPV_ERR_OUT_OF_BS_BUF);
+            ctx->tile[i].bs_buf = ctx->bs_buf + off;
+            ctx->tile[i].bs_buf_max = (u32)buf_size;
+            off += buf_size;
+        }
     }
     // set cores
     for(i = 0; i < ctx->threads; i++) {
@@ -1103,6 +1125,7 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
     int           parallel_task = (ctx->threads > ctx->num_tiles) ? ctx->num_tiles : ctx->threads;
 
     /* encode tiles ************************************/
+    ctx->tile_idx = 0;
     for(tidx = 0; tidx < (parallel_task - 1); tidx++) {
         tpool->run(ctx->thread_id[tidx], enc_thread_tile,
                    (void *)ctx->core[tidx]);
@@ -1148,9 +1171,7 @@ ERR:
 static int enc_platform_init(oapve_ctx_t *ctx)
 {
     // default settings
-    ctx->fn_sad = oapv_tbl_fn_sad_16b;
     ctx->fn_ssd = oapv_tbl_fn_ssd_16b;
-    ctx->fn_diff = oapv_tbl_fn_diff_16b;
     ctx->fn_itx_part = oapv_tbl_fn_itx_part;
     ctx->fn_itx = oapv_tbl_fn_itx;
     ctx->fn_itx_adj = oapv_tbl_fn_itx_adj;
@@ -1166,29 +1187,28 @@ static int enc_platform_init(oapve_ctx_t *ctx)
     support_avx2 = (check_cpu >> 2) & 1;
 
     if(support_avx2) {
-        ctx->fn_sad = oapv_tbl_fn_sad_16b_avx;
         ctx->fn_ssd = oapv_tbl_fn_ssd_16b_avx;
-        ctx->fn_diff = oapv_tbl_fn_diff_16b_avx;
         ctx->fn_itx_part = oapv_tbl_fn_itx_part_avx;
         ctx->fn_itx = oapv_tbl_fn_itx_avx;
         ctx->fn_itx_adj = oapv_tbl_fn_itx_adj_avx;
         ctx->fn_txb = oapv_tbl_fn_txb_avx;
         ctx->fn_quant = oapv_tbl_fn_quant_avx;
         ctx->fn_dquant = oapv_tbl_fn_dquant_avx;
-        ctx->fn_had8x8 = oapv_dc_removed_had8x8_sse;
+        ctx->fn_had8x8 = oapv_dc_removed_had8x8_avx;
     }
     else if(support_sse) {
         ctx->fn_ssd = oapv_tbl_fn_ssd_16b_sse;
         ctx->fn_had8x8 = oapv_dc_removed_had8x8_sse;
     }
 #elif ARM_NEON
-    ctx->fn_sad = oapv_tbl_fn_sad_16b_neon;
     ctx->fn_ssd = oapv_tbl_fn_ssd_16b_neon;
-    ctx->fn_diff = oapv_tbl_fn_diff_16b_neon;
     ctx->fn_itx = oapv_tbl_fn_itx_neon;
+    ctx->fn_itx_part = oapv_tbl_fn_itx_part_neon;
+    ctx->fn_itx_adj = oapv_tbl_fn_itx_adj_neon;
     ctx->fn_txb = oapv_tbl_fn_txb_neon;
     ctx->fn_quant = oapv_tbl_fn_quant_neon;
-    ctx->fn_had8x8 = oapv_dc_removed_had8x8;
+    ctx->fn_dquant = oapv_tbl_fn_dquant_neon;
+    ctx->fn_had8x8 = oapv_dc_removed_had8x8_neon;
 #endif
     return OAPV_OK;
 }
@@ -1801,7 +1821,7 @@ static int dec_tile(oapvd_core_t *core, oapvd_tile_t *tile)
 static int dec_thread_tile(void *arg)
 {
     oapv_bs_t     bs;
-    int           i, ret, run, tidx = 0, thread_ret = OAPV_OK;
+    int           ret, run, tidx = 0, thread_ret = OAPV_OK;
 
     oapvd_core_t *core = (oapvd_core_t *)arg;
     oapvd_ctx_t  *ctx = core->ctx;
@@ -1810,15 +1830,14 @@ static int dec_thread_tile(void *arg)
     while(1) {
         // find not decoded tile
         oapv_tpool_enter_cs(ctx->sync_obj);
-        for(i = 0; i < ctx->num_tiles; i++) {
-            if(DEC_TILE_STAT_IS_DO(tile[i].stat)) {
-                tile[i].stat = DEC_TILE_STAT_ON(tile[i].stat);
-                tidx = i;
-                break;
-            }
+        tidx = ctx->tile_idx;
+        if (ctx->tile_idx < ctx->num_tiles) {
+            oapv_assert(DEC_TILE_STAT_IS_DO(tile[tidx].stat));
+            tile[tidx].stat = DEC_TILE_STAT_ON(tile[tidx].stat);
+            ++ctx->tile_idx;
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
-        if(i == ctx->num_tiles) {
+        if(tidx == ctx->num_tiles) {
             break; // end of worker thread
         }
 
@@ -1849,7 +1868,7 @@ static int dec_thread_tile(void *arg)
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
 
-        if(DEC_TILE_STAT_IS_DECODE(tile[i].stat)) {
+        if(DEC_TILE_STAT_IS_DECODE(tile[tidx].stat)) {
             ret = dec_tile(core, &tile[tidx]);
         }
 
@@ -1979,7 +1998,7 @@ static int dec_platform_init(oapvd_ctx_t *ctx)
     }
 #elif ARM_NEON
     ctx->fn_itx = oapv_tbl_fn_itx_neon;
-    ctx->fn_dquant = oapv_tbl_fn_dquant;
+    ctx->fn_dquant = oapv_tbl_fn_dquant_neon;
 #endif
     return OAPV_OK;
 }
@@ -2114,6 +2133,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
             parallel_task = (ctx->threads > ctx->num_tiles) ? ctx->num_tiles : ctx->threads;
 
             /* decode tiles ************************************/
+            ctx->tile_idx = 0;
             for(tidx = 0; tidx < (parallel_task - 1); tidx++) {
                 tpool->run(ctx->thread_id[tidx], dec_thread_tile,
                            (void *)ctx->core[tidx]);
@@ -2241,7 +2261,9 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
             return OAPV_OK; // founded access_unit_info, no need to read more PBUs
         }
         if(OAPV_PBU_TYPE_IS_FRAME(pbuh.pbu_type)) {
-            // parse frame_header() in PBU to expose tile information
+            // parse frame_header in PBU to report the tile information, the
+            // color description, and the quantization matrix as well as
+            // frame_info
             oapv_fh_t fh;
 
             oapv_assert_rv(frm_count < OAPV_MAX_NUM_FRAMES, OAPV_ERR_REACHED_MAX)

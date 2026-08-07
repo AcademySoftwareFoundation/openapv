@@ -192,9 +192,7 @@ typedef void (*oapv_fn_tx_t)(s16 *coef, int shift1, int shift2, int line);
 typedef void (*oapv_fn_itx_adj_t)(int *src, int *dst, int itrans_diff_idx, int diff_step, int shift);
 typedef int (*oapv_fn_quant_t)(s16 *coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset);
 typedef void (*oapv_fn_dquant_t)(s16 *coef, s16 q_matrix[OAPV_BLK_D], int log2_w, int log2_h, s8 shift);
-typedef int (*oapv_fn_sad_t)(int w, int h, void *src1, void *src2, int s_src1, int s_src2);
 typedef s64 (*oapv_fn_ssd_t)(int w, int h, void *src1, void *src2, int s_src1, int s_src2);
-typedef void (*oapv_fn_diff_t)(int w, int h, void *src1, void *src2, int s_src1, int s_src2, int s_diff, s16 *diff);
 
 typedef double (*oapv_fn_enc_blk_cost_t)(oapve_ctx_t *ctx, oapve_core_t *core, int log2_w, int log2_h, int c);
 typedef void (*oapv_fn_blk_from_pic_t)(int w, int h, void *pic, int pic_x, int pic_s, void *blk, int blk_s, int bd, int mid_val);
@@ -306,6 +304,7 @@ struct oapve_ctx {
     int                        frm_idx; // index of the frame being encoded in the current access unit
     int                        num_tiles_frms[OAPV_MAX_NUM_FRAMES];
     int                        num_tiles;
+    int                        tile_idx;
     int                        num_tile_cols;
     int                        num_tile_rows;
     int                        qp[N_C];
@@ -326,9 +325,7 @@ struct oapve_ctx {
     const oapv_fn_tx_t        *fn_txb;
     const oapv_fn_quant_t     *fn_quant;
     const oapv_fn_dquant_t    *fn_dquant;
-    const oapv_fn_sad_t       *fn_sad;
     const oapv_fn_ssd_t       *fn_ssd;
-    const oapv_fn_diff_t      *fn_diff;
 
     oapv_fn_blk_from_pic_t     fn_blk_from_pic[N_C];
     oapv_fn_blk_to_pic_t       fn_blk_to_pic[N_C];
@@ -422,6 +419,7 @@ struct oapvd_ctx {
     oapv_sync_obj_t         sync_obj;
     u8                     *tile_end;
     int                     num_tiles;
+    int                     tile_idx;
     int                     num_tile_cols;
     int                     num_tile_rows;
     int                     w;

@@ -22,10 +22,10 @@ jobs:
       - name: Extract version from oapv.h
         id: header_version
         run: |
-          APISET=$(grep "^#define OAPV_VER_APISET" inc/oapv.h | awk '{print $3}')
-          MAJOR=$(grep "^#define OAPV_VER_MAJOR" inc/oapv.h | awk '{print $3}')
-          MINOR=$(grep "^#define OAPV_VER_MINOR" inc/oapv.h | awk '{print $3}')
-          PATCH=$(grep "^#define OAPV_VER_PATCH" inc/oapv.h | awk '{print $3}')
+          APISET=$(grep "^#define OAPV_VER_APISET" inc/oapv.h | awk '{print $3}' | tr -d '()')
+          MAJOR=$(grep "^#define OAPV_VER_MAJOR" inc/oapv.h | awk '{print $3}' | tr -d '()')
+          MINOR=$(grep "^#define OAPV_VER_MINOR" inc/oapv.h | awk '{print $3}' | tr -d '()')
+          PATCH=$(grep "^#define OAPV_VER_PATCH" inc/oapv.h | awk '{print $3}' | tr -d '()')
           HEADER_VERSION="${APISET}.${MAJOR}.${MINOR}.${PATCH}"
           echo "version=${HEADER_VERSION}" >> $GITHUB_OUTPUT
           echo "Header version: ${HEADER_VERSION}"
