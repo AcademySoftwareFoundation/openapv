@@ -51,6 +51,13 @@
 /* oapv decoder magic code */
 #define OAPVD_MAGIC_CODE          0x41503144 /* AP1D */
 
+/* check whether given profile is an UNCONST profile extension */
+#define OAPV_PROFILE_IS_UNCONST(idc) \
+    ((idc) == OAPV_PROFILE_422_10_UNCONST || (idc) == OAPV_PROFILE_422_12_UNCONST ||   \
+     (idc) == OAPV_PROFILE_444_10_UNCONST || (idc) == OAPV_PROFILE_444_12_UNCONST ||   \
+     (idc) == OAPV_PROFILE_4444_10_UNCONST || (idc) == OAPV_PROFILE_4444_12_UNCONST || \
+     (idc) == OAPV_PROFILE_400_10_UNCONST)
+
 /* Max. and min. Quantization parameter */
 #define MAX_QUANT(BD)             (63 + ((BD-10)*6))
 #define MIN_QUANT                 0
@@ -132,7 +139,6 @@ struct oapv_fh {
     int       tile_width_in_mbs;            /* u(20) */
     int       tile_height_in_mbs;           /* u(20) */
     int       tile_size_present_in_fh_flag; /* u( 1) */
-    u32       tile_size[OAPV_MAX_TILES];    /* u(32) */
     /* ( end ) tile_info  */
     // int reserved_zero_8bits_4;                   /* u( 8) */
 };
@@ -141,6 +147,10 @@ struct oapv_fh {
  * Tile header
  *****************************************************************************/
 #define OAPV_TILE_SIZE_LEN 4 /* u(32), 4byte */
+
+/* minimum per-tile share of the bitstream buffer; a smaller share cannot
+   hold even a trivial coded tile, so it is rejected before encoding starts */
+#define OAPV_MIN_TILE_BS_BUF (4096)
 typedef struct oapv_th oapv_th_t;
 struct oapv_th {
     int tile_header_size;    /* u(16) */
@@ -276,7 +286,9 @@ struct oapve_ctx {
     oapv_imgb_t               *imgb_r;
     oapve_param_t             *param;
     oapv_fh_t                  fh;
-    oapve_tile_t               tile[OAPV_MAX_TILES];
+    oapve_tile_t              *tile;     // tile array, allocated on demand
+    int                        tile_cap; // number of allocated tile entries
+    u8                        *bs_buf;   // bitstream buffer shared by tiles
     oapve_rc_param_t           rc_param;
     /* per-frame RC working slots: rc_param is loaded from rc_param_frm[i] at
      * the start of each frame and saved back after oapve_rc_update_after_pic,
@@ -400,7 +412,8 @@ struct oapvd_ctx {
     oapv_bs_t               bs;
     oapv_imgb_t            *imgb;
     oapv_fh_t               fh;
-    oapvd_tile_t            tile[OAPV_MAX_TILES];
+    oapvd_tile_t           *tile;     // tile array, allocated on demand
+    int                     tile_cap; // number of allocated tile entries
     oapv_tpool_t           *tpool;
     oapv_thread_t           thread_id[OAPV_MAX_THREADS];
     oapv_sync_obj_t         sync_obj;
@@ -417,7 +430,8 @@ struct oapvd_ctx {
     int                     num_c;         // number of components
     int                     c_sft[N_C][2]; // width or height shift value of each compoents, 0: width, 1: height
     int                     use_frm_hash;
-    int                     disable_companding; // flag of companding
+    int                     disable_companding; // flag of companding, derived per frame
+    int                     force_disable_companding; // config override to force companding off
 
     const oapv_fn_itx_t    *fn_itx;
     const oapv_fn_dquant_t *fn_dquant;

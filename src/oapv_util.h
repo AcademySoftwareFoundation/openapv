@@ -75,19 +75,21 @@
 #define oapv_align_value(val, align) ((((val) + (align) - 1) / (align)) * (align))
 
 // validate tile topology and compute number of tiles (overflow-safe).
+// UNCONST profiles have no limit on the number of tile columns and rows.
 // returns OAPV_OK and sets *num_tiles on success, error otherwise.
-static inline int oapv_validate_tile_topology(int tile_cols, int tile_rows, int *num_tiles)
+static inline int oapv_validate_tile_topology(int profile_idc, int tile_cols, int tile_rows, int *num_tiles)
 {
-    if(tile_cols < 1 || tile_cols > OAPV_MAX_TILE_COLS)
+    int unconst = OAPV_PROFILE_IS_UNCONST(profile_idc);
+    if(tile_cols < 1 || (!unconst && tile_cols > OAPV_MAX_TILE_COLS))
         return OAPV_ERR_MALFORMED_BITSTREAM;
-    if(tile_rows < 1 || tile_rows > OAPV_MAX_TILE_ROWS)
+    if(tile_rows < 1 || (!unconst && tile_rows > OAPV_MAX_TILE_ROWS))
         return OAPV_ERR_MALFORMED_BITSTREAM;
-    // both operands are bounded by 20, so the product cannot overflow int
-    int n = tile_cols * tile_rows;
-    if(n > OAPV_MAX_TILES)
+    // cols and rows can be up to 2^20 each for UNCONST profiles
+    s64 n = (s64)tile_cols * tile_rows;
+    if(n > (unconst ? (s64)INT_MAX : (s64)OAPV_MAX_TILES))
         return OAPV_ERR_MALFORMED_BITSTREAM;
     if(num_tiles)
-        *num_tiles = n;
+        *num_tiles = (int)n;
     return OAPV_OK;
 }
 

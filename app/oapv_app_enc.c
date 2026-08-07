@@ -176,6 +176,8 @@ static const args_opt_t enc_args_opts[] = {
         "      - 4444-12: YCbCrX(RGBA)4444 12bit\n"
         "      - 4444-16C12: YCbCrX(RGBA)4444 16bit companded to 12bit\n"
         "      - 400-10: YCbCr400 (monochrome) 10bit\n"
+        "      - <profile>-UNCONST: extension of the profile without tile\n"
+        "            constraints (e.g. 422-10-UNCONST)\n"
         "      Note: Color space and bit depth of input video will be converted\n"
         "            automatically to support the given profile, if needs\n"
         "            The family and profile arguments should be set with the same\n"
@@ -1177,10 +1179,18 @@ int main(int argc, const char **argv)
     int codec_depth = (param->profile_idc == OAPV_PROFILE_422_10 ||
         param->profile_idc == OAPV_PROFILE_400_10 ||
         param->profile_idc == OAPV_PROFILE_444_10 ||
-        param->profile_idc == OAPV_PROFILE_4444_10) ? 10 : (
+        param->profile_idc == OAPV_PROFILE_4444_10 ||
+        param->profile_idc == OAPV_PROFILE_422_10_UNCONST ||
+        param->profile_idc == OAPV_PROFILE_400_10_UNCONST ||
+        param->profile_idc == OAPV_PROFILE_444_10_UNCONST ||
+        param->profile_idc == OAPV_PROFILE_4444_10_UNCONST) ? 10 : (
         param->profile_idc == OAPV_PROFILE_422_12 ||
         param->profile_idc == OAPV_PROFILE_444_12 ||
-        param->profile_idc == OAPV_PROFILE_4444_12) ? 12 : (
+        param->profile_idc == OAPV_PROFILE_4444_12 ||
+        param->profile_idc == OAPV_PROFILE_422_12_UNCONST ||
+        param->profile_idc == OAPV_PROFILE_444_12_UNCONST ||
+        param->profile_idc == OAPV_PROFILE_4444_12_UNCONST) ? 12 : (
+        param->profile_idc == OAPV_PROFILE_444_16C12 ||
         param->profile_idc == OAPV_PROFILE_4444_16C12) ? 16 : 0;
 
     if (codec_depth == 0) {

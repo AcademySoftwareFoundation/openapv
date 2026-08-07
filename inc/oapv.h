@@ -257,6 +257,15 @@ extern "C" {
 #define OAPV_PROFILE_444_16C12          (140)
 #define OAPV_PROFILE_4444_16C12         (144)
 
+/* OpenAPV profile extensions */
+#define OAPV_PROFILE_422_10_UNCONST     (43)
+#define OAPV_PROFILE_422_12_UNCONST     (54)
+#define OAPV_PROFILE_444_10_UNCONST     (65)
+#define OAPV_PROFILE_444_12_UNCONST     (76)
+#define OAPV_PROFILE_4444_10_UNCONST    (87)
+#define OAPV_PROFILE_4444_12_UNCONST    (98)
+#define OAPV_PROFILE_400_10_UNCONST     (109)
+
 
 /*****************************************************************************
  * family
@@ -447,6 +456,12 @@ struct oapv_frm_info {
     unsigned char transfer_characteristics;
     unsigned char matrix_coefficients;
     int           full_range_flag;
+    // tile partitioning; 0 if unknown
+    int           tile_width_in_mbs;
+    int           tile_height_in_mbs;
+    int           tile_cols;
+    int           tile_rows;
+    int           num_tiles;
 };
 
 typedef struct oapv_au_info oapv_au_info_t;
@@ -462,12 +477,6 @@ struct oapv_tile_pos {
     int y_mb; /* y-position in MB unit */
     int w_mb; /* width in MB unit */
     int h_mb; /* height in MB unit */
-};
-
-typedef struct oapv_tile_info oapv_tile_info_t;
-struct oapv_tile_info {
-    int             num_tiles;
-    oapv_tile_pos_t pos_tiles[OAPV_MAX_TILES];
 };
 
 /*****************************************************************************
@@ -499,7 +508,15 @@ static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
     {"4444-10",     OAPV_PROFILE_4444_10},
     {"4444-12",     OAPV_PROFILE_4444_12},
     {"400-10",      OAPV_PROFILE_400_10},
+    {"444-16C12",   OAPV_PROFILE_444_16C12},
     {"4444-16C12",  OAPV_PROFILE_4444_16C12},
+    {"422-10-UNCONST",  OAPV_PROFILE_422_10_UNCONST},
+    {"422-12-UNCONST",  OAPV_PROFILE_422_12_UNCONST},
+    {"444-10-UNCONST",  OAPV_PROFILE_444_10_UNCONST},
+    {"444-12-UNCONST",  OAPV_PROFILE_444_12_UNCONST},
+    {"4444-10-UNCONST", OAPV_PROFILE_4444_10_UNCONST},
+    {"4444-12-UNCONST", OAPV_PROFILE_4444_12_UNCONST},
+    {"400-10-UNCONST",  OAPV_PROFILE_400_10_UNCONST},
     {"", 0} // termination
 };
 
@@ -839,10 +856,11 @@ struct oapv_pbu_info {
 };
 
 OAPV_EXPORT int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_info);
-OAPV_EXPORT int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info, oapv_tile_info_t *tile_info);
+OAPV_EXPORT int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info);
+OAPV_EXPORT int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *num_tiles);
 
 OAPV_EXPORT int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui);
-OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat, oapv_tile_info_t * part);
+OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat, int num_part_tiles, const int *part_tile_idxs);
 
 
 

@@ -100,8 +100,8 @@ static const args_opt_t dec_args_opts[] = {
         "      Note: API set 1 only supports 1.x or higher library version"
     },
     {
-        ARGS_NO_KEY,  "cyclic-tile-decoding", ARGS_VAL_TYPE_NONE, 0, NULL, 0,
-        "testing using tile-based decoding in cyclic way\n"
+        ARGS_NO_KEY,  "cyclic-tile-decoding", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
+        "number of tiles to decode per frame in cyclic way\n"
         "      Note: this option is just for testing tile-based decoding method and\n"
         "            API set 1 option is required to support this"
     },
@@ -763,10 +763,9 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     oapv_au_info_t    aui;
     oapvd_stat_t      stat;
     oapv_bitb_t       bitb;
-    oapv_tile_info_t  tinfo_in_frm;
-    oapv_tile_info_t *ptinfo_in_frm = NULL;
-    oapv_tile_info_t  tinfo_dec;
-    oapv_tile_info_t *ptinfo_dec = NULL;
+    int              *part_tile_idxs = NULL;
+    int               part_tile_cap = 0;
+    int               num_part_tiles = 0;
 
     oapv_imgb_t      *imgb_dec = NULL;
     oapv_imgb_t      *imgb_out = NULL;
@@ -781,17 +780,9 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     int               pbu_cap = 0;
     int               prev_frm_w = -1, prev_frm_h = -1;
 
-    if(args_var->cyclic_tile_decoding) {
-        if(args_var->api_set == 0) {
-            logerr("ERR: cyclic tile-based decoding cannot be supported in API set 0\n");
-            ret = -1; goto ERR;
-        }
-        ptinfo_in_frm = &tinfo_in_frm;
-        ptinfo_dec = &tinfo_dec;
-    }
-    else {
-        ptinfo_in_frm = NULL;
-        ptinfo_dec = NULL;
+    if(args_var->cyclic_tile_decoding && args_var->api_set == 0) {
+        logerr("ERR: cyclic tile-based decoding cannot be supported in API set 0\n");
+        ret = -1; goto ERR;
     }
 
     // clear descriptor so unset fields (e.g. ops_mem) default to zero
@@ -908,7 +899,7 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 }
 
                 // get frame information
-                ret = oapvd_info_frame(pbu, pbu_size, &finfo, ptinfo_in_frm);
+                ret = oapvd_info_frame(pbu, pbu_size, &finfo);
                 if(OAPV_FAILED(ret)) {
                     logerr("ERR: failed to get frame information (ret = %d)\n", ret);
                     ret = -1; goto ERR;
@@ -949,8 +940,22 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 }
 
                 if(args_var->cyclic_tile_decoding) {
-                    ptinfo_dec->num_tiles = 1; // only one tile decoding in cyclic-way
-                    ptinfo_dec->pos_tiles[0].idx = primary_frm_cnt % ptinfo_in_frm->num_tiles;
+                    num_part_tiles = args_var->cyclic_tile_decoding;
+                    if(num_part_tiles > finfo.num_tiles) {
+                        num_part_tiles = finfo.num_tiles;
+                    }
+                    if(part_tile_cap < num_part_tiles) {
+                        free(part_tile_idxs);
+                        part_tile_idxs = malloc(sizeof(int) * num_part_tiles);
+                        if(part_tile_idxs == NULL) {
+                            logerr("ERR: cannot allocate tile index buffer\n");
+                            ret = -1; goto ERR;
+                        }
+                        part_tile_cap = num_part_tiles;
+                    }
+                    for(int k = 0; k < num_part_tiles; k++) {
+                        part_tile_idxs[k] = (primary_frm_cnt * num_part_tiles + k) % finfo.num_tiles;
+                    }
 
                     // clear image buffer to remove previous frame's decoded tile image
                     imgb_clear(imgb_dec);
@@ -963,7 +968,7 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
                 clk_beg = oapv_clk_get();
 
-                ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat, ptinfo_dec);
+                ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat, num_part_tiles, part_tile_idxs);
 
                 clk_end = oapv_clk_from(clk_beg);
                 clk_tot += clk_end;
@@ -1063,6 +1068,8 @@ ERR:
     if(pbu != NULL)
         free(pbu);
 
+    free(part_tile_idxs);
+
     return 0;
 }
 
@@ -1114,6 +1121,16 @@ int main(int argc, const char **argv)
         logerr("ERR: '--%s' argument is mandatory\n", errstr);
         ret = -1;
         goto ERR;
+    }
+
+    {
+        int cyc_val = 0, cyc_flag = 0;
+        args->get_int(args, "cyclic-tile-decoding", &cyc_val, &cyc_flag);
+        if(cyc_flag && cyc_val <= 0) {
+            logerr("ERR: invalid cyclic-tile-decoding value (%d)\n", cyc_val);
+            ret = -1;
+            goto ERR;
+        }
     }
 
     /* open input file */

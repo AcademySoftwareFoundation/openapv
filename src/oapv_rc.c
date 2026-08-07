@@ -219,7 +219,7 @@ void oapve_rc_update_after_pic(oapve_ctx_t* ctx, double cost)
          * and turned the subsequent log() into NaN, corrupting alpha/beta. */
         u64 total_bits = 0;
         for (int i = 0; i < ctx->num_tiles; i++) {
-            total_bits += (u64)ctx->fh.tile_size[i] * 8;
+            total_bits += (u64)ctx->tile[i].tile_size * 8;
         }
 
         double ln_bpp = log(pow(cost / (double)num_pixel, OAPV_RC_BETA));

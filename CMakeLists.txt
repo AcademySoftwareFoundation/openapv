@@ -307,6 +307,25 @@ set_tests_properties(decode PROPERTIES
     RUN_SERIAL TRUE
 )
 
+# Test - encode with 422-10-UNCONST profile and 16x16 tiles
+add_test(NAME encode_unconst COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_enc -i ${CMAKE_CURRENT_SOURCE_DIR}/test/sequence/pattern1_yuv422p10le_320x240_25fps.y4m --profile 422-10-UNCONST --tile-w 16 --tile-h 16 -o out_unconst.oapv)
+set_tests_properties(encode_unconst PROPERTIES
+    TIMEOUT 20
+    FAIL_REGULAR_EXPRESSION "Encoded frame count               = 0"
+    PASS_REGULAR_EXPRESSION "Encoded frame count               = 125"
+    RUN_SERIAL TRUE
+)
+
+# Test - decode the 422-10-UNCONST bitstream
+add_test(NAME decode_unconst COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i out_unconst.oapv)
+set_tests_properties(decode_unconst PROPERTIES
+    TIMEOUT 10
+    DEPENDS encode_unconst
+    FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
+    PASS_REGULAR_EXPRESSION "Decoded frame count               = 125"
+    RUN_SERIAL TRUE
+)
+
 # Test - decode qp_A.apv
 add_test(NAME decode_qp_A COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_A.apv -v 3 --hash)
 set_tests_properties(decode_qp_A PROPERTIES
