@@ -322,6 +322,11 @@ static const args_opt_t enc_args_opts[] = {
         "embed frame hash value for conformance checking in decoding"
     },
     {
+        ARGS_NO_KEY,  "api-set", ARGS_VAL_TYPE_INTEGER, 0, NULL, 0,
+        "testing with specific API set (0 or 1)\n"
+        "      Note: API set 1 encodes an access unit PBU by PBU"
+    },
+    {
         ARGS_NO_KEY,  "disable-tile-size-in-fh", ARGS_VAL_TYPE_NONE, 0, NULL, 0,
         "do not write tile size values into the frame header"
     },
@@ -347,6 +352,7 @@ typedef struct args_var {
     char           fname_rec[256];
     int            max_au;
     int            hash;
+    int            api_set;
     int            disable_tile_size_in_fh;
     int            input_depth;
     int            input_csp;
@@ -406,6 +412,7 @@ static args_var_t *args_init_vars(args_parser_t *args, oapve_param_t *param)
     args_set_variable_by_key_long(opts, "recon", vars->fname_rec, sizeof(vars->fname_rec));
     args_set_variable_by_key_long(opts, "max-au", &vars->max_au, 0);
     args_set_variable_by_key_long(opts, "hash", &vars->hash, 0);
+    args_set_variable_by_key_long(opts, "api-set", &vars->api_set, 0);
     args_set_variable_by_key_long(opts, "disable-tile-size-in-fh", &vars->disable_tile_size_in_fh, 0);
     args_set_variable_by_key_long(opts, "verbose", &op_verbose, 0);
     op_verbose = VERBOSE_SIMPLE; /* default */
@@ -925,6 +932,63 @@ ERR:
     return ret;
 }
 
+
+/* API set 1: assemble one access unit PBU by PBU using the oapve_pbu_* APIs.
+   The raw AU framing (au size and 'aPv1' signature) is written here, frames
+   are appended as frame PBUs, and the metadata of each frame group follows
+   as metadata PBUs. 'stat' is filled compatibly with oapve_encode(). */
+static int encode_au_apiset1(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frms_t *rfrms)
+{
+    unsigned char *buf = (unsigned char *)bitb->addr;
+    oapv_bitb_t    pb;
+    oapve_stat_t   st;
+    unsigned int   au_size;
+    int            i, j, ret, off;
+
+    memset(stat, 0, sizeof(oapve_stat_t));
+    if(bitb->bsize < 8) return OAPV_ERR_OUT_OF_BS_BUF;
+
+    /* raw access unit framing: au size (backfilled below) + signature */
+    off = 4;
+    buf[off++] = 'a'; buf[off++] = 'P'; buf[off++] = 'v'; buf[off++] = '1';
+
+    for(i = 0; i < ifrms->num_frms; i++) {
+        pb.addr = buf + off;
+        pb.bsize = bitb->bsize - off;
+        ret = oapve_pbu_encode_frame(eid, &ifrms->frm[i], i, mid, &pb, &st,
+                                     (rfrms != NULL) ? &rfrms->frm[i] : NULL);
+        if(OAPV_FAILED(ret)) return ret;
+        stat->frm_size[i] = st.frm_size[0];
+        stat->aui.frm_info[i] = st.aui.frm_info[0];
+        off += st.write;
+    }
+    stat->aui.num_frms = ifrms->num_frms;
+
+    /* append the metadata of each frame group, once per group */
+    for(i = 0; i < ifrms->num_frms; i++) {
+        for(j = 0; j < i; j++) {
+            if(ifrms->frm[j].group_id == ifrms->frm[i].group_id) break;
+        }
+        if(j < i) continue; /* group already written */
+        pb.addr = buf + off;
+        pb.bsize = bitb->bsize - off;
+        ret = oapve_pbu_encode_metadata(eid, mid, ifrms->frm[i].group_id, &pb, &st);
+        if(ret == OAPV_ERR_NOT_FOUND) continue; /* no metadata for this group */
+        if(OAPV_FAILED(ret)) return ret;
+        off += st.write;
+    }
+
+    /* backfill the au size (excluding the size field itself) */
+    au_size = (unsigned int)off - 4;
+    buf[0] = (unsigned char)(au_size >> 24);
+    buf[1] = (unsigned char)(au_size >> 16);
+    buf[2] = (unsigned char)(au_size >> 8);
+    buf[3] = (unsigned char)(au_size);
+
+    stat->write = off;
+    return OAPV_OK;
+}
+
 int main(int argc, const char **argv)
 {
     args_parser_t *args = NULL;
@@ -1270,7 +1334,12 @@ int main(int argc, const char **argv)
             /* encoding */
             clk_beg = oapv_clk_get();
 
-            ret = oapve_encode(id, &ifrms, mid, &bitb, &stat, &rfrms);
+            if(args_var->api_set == 1) {
+                ret = encode_au_apiset1(id, &ifrms, mid, &bitb, &stat, &rfrms);
+            }
+            else {
+                ret = oapve_encode(id, &ifrms, mid, &bitb, &stat, &rfrms);
+            }
 
             clk_end = oapv_clk_from(clk_beg);
             clk_tot += clk_end;
