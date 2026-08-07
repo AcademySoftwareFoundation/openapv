@@ -985,12 +985,20 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     ret = enc_set_tile_info(ctx->tile, ctx->w, ctx->h, param->tile_w, param->tile_h, &ctx->num_tile_cols, &ctx->num_tile_rows, &ctx->num_tiles);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
-    // set bitstream buffer for each tile
-    int buf_size = ctx->cdesc.max_bs_buf_size / ctx->num_tiles;
-    ctx->tile[0].bs_buf_max = buf_size;
-    for(i = 1; i < ctx->num_tiles; i++) {
-        ctx->tile[i].bs_buf = ctx->tile[i - 1].bs_buf + buf_size;
-        ctx->tile[i].bs_buf_max = buf_size;
+    // set bitstream buffer for each tile, sized in proportion to the tile
+    // area so a larger tile in a non-uniform grid gets a larger share
+    {
+        u8 *base = ctx->tile[0].bs_buf;
+        s64 area_sum = 0, off = 0;
+        for(i = 0; i < ctx->num_tiles; i++) {
+            area_sum += (s64)ctx->tile[i].w * ctx->tile[i].h;
+        }
+        for(i = 0; i < ctx->num_tiles; i++) {
+            s64 buf_size = (s64)ctx->cdesc.max_bs_buf_size * ((s64)ctx->tile[i].w * ctx->tile[i].h) / area_sum;
+            ctx->tile[i].bs_buf = base + off;
+            ctx->tile[i].bs_buf_max = (u32)buf_size;
+            off += buf_size;
+        }
     }
     // set cores
     for(i = 0; i < ctx->threads; i++) {
