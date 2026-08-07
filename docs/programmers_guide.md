@@ -201,6 +201,48 @@ oapvd_decode_frame(did, &bitb, imgb, &stat, num_part_tiles, part_tile_idxs)
 Passing `0, NULL` decodes every tile. The regions of unselected tiles are
 left untouched, so clear or reuse the image buffer accordingly.
 
+## Encoding RGB content
+
+The 444 profiles do not prescribe a color space: the three planes are just
+components 0/1/2, and the color space interpretation is carried by the color
+description fields of the frame header. RGB content is therefore coded with a
+444 profile plus an identity matrix signal — the same convention HEVC, VP9,
+and AV1 use, which is why no separate RGB profile exists.
+
+| field | value for RGB | meaning |
+|---|---|---|
+| `matrix_coefficients` | 0 | identity matrix, no YCbCr conversion |
+| `color_primaries` | per content (e.g. sRGB/BT.709 = 1, BT.2020 = 9) | primaries |
+| `transfer_characteristics` | per content (e.g. sRGB = 13, PQ = 16) | transfer function |
+| `full_range_flag` | usually 1 | RGB is normally full range |
+
+The plane order follows the ITU-T H.273 convention: G in component 0, B in
+component 1, R in component 2 (the same order as ffmpeg's `gbrp` formats).
+
+To encode RGB, feed the G/B/R planes as a 444 image and signal the color
+description through the encoding parameters:
+
+```
+// image buffer: component 0 = G, 1 = B, 2 = R
+imgb->cs = OAPV_CS_SET(OAPV_CF_YCBCR444, 10, 0)
+
+oapve_param_default(&param)
+param.profile_idc = OAPV_PROFILE_444_10
+param.color_description_present_flag = 1
+param.color_primaries = 1           // e.g. sRGB / BT.709 primaries
+param.transfer_characteristics = 13 // e.g. sRGB transfer
+param.matrix_coefficients = 0       // identity, no YCbCr conversion
+param.full_range_flag = 1
+```
+
+The reference encoder exposes the same controls; see the encoding examples
+in the README.
+
+On the decoding side, a 444 stream with `color_description_present_flag` set
+and `matrix_coefficients == 0` (reported by `oapvd_info()` and in
+`oapvd_stat_t`) identifies RGB content; the decoded planes are G, B, and R
+as coded, with no conversion applied.
+
 ## Custom memory allocator
 
 By default the library allocates with the standard C library. An application
