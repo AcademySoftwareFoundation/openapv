@@ -60,6 +60,37 @@ imgb.release(imgb)
 free(bitb.addr)
 ```
 
+### PBU-based encoding (API set 1)
+
+`oapve_encode()` writes a whole access unit in one call. The PBU-based APIs
+instead let the application assemble the AU itself, mirroring the PBU-based
+decoding API set: the application writes the raw AU framing (the 4-byte au
+size and the `aPv1` signature) and appends PBUs one by one.
+
+```
+// [au_size(4)] [signature 'aPv1'(4)] [pbu_size+pbu()] [pbu_size+pbu()] ...
+off = 4                                    // au size is backfilled at the end
+buf[off..off+3] = 'aPv1', off += 4
+
+// one frame -> one frame PBU; frm_idx selects the parameter/RC slot
+bitb.addr = buf + off, bitb.bsize = cap - off
+oapve_pbu_encode_frame(eid, &frm, frm_idx, mid, &bitb, &stat, &rfrm)
+off += stat.write                          // frame hash is collected into mid
+
+// metadata of a group -> one metadata PBU
+bitb.addr = buf + off, bitb.bsize = cap - off
+ret = oapve_pbu_encode_metadata(eid, mid, group_id, &bitb, &stat)
+if(ret != OAPV_ERR_NOT_FOUND) off += stat.write
+
+write_u32_be(buf, off - 4)                 // backfill the au size
+write(output, buf, off)
+oapvm_rem_all(mid)
+```
+
+An AU assembled this way is identical to the output of `oapve_encode()`
+when the same frames and metadata are used in the same order. The reference
+encoder application exposes this path with `--api-set 1`.
+
 ## Runtime configuration
 
 Options can be queried and changed after creation with `oapve_config()` and
