@@ -41,8 +41,10 @@
 
 extern const oapv_fn_tx_t oapv_tbl_fn_txb_neon[2];
 extern const oapv_fn_quant_t oapv_tbl_fn_quant_neon[2];
-extern const oapv_fn_dquant_t oapv_tbl_fn_dquant_neon[2];
 extern const oapv_fn_itx_t oapv_tbl_fn_itx_neon[2];
+extern const oapv_fn_itx_part_t oapv_tbl_fn_itx_part_neon[2];
+extern const oapv_fn_dquant_t oapv_tbl_fn_dquant_neon[2];
+extern const oapv_fn_itx_adj_t oapv_tbl_fn_itx_adj_neon[2];
 
 #endif // ARM_NEON
 
