@@ -104,6 +104,12 @@ endif()
 # Compilation flags
 ########################################
 
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+
+include(CheckCCompilerFlag)
+
 # Set compiler flags and options.
 if(MSVC)
   message("Not supported yet!")
@@ -124,8 +130,22 @@ elseif(UNIX OR MINGW)
         set(OPT_DBG "-DNDEBUG") # disable assert
     endif()
 
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OPT_DBG} -${OPT_LV} -fomit-frame-pointer -pthread -std=c99")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wno-unused-function")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OPT_DBG} -${OPT_LV}")
+    check_c_compiler_flag("-fomit-frame-pointer" HAS_FLAG_OMIT_FRAME_POINTER)
+    if(HAS_FLAG_OMIT_FRAME_POINTER)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fomit-frame-pointer")
+    endif()
+    check_c_compiler_flag("-Wall" HAS_FLAG_WARNING_ALL)
+    if(HAS_FLAG_WARNING_ALL)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+    endif()
+    check_c_compiler_flag("-Wno-unused-function" HAS_FLAG_NO_UNUSED_FUNCTION)
+    if(HAS_FLAG_NO_UNUSED_FUNCTION)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")
+    endif()
+    if(NOT WIN32)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+    endif()
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lm")
 
     if(ENABLE_COVERAGE)
