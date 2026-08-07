@@ -1299,14 +1299,92 @@ void oapve_delete(oapve_t eid)
     enc_ctx_free(ctx);
 }
 
+/* encode one frame as a frame PBU: pbu_size + pbu_header() + frame().
+   'frm_idx' selects the per-frame parameter and RC state slot, and
+   'stat_idx' selects the slot of 'stat' to fill */
+static int enc_pbu_frame(oapve_ctx_t *ctx, oapv_frm_t *frm, int frm_idx, oapvm_t mid, oapv_bs_t *bs, oapv_imgb_t *imgb_r, oapve_stat_t *stat, int stat_idx)
+{
+    u8 *bs_pos_pbu_beg;
+    int ret;
+
+    ret = enc_frm_prepare(ctx, &ctx->cdesc.param[frm_idx], frm->imgb, imgb_r);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+    /* Load this frame slot's RC state into the working ctx->rc_param so
+     * enc_frame and oapve_rc_update_after_pic operate on per-slot alpha/beta. */
+    ctx->rc_param = ctx->rc_param_frm[frm_idx];
+    ctx->frm_idx = frm_idx;
+
+    // write headers
+    bs_pos_pbu_beg = oapv_bsw_sink(bs);            /* store pbu pos to calculate size */
+    DUMP_SAVE(0);
+    oapv_bsw_write(bs, 0, 32); /* skip pbu_size syntax (later re-write) */
+    oapve_vlc_pbu_header(bs, frm->pbu_type, frm->group_id);
+    // encode a frame
+    ret = enc_frame(ctx, bs);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+    /* Save the updated RC state back into this slot for the next AU. */
+    ctx->rc_param_frm[frm_idx] = ctx->rc_param;
+
+    // rewrite pbu_size
+    int pbu_size = ((u8 *)oapv_bsw_sink(bs)) - bs_pos_pbu_beg - 4;
+    DUMP_SAVE(1);
+    DUMP_LOAD(0);
+    oapv_bsw_write_direct(bs_pos_pbu_beg, pbu_size, 32);
+    DUMP_HLS(pbu_size, pbu_size);
+    DUMP_LOAD(1);
+
+    stat->frm_size[stat_idx] = pbu_size + 4 /* PUB size length*/;
+    fh_to_finfo(&ctx->fh, frm->pbu_type, frm->group_id, &stat->aui.frm_info[stat_idx]);
+
+    // add frame hash value of reconstructed frame into metadata list
+    if(ctx->use_frm_hash[frm_idx]) {
+        if(frm->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME ||
+           frm->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME) {
+            oapv_assert_rv(mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
+            ret = oapv_set_md5_pld(mid, frm->group_id, ctx->imgb_r);
+            oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+        }
+    }
+
+    // finishing of encoding a frame
+    return enc_frm_finish(ctx, stat);
+}
+
+/* encode the metadata of one group as a metadata PBU */
+static int enc_pbu_metadata(oapv_md_t *md, int group_id, oapv_bs_t *bs)
+{
+    u8 *bs_pos_pbu_beg;
+    int ret;
+
+    bs_pos_pbu_beg = oapv_bsw_sink(bs);            /* store pbu pos to calculate size */
+    oapv_assert_rv(bs_pos_pbu_beg != NULL, OAPV_ERR_OUT_OF_BS_BUF);
+    DUMP_SAVE(0);
+    oapv_bsw_write(bs, 0, 32); /* skip pbu_size syntax (later re-write) */
+    oapve_vlc_pbu_header(bs, OAPV_PBU_TYPE_METADATA, group_id);
+    ret = oapve_vlc_metadata(md, bs);
+    oapv_assert_rv(ret == OAPV_OK, ret);
+
+    // rewrite pbu_size
+    u8 *bs_pos_pbu_end = oapv_bsw_sink(bs);
+    oapv_assert_rv(bs_pos_pbu_end != NULL, OAPV_ERR_OUT_OF_BS_BUF);
+    int pbu_size = (bs_pos_pbu_end - bs_pos_pbu_beg) - 4;
+    DUMP_SAVE(1);
+    DUMP_LOAD(0);
+    oapv_bsw_write_direct(bs_pos_pbu_beg, pbu_size, 32);
+    DUMP_HLS(pbu_size, pbu_size);
+    DUMP_LOAD(1);
+    return OAPV_OK;
+}
+
 int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frms_t *rfrms)
 {
     oapv_bs_t    bsw;
     oapve_ctx_t *ctx;
-    oapv_frm_t  *frm;
     oapv_bs_t   *bs;
     int          i, ret;
-    u8          *bs_pos_pbu_beg, *bs_pos_au_beg;
+    u8          *bs_pos_au_beg;
 
     ctx = enc_id_to_ctx(eid);
     oapv_assert_rv(ctx != NULL && bitb != NULL && bitb->addr && bitb->bsize > 0, OAPV_ERR_INVALID_ARGUMENT);
@@ -1327,52 +1405,9 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
     oapv_bsw_write(bs, 0x61507631, 32); // signature ('aPv1')
 
     for(i = 0; i < ifrms->num_frms; i++) {
-        // prepare for encoding a frame
-        frm = &ifrms->frm[i];
-        ret = enc_frm_prepare(ctx, &ctx->cdesc.param[i], frm->imgb, (rfrms != NULL) ? rfrms->frm[i].imgb : NULL);
-        oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
-
-        /* Load this frame slot's RC state into the working ctx->rc_param so
-         * enc_frame and oapve_rc_update_after_pic operate on per-slot alpha/beta. */
         // 'i' is bounded by the num_frms check at the top of this function
-        ctx->rc_param = ctx->rc_param_frm[i];
-        ctx->frm_idx = i;
-
-        // write headers
-        bs_pos_pbu_beg = oapv_bsw_sink(bs);            /* store pbu pos to calculate size */
-        DUMP_SAVE(0);
-        oapv_bsw_write(bs, 0, 32); /* skip pbu_size syntax (later re-write) */
-        oapve_vlc_pbu_header(bs, frm->pbu_type, frm->group_id);
-        // encode a frame
-        ret = enc_frame(ctx, bs);
-        oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
-
-        /* Save the updated RC state back into this slot for the next AU. */
-        ctx->rc_param_frm[i] = ctx->rc_param;
-
-        // rewrite pbu_size
-        int pbu_size = ((u8 *)oapv_bsw_sink(bs)) - bs_pos_pbu_beg - 4;
-        DUMP_SAVE(1);
-        DUMP_LOAD(0);
-        oapv_bsw_write_direct(bs_pos_pbu_beg, pbu_size, 32);
-        DUMP_HLS(pbu_size, pbu_size);
-        DUMP_LOAD(1);
-
-        stat->frm_size[i] = pbu_size + 4 /* PUB size length*/;
-        fh_to_finfo(&ctx->fh, frm->pbu_type, frm->group_id, &stat->aui.frm_info[i]);
-
-        // add frame hash value of reconstructed frame into metadata list
-        if(ctx->use_frm_hash[i]) {
-            if(frm->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME ||
-               frm->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME) {
-                oapv_assert_rv(mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
-                ret = oapv_set_md5_pld(mid, frm->group_id, ctx->imgb_r);
-                oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
-            }
-        }
-
-        // finishing of encoding a frame
-        ret = enc_frm_finish(ctx, stat);
+        ret = enc_pbu_frame(ctx, &ifrms->frm[i], i, mid, bs,
+                            (rfrms != NULL) ? rfrms->frm[i].imgb : NULL, stat, i);
         oapv_assert_rv(ret == OAPV_OK, ret);
     }
     stat->aui.num_frms = ifrms->num_frms;
@@ -1382,24 +1417,8 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
     if(md_list != NULL) {
         int num_md = md_list->num;
         for(i = 0; i < num_md; i++) {
-            int group_id = md_list->md_arr[i].group_id;
-            bs_pos_pbu_beg = oapv_bsw_sink(bs);            /* store pbu pos to calculate size */
-            oapv_assert_rv(bs_pos_pbu_beg != NULL, OAPV_ERR_OUT_OF_BS_BUF);
-            DUMP_SAVE(0);
-            oapv_bsw_write(bs, 0, 32); /* skip pbu_size syntax (later re-write) */
-            oapve_vlc_pbu_header(bs, OAPV_PBU_TYPE_METADATA, group_id);
-            ret = oapve_vlc_metadata(&md_list->md_arr[i], bs);
+            ret = enc_pbu_metadata(&md_list->md_arr[i], md_list->md_arr[i].group_id, bs);
             oapv_assert_rv(ret == OAPV_OK, ret);
-
-            // rewrite pbu_size
-            u8 *bs_pos_pbu_end = oapv_bsw_sink(bs);
-            oapv_assert_rv(bs_pos_pbu_end != NULL, OAPV_ERR_OUT_OF_BS_BUF);
-            int pbu_size = (bs_pos_pbu_end - bs_pos_pbu_beg) - 4;
-            DUMP_SAVE(1);
-            DUMP_LOAD(0);
-            oapv_bsw_write_direct(bs_pos_pbu_beg, pbu_size, 32);
-            DUMP_HLS(pbu_size, pbu_size);
-            DUMP_LOAD(1);
         }
     }
 
@@ -1411,6 +1430,62 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
     oapv_bsw_deinit(bs); /* de-init BSW */
     stat->write = bsw_get_write_byte(bs);
 
+    return OAPV_OK;
+}
+
+int oapve_pbu_encode_frame(oapve_t eid, oapv_frm_t *ifrm, int frm_idx, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frm_t *rfrm)
+{
+    oapv_bs_t    bsw;
+    oapve_ctx_t *ctx;
+    int          ret;
+
+    ctx = enc_id_to_ctx(eid);
+    oapv_assert_rv(ctx != NULL && bitb != NULL && bitb->addr && bitb->bsize > 0, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(ifrm != NULL && ifrm->imgb != NULL && stat != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(frm_idx >= 0 && frm_idx < ctx->cdesc.max_num_frms, OAPV_ERR_INVALID_ARGUMENT);
+
+    oapv_bsw_init(&bsw, bitb->addr, bitb->bsize, NULL);
+    oapv_mset(stat, 0, sizeof(oapve_stat_t));
+
+    ret = enc_pbu_frame(ctx, ifrm, frm_idx, mid, &bsw, (rfrm != NULL) ? rfrm->imgb : NULL, stat, 0);
+    oapv_assert_rv(ret == OAPV_OK, ret);
+    stat->aui.num_frms = 1;
+
+    oapv_bsw_deinit(&bsw);
+    stat->write = bsw_get_write_byte(&bsw);
+    return OAPV_OK;
+}
+
+int oapve_pbu_encode_metadata(oapve_t eid, oapvm_t mid, int group_id, oapv_bitb_t *bitb, oapve_stat_t *stat)
+{
+    oapv_bs_t    bsw;
+    oapve_ctx_t *ctx;
+    oapvm_ctx_t *md_list;
+    int          i, ret;
+
+    ctx = enc_id_to_ctx(eid);
+    oapv_assert_rv(ctx != NULL && bitb != NULL && bitb->addr && bitb->bsize > 0, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(mid != NULL && stat != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(group_id >= 0, OAPV_ERR_INVALID_ARGUMENT);
+
+    md_list = mid;
+    for(i = 0; i < md_list->num; i++) {
+        if(md_list->md_arr[i].group_id == group_id) {
+            break;
+        }
+    }
+    if(i == md_list->num) {
+        return OAPV_ERR_NOT_FOUND; // no metadata for the group
+    }
+
+    oapv_bsw_init(&bsw, bitb->addr, bitb->bsize, NULL);
+    oapv_mset(stat, 0, sizeof(oapve_stat_t));
+
+    ret = enc_pbu_metadata(&md_list->md_arr[i], group_id, &bsw);
+    oapv_assert_rv(ret == OAPV_OK, ret);
+
+    oapv_bsw_deinit(&bsw);
+    stat->write = bsw_get_write_byte(&bsw);
     return OAPV_OK;
 }
 

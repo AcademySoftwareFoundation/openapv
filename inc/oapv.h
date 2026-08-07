@@ -822,6 +822,17 @@ OAPV_EXPORT int oapve_param_default(oapve_param_t *param);
 OAPV_EXPORT int oapve_param_parse(oapve_param_t* param, const char* name,  const char* value);
 OAPV_EXPORT int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frms_t *rfrms);
 
+/* PBU-based encoding APIs (API set 1) ***************************************
+ * The application assembles an access unit itself: it writes the raw AU
+ * framing (au size and the 'aPv1' signature) and appends PBUs one by one.
+ * oapve_pbu_encode_frame() writes one frame PBU for the given frame using
+ * the parameter and rate control state of the 'frm_idx' slot; a frame hash
+ * is collected into 'mid' when enabled. oapve_pbu_encode_metadata() writes
+ * the metadata of one group as a metadata PBU, or returns
+ * OAPV_ERR_NOT_FOUND if the group has no metadata. */
+OAPV_EXPORT int oapve_pbu_encode_frame(oapve_t eid, oapv_frm_t *ifrm, int frm_idx, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frm_t *rfrm);
+OAPV_EXPORT int oapve_pbu_encode_metadata(oapve_t eid, oapvm_t mid, int group_id, oapv_bitb_t *bitb, oapve_stat_t *stat);
+
 /* utility APIs **************************************************************/
 OAPV_EXPORT int oapve_family_bitrate(int family, int w, int h, int fps_num, int fps_den, int * kbps);
 
