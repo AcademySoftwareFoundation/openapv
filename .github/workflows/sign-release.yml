@@ -1,21 +1,75 @@
 name: Sign Release
 
+# Creates a source tarball of the release tag, signs it with Sigstore
+# (keyless, via the GitHub OIDC identity of this workflow), and uploads
+# the tarball, the .sigstore.json bundle, and a SHA256SUMS file covering
+# all release assets.
+#
+# To verify a downloaded source tarball:
+#
+#   % pip install sigstore
+#   % sigstore verify github --cert-identity https://github.com/AcademySoftwareFoundation/openapv/.github/workflows/sign-release.yml@refs/tags/<tag> openapv-<version>.tar.gz
+#
+# To sign an existing release again (e.g. after assets were added):
+# Actions -> Sign Release -> Run workflow -> enter the release tag.
+
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to sign (e.g. v0.3.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
   sign-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # required for gh release upload
+      id-token: write # required for sigstore OIDC signing
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.event.release.tag_name }}
     steps:
+      - name: Set source archive name
+        # tag "v0.3.0.0" -> tarball "openapv-0.3.0.0.tar.gz" extracting into "openapv-0.3.0.0/"
+        run: |
+          echo "OAPV_PREFIX=openapv-${TAG#v}/" >> $GITHUB_ENV
+          echo "OAPV_TARBALL=openapv-${TAG#v}.tar.gz" >> $GITHUB_ENV
+
       - name: Checkout code
         uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Create source archive
+        run: git archive --format=tar.gz -o ${OAPV_TARBALL} --prefix ${OAPV_PREFIX} ${TAG}
+
+      - name: Sign source archive with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v3.5.0
+        with:
+          inputs: ${{ env.OAPV_TARBALL }}
+          upload-signing-artifacts: false
+          release-signing-artifacts: false
+
+      - name: Upload source archive and signature to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${TAG} \
+            ${OAPV_TARBALL} \
+            ${OAPV_TARBALL}.sigstore.json \
+            --clobber
 
       - name: Download release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download ${{ github.event.release.tag_name }} \
+          gh release download ${TAG} \
             --dir release-assets \
             --pattern "*.tar.gz" \
             --pattern "*.zip" \
@@ -32,6 +86,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload ${{ github.event.release.tag_name }} \
+          gh release upload ${TAG} \
             release-assets/SHA256SUMS \
             --clobber
