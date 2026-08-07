@@ -11,7 +11,7 @@ Version: @VERSION_APISET@.@VERSION_MAJOR@.@VERSION_MINOR@.@VERSION_PATCH@
 
 Requires:
 Libs: -L${libdir} -l@LIB_NAME_BASE@
-Libs.private: -L${libdir}/@LIB_NAME_BASE@ -lm
+Libs.private: -lm
 
 Cflags: -I${includedir} @EXTRA_CFLAGS@
 Cflags.private: @EXTRA_CFLAGS_PRIVATE@
