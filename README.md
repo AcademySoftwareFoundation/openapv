@@ -125,9 +125,9 @@ Decoding:
 ## Programmer's guide
 
 See the [Programmer's Guide](/readme/programmers_guide.md) for how to write
-encoding and decoding code with the library, including PBU-based decoding,
-tile-based partial decoding, runtime configuration, RGB content encoding,
-and the custom memory allocator interface.
+encoding and decoding code with the library, including PBU-based encoding
+and decoding, tile-based partial decoding, runtime configuration, RGB
+content encoding, and the custom memory allocator interface.
 
 ## Utility
 
