@@ -789,6 +789,7 @@ static int enc_thread_tile(void *arg)
         oapv_tpool_enter_cs(ctx->sync_obj);
         core->tile_idx = ctx->tile_idx;
         if (ctx->tile_idx < ctx->num_tiles) {
+            oapv_assert(tile[core->tile_idx].stat == ENC_TILE_STAT_NOT_ENCODED);
             tile[core->tile_idx].stat = ENC_TILE_STAT_ON_ENCODING;
             ++ctx->tile_idx;
         }
@@ -800,7 +801,9 @@ static int enc_thread_tile(void *arg)
         ret = enc_tile(ctx, core, &tile[core->tile_idx]);
         oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
+        oapv_tpool_enter_cs(ctx->sync_obj);
         tile[core->tile_idx].stat = ENC_TILE_STAT_ENCODED;
+        oapv_tpool_leave_cs(ctx->sync_obj);
     }
 ERR:
     return ret;
@@ -1761,6 +1764,7 @@ static int dec_thread_tile(void *arg)
         oapv_tpool_enter_cs(ctx->sync_obj);
         tidx = ctx->tile_idx;
         if (ctx->tile_idx < ctx->num_tiles) {
+            oapv_assert(DEC_TILE_STAT_IS_DO(tile[tidx].stat));
             tile[tidx].stat = DEC_TILE_STAT_ON(tile[tidx].stat);
             ++ctx->tile_idx;
         }
@@ -1800,6 +1804,7 @@ static int dec_thread_tile(void *arg)
             ret = dec_tile(core, &tile[tidx]);
         }
 
+        oapv_tpool_enter_cs(ctx->sync_obj);
         if (OAPV_SUCCEEDED(ret)) {
             tile[tidx].stat = DEC_TILE_STAT_DONE(tile[tidx].stat);
         }
@@ -1807,6 +1812,7 @@ static int dec_thread_tile(void *arg)
             tile[tidx].stat = DEC_TILE_STAT_ERR(tile[tidx].stat);
             thread_ret = ret;
         }
+        oapv_tpool_leave_cs(ctx->sync_obj);
     }
     return thread_ret;
 

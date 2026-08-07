@@ -84,6 +84,7 @@ int get_tile_cost_thread(void* arg)
         oapv_tpool_enter_cs(ctx->sync_obj);
         tidx = ctx->tile_idx;
         if (ctx->tile_idx < ctx->num_tiles) {
+            oapv_assert(tile[tidx].stat == ENC_TILE_STAT_NOT_ENCODED);
             tile[tidx].stat = ENC_TILE_STAT_ON_ENCODING;
             ++ctx->tile_idx;
         }
@@ -95,7 +96,9 @@ int get_tile_cost_thread(void* arg)
         ret = oapve_rc_get_tile_cost(ctx, core, &tile[tidx]);
         oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
+        oapv_tpool_enter_cs(ctx->sync_obj);
         tile[tidx].stat = ENC_TILE_STAT_ENCODED;
+        oapv_tpool_leave_cs(ctx->sync_obj);
     }
 ERR:
     return ret;
