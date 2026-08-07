@@ -106,6 +106,10 @@ Encoding:
     oapv_app_enc -i input_1920x1080_yuv422_10bit.yuv -w 1920 -h 1080 -d 10 -z 30 --input-csp 2 -o encoded.apv
     oapv_app_enc -i input.y4m -o encoded.apv
 
+Encoding RGB content (G/B/R planar order, coded as 444 with the identity matrix signalled in the color description; see the [Programmer's Guide](/docs/programmers_guide.md) for details):
+
+    oapv_app_enc -i input_rgb_gbr_planar_10bit.yuv -w 1920 -h 1080 -d 10 -z 30 --input-csp 3 --profile 444-10 --color-primaries 1 --color-transfer 13 --color-matrix 0 --color-range 1 -o encoded.apv
+
 ### Decoder
 
 Decoder output can be in yuv or y4m formats.

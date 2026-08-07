@@ -219,14 +219,24 @@ and AV1 use, which is why no separate RGB profile exists.
 The plane order follows the ITU-T H.273 convention: G in component 0, B in
 component 1, R in component 2 (the same order as ffmpeg's `gbrp` formats).
 
-Encoding GBR-ordered planar RGB with the reference encoder:
+To encode RGB, feed the G/B/R planes as a 444 image and signal the color
+description through the encoding parameters:
 
 ```
-oapv_app_enc -i rgb_gbr_planar.yuv -w 3840 -h 2160 -z 30 -d 10 \
-  --input-csp 3 --profile 444-10 -q 20 \
-  --color-primaries 1 --color-transfer 13 --color-matrix 0 --color-range 1 \
-  -o out.oapv
+// image buffer: component 0 = G, 1 = B, 2 = R
+imgb->cs = OAPV_CS_SET(OAPV_CF_YCBCR444, 10, 0)
+
+oapve_param_default(&param)
+param.profile_idc = OAPV_PROFILE_444_10
+param.color_description_present_flag = 1
+param.color_primaries = 1           // e.g. sRGB / BT.709 primaries
+param.transfer_characteristics = 13 // e.g. sRGB transfer
+param.matrix_coefficients = 0       // identity, no YCbCr conversion
+param.full_range_flag = 1
 ```
+
+The reference encoder exposes the same controls; see the encoding examples
+in the README.
 
 On the decoding side, a 444 stream with `color_description_present_flag` set
 and `matrix_coefficients == 0` (reported by `oapvd_info()` and in
