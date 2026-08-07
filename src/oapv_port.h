@@ -209,51 +209,5 @@ static __inline void oapv_mset_16b(s16 *dst, s16 v, int cnt)
 /* CPU information */
 int oapv_get_num_cpu_cores(void);
 
-/* Endianness handling */
-#if defined(__GNUC__) || defined(__clang__)
-#define OAPV_SWAP16(x) __builtin_bswap16(x)
-#define OAPV_SWAP32(x) __builtin_bswap32(x)
-#define OAPV_SWAP64(x) __builtin_bswap64(x)
-#elif defined(_MSC_VER)
-#define OAPV_SWAP16(x) _byteswap_ushort(x)
-#define OAPV_SWAP32(x) _byteswap_ulong(x)
-#define OAPV_SWAP64(x) _byteswap_uint64(x)
-#else
-#define OAPV_SWAP16(x) ((((x) & 0xff00) >> 8) | (((x) & 0x00ff) << 8))
-#define OAPV_SWAP32(x) ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >> 8) | \
-                        (((x) & 0x0000ff00) << 8)  | (((x) & 0x000000ff) << 24))
-#define OAPV_SWAP64(x) ((((x) & 0xff00000000000000ull) >> 56) | \
-                        (((x) & 0x00ff000000000000ull) >> 40) | \
-                        (((x) & 0x0000ff0000000000ull) >> 24) | \
-                        (((x) & 0x000000ff00000000ull) >> 8)  | \
-                        (((x) & 0x00000000ff000000ull) << 8)  | \
-                        (((x) & 0x0000000000ff0000ull) << 24) | \
-                        (((x) & 0x000000000000ff00ull) << 40) | \
-                        (((x) & 0x00000000000000ffull) << 56))
-#endif
-
-#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
-#define OAPV_BIG_ENDIAN 1
-#define OAPV_CPU_TO_LE32(x) OAPV_SWAP32(x)
-#define OAPV_CPU_TO_LE64(x) OAPV_SWAP64(x)
-#define OAPV_LE32_TO_CPU(x) OAPV_SWAP32(x)
-#define OAPV_LE64_TO_CPU(x) OAPV_SWAP64(x)
-#define OAPV_CPU_TO_BE32(x) (x)
-#define OAPV_CPU_TO_BE64(x) (x)
-#define OAPV_BE32_TO_CPU(x) (x)
-#define OAPV_BE64_TO_CPU(x) (x)
-#else
-// Little Endian (Default for x86/ARM)
-#define OAPV_LITTLE_ENDIAN 1
-#define OAPV_CPU_TO_LE32(x) (x)
-#define OAPV_CPU_TO_LE64(x) (x)
-#define OAPV_LE32_TO_CPU(x) (x)
-#define OAPV_LE64_TO_CPU(x) (x)
-#define OAPV_CPU_TO_BE32(x) OAPV_SWAP32(x)
-#define OAPV_CPU_TO_BE64(x) OAPV_SWAP64(x)
-#define OAPV_BE32_TO_CPU(x) OAPV_SWAP32(x)
-#define OAPV_BE64_TO_CPU(x) OAPV_SWAP64(x)
-#endif
-
 #endif /* _OAPV_PORT_H_ */
 

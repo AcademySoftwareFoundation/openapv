@@ -40,21 +40,28 @@
 #define HH(x, y, z) (x ^ y ^ z)
 #define II(x, y, z) (y ^ (x | ~z))
 
+static u32 le32_read(const u8 *p)
+{
+    return (u32)p[0] | ((u32)p[1] << 8) | ((u32)p[2] << 16) | ((u32)p[3] << 24);
+}
+
+static void le32_write(u8 *p, u32 v)
+{
+    p[0] = (u8)v;
+    p[1] = (u8)(v >> 8);
+    p[2] = (u8)(v >> 16);
+    p[3] = (u8)(v >> 24);
+}
+
 static void md5_trans(u32 *buf, const u8 *msg)
 {
     register u32 a, b, c, d;
-
-#if OAPV_BIG_ENDIAN
-    u32 x[16];
+    u32 blk[16];
     int i;
-    const u32 *ptr = (const u32 *)msg;
-    for (i = 0; i < 16; i++) {
-         x[i] = OAPV_LE32_TO_CPU(ptr[i]);
+
+    for(i = 0; i < 16; i++) {
+        blk[i] = le32_read(msg + i * 4);
     }
-    const u32 *blk = x;
-#else // Little Endian
-    const u32 *blk = (const u32 *)msg;
-#endif
 
     a = buf[0];
     b = buf[1];
@@ -238,25 +245,16 @@ static void md5_finish(oapv_md5_t *md5, u8 digest[16])
     }
 
     /* Append length in bits - Little Endian */
-    md5->msg[56] = (u8)(md5->bits[0]);
-    md5->msg[57] = (u8)(md5->bits[0] >> 8);
-    md5->msg[58] = (u8)(md5->bits[0] >> 16);
-    md5->msg[59] = (u8)(md5->bits[0] >> 24);
-    md5->msg[60] = (u8)(md5->bits[1]);
-    md5->msg[61] = (u8)(md5->bits[1] >> 8);
-    md5->msg[62] = (u8)(md5->bits[1] >> 16);
-    md5->msg[63] = (u8)(md5->bits[1] >> 24);
+    le32_write(md5->msg + 56, md5->bits[0]);
+    le32_write(md5->msg + 60, md5->bits[1]);
 
     md5_trans(md5->h, md5->msg);
-    
+
     /* Store state in digest - Little Endian */
-    for (int i=0; i<4; i++) {
-        digest[i*4+0] = (u8)(md5->h[i]);
-        digest[i*4+1] = (u8)(md5->h[i] >> 8);
-        digest[i*4+2] = (u8)(md5->h[i] >> 16);
-        digest[i*4+3] = (u8)(md5->h[i] >> 24);
+    for(int i = 0; i < 4; i++) {
+        le32_write(digest + i * 4, md5->h[i]);
     }
-    
+
     oapv_mset(md5, 0, sizeof(oapv_md5_t));
 }
 
