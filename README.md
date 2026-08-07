@@ -11,6 +11,7 @@ The OpenAPV supports the following features:
 - Low complexity by optimization for ARM NEON and x86(64bit) SEE/AVX CPU
 - Tile-based multi-threading
 - Various metadata including HDR10/10+ and user-defined format
+- RGB content coding with the 444 profiles through color description signalling
 - Constant QP (CQP) and average bitrate (ABR) rate control algorithms
 - [APV Family](/readme/apv_family.md) configurations for typical target bitrate setting of encoder
 - [APV Profile Extensions](/docs/profile_ext.md) defined by the OpenAPV project on top of the RFC 9924 profiles
@@ -121,8 +122,8 @@ Decoding:
 
 See the [Programmer's Guide](/docs/programmers_guide.md) for how to write
 encoding and decoding code with the library, including PBU-based decoding,
-tile-based partial decoding, runtime configuration, and the custom memory
-allocator interface.
+tile-based partial decoding, runtime configuration, RGB content encoding,
+and the custom memory allocator interface.
 
 ## Utility
 
