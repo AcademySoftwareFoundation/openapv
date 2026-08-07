@@ -1016,10 +1016,20 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     // allocate tile array to fit this frame's tile partitioning
     int num_tiles = oapv_div_round_up(ctx->w, param->tile_w) * oapv_div_round_up(ctx->h, param->tile_h);
     if(num_tiles > ctx->tile_cap) {
+        // the allocator takes a 32-bit size, so reject a request that would not
+        // survive the conversion instead of letting it truncate
+        s64 tile_bytes = (s64)sizeof(oapve_tile_t) * num_tiles;
+        oapv_assert_rv(tile_bytes <= (s64)UINT_MAX, OAPV_ERR_INVALID_ARGUMENT);
+
         oapv_ops_free(ctx, ctx->tile);
-        ctx->tile = (oapve_tile_t *)oapv_ops_malloc(ctx, sizeof(oapve_tile_t) * num_tiles);
+        // clear both, so a failed allocation cannot leave a stale capacity
+        // beside a pointer that is no longer valid
+        ctx->tile = NULL;
+        ctx->tile_cap = 0;
+
+        ctx->tile = (oapve_tile_t *)oapv_ops_malloc(ctx, (unsigned int)tile_bytes);
         oapv_assert_rv(ctx->tile != NULL, OAPV_ERR_OUT_OF_MEMORY);
-        oapv_mset(ctx->tile, 0, sizeof(oapve_tile_t) * num_tiles);
+        oapv_mset(ctx->tile, 0, (size_t)tile_bytes);
         ctx->tile_cap = num_tiles;
     }
 
@@ -1681,10 +1691,21 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, int num_part_tiles, const int *part
 
     // allocate tile array to fit this frame's tile partitioning
     if(ctx->num_tiles > ctx->tile_cap) {
+        // the allocator takes a 32-bit size, so reject a request that would not
+        // survive the conversion instead of letting it truncate: the oapv_mset
+        // below writes the full, untruncated size
+        s64 tile_bytes = (s64)sizeof(oapvd_tile_t) * ctx->num_tiles;
+        oapv_assert_rv(tile_bytes <= (s64)UINT_MAX, OAPV_ERR_MALFORMED_BITSTREAM);
+
         oapv_ops_free(ctx, ctx->tile);
-        ctx->tile = (oapvd_tile_t *)oapv_ops_malloc(ctx, sizeof(oapvd_tile_t) * ctx->num_tiles);
+        // clear both, so a failed allocation cannot leave a stale capacity
+        // beside a pointer that is no longer valid
+        ctx->tile = NULL;
+        ctx->tile_cap = 0;
+
+        ctx->tile = (oapvd_tile_t *)oapv_ops_malloc(ctx, (unsigned int)tile_bytes);
         oapv_assert_rv(ctx->tile != NULL, OAPV_ERR_OUT_OF_MEMORY);
-        oapv_mset(ctx->tile, 0, sizeof(oapvd_tile_t) * ctx->num_tiles);
+        oapv_mset(ctx->tile, 0, (size_t)tile_bytes);
         ctx->tile_cap = ctx->num_tiles;
     }
 
