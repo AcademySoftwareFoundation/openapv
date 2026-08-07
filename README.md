@@ -14,7 +14,7 @@ The OpenAPV supports the following features:
 - RGB content coding with the 444 profiles through color description signalling
 - Constant QP (CQP) and average bitrate (ABR) rate control algorithms
 - [APV Family](/readme/apv_family.md) configurations for typical target bitrate setting of encoder
-- [APV Profile Extensions](/docs/profile_ext.md) defined by the OpenAPV project on top of the RFC 9924 profiles
+- [APV Profile Extensions](/readme/profile_ext.md) defined by the OpenAPV project on top of the RFC 9924 profiles
 
 
 ## APV codec
@@ -106,7 +106,7 @@ Encoding:
     oapv_app_enc -i input_1920x1080_yuv422_10bit.yuv -w 1920 -h 1080 -d 10 -z 30 --input-csp 2 -o encoded.apv
     oapv_app_enc -i input.y4m -o encoded.apv
 
-Encoding RGB content (G/B/R planar order, coded as 444 with the identity matrix signalled in the color description; see the [Programmer's Guide](/docs/programmers_guide.md) for details):
+Encoding RGB content (G/B/R planar order, coded as 444 with the identity matrix signalled in the color description; see the [Programmer's Guide](/readme/programmers_guide.md) for details):
 
     oapv_app_enc -i input_rgb_gbr_planar_10bit.yuv -w 1920 -h 1080 -d 10 -z 30 --input-csp 3 --profile 444-10 --color-primaries 1 --color-transfer 13 --color-matrix 0 --color-range 1 -o encoded.apv
 
@@ -124,7 +124,7 @@ Decoding:
 
 ## Programmer's guide
 
-See the [Programmer's Guide](/docs/programmers_guide.md) for how to write
+See the [Programmer's Guide](/readme/programmers_guide.md) for how to write
 encoding and decoding code with the library, including PBU-based decoding,
 tile-based partial decoding, runtime configuration, RGB content encoding,
 and the custom memory allocator interface.
