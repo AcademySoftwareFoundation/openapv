@@ -309,6 +309,7 @@ struct oapve_ctx {
     int                        num_tile_rows;
     int                        qp[N_C];
     s8                         qp_offset[N_C];
+    int                        dz[N_C]; // quantization rounding offset per component
     int                        w;
     int                        h;
     int                        cfi;
