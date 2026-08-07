@@ -267,7 +267,7 @@ static double enc_block(oapve_ctx_t *ctx, oapve_core_t *core, int log2_w, int lo
     int bit_depth = ctx->bit_depth;
 
     oapv_trans(ctx, core->coef, log2_w, log2_h, bit_depth);
-    ctx->fn_quant[0](core->coef, core->qp[c], core->q_mat_enc[c], log2_w, log2_h, bit_depth, c ? 128 : 212);
+    ctx->fn_quant[0](core->coef, core->qp[c], core->q_mat_enc[c], log2_w, log2_h, bit_depth, ctx->dz[c]);
 
     core->dc_diff = core->coef[0] - core->prev_dc[c];
     core->prev_dc[c] = core->coef[0];
@@ -948,6 +948,16 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
     ctx->qp_offset[U_C] = param->qp_offset_c1;
     ctx->qp_offset[V_C] = param->qp_offset_c2;
     ctx->qp_offset[X_C] = param->qp_offset_c3;
+
+    // identity matrix (RGB) content gets the luma dead zone for all color
+    // components while alpha keeps the chroma value; the 16C12 profiles carry
+    // co-equal raw sensor channels (e.g. RGGB), so every component gets the
+    // luma dead zone
+    int is_rgb = param->color_description_present_flag && param->matrix_coefficients == 0;
+    int is_c16 = param->profile_idc == OAPV_PROFILE_444_16C12 || param->profile_idc == OAPV_PROFILE_4444_16C12;
+    ctx->dz[Y_C] = 212;
+    ctx->dz[U_C] = ctx->dz[V_C] = (is_rgb || is_c16) ? 212 : 128;
+    ctx->dz[X_C] = is_c16 ? 212 : 128;
 
     for(i = 0; i < N_C; i++) {
         ctx->qp[i] = oapv_clip3(MIN_QUANT, MAX_QUANT(ctx->bit_depth), param->qp + ctx->qp_offset[i]);
