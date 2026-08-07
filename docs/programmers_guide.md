@@ -201,6 +201,38 @@ oapvd_decode_frame(did, &bitb, imgb, &stat, num_part_tiles, part_tile_idxs)
 Passing `0, NULL` decodes every tile. The regions of unselected tiles are
 left untouched, so clear or reuse the image buffer accordingly.
 
+## Encoding RGB content
+
+The 444 profiles do not prescribe a color space: the three planes are just
+components 0/1/2, and the color space interpretation is carried by the color
+description fields of the frame header. RGB content is therefore coded with a
+444 profile plus an identity matrix signal — the same convention HEVC, VP9,
+and AV1 use, which is why no separate RGB profile exists.
+
+| field | value for RGB | meaning |
+|---|---|---|
+| `matrix_coefficients` | 0 | identity matrix, no YCbCr conversion |
+| `color_primaries` | per content (e.g. sRGB/BT.709 = 1, BT.2020 = 9) | primaries |
+| `transfer_characteristics` | per content (e.g. sRGB = 13, PQ = 16) | transfer function |
+| `full_range_flag` | usually 1 | RGB is normally full range |
+
+The plane order follows the ITU-T H.273 convention: G in component 0, B in
+component 1, R in component 2 (the same order as ffmpeg's `gbrp` formats).
+
+Encoding GBR-ordered planar RGB with the reference encoder:
+
+```
+oapv_app_enc -i rgb_gbr_planar.yuv -w 3840 -h 2160 -z 30 -d 10 \
+  --input-csp 3 --profile 444-10 -q 20 \
+  --color-primaries 1 --color-transfer 13 --color-matrix 0 --color-range 1 \
+  -o out.oapv
+```
+
+On the decoding side, a 444 stream with `color_description_present_flag` set
+and `matrix_coefficients == 0` (reported by `oapvd_info()` and in
+`oapvd_stat_t`) identifies RGB content; the decoded planes are G, B, and R
+as coded, with no conversion applied.
+
 ## Custom memory allocator
 
 By default the library allocates with the standard C library. An application
