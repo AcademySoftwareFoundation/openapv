@@ -10,16 +10,6 @@ only be decoded by implementations that support the corresponding extension.
 For the profiles defined by RFC 9924 (422-10, 422-12, 444-10, 444-12,
 4444-10, 4444-12, and 400-10), see [Section 9.3 of the RFC](https://www.rfc-editor.org/rfc/rfc9924.html#section-9.3).
 
-## Numbering convention
-
-A profile which extends an RFC 9924 profile uses a `profile_idc` value one
-less than the next RFC 9924 profile, counting downward if more extensions of
-the same profile are added later. For example, the first extension of the
-422-10 profile (`profile_idc` 33) uses `profile_idc` 43, one less than the
-422-12 profile (`profile_idc` 44). Since the 400-10 profile (`profile_idc`
-99) is the last profile of RFC 9924, its extensions count down from 109, one
-less than 110, the next value in the RFC 9924 numbering pattern.
-
 ## Defined extension profiles
 
 | Profile          | profile_idc | chroma_format_idc | bit_depth_minus8 | Description                        |
@@ -33,9 +23,6 @@ less than 110, the next value in the RFC 9924 numbering pattern.
 | 400-10-UNCONST   | 109         | 0                 | 2                | Relaxed conformance constraints    |
 | 444-16C12        | 140         | 3                 | 4                | 16-bit source companded to 12-bit  |
 | 4444-16C12       | 144         | 3 or 4            | 4                | 16-bit source companded to 12-bit  |
-
-Note: 444-16C12 and 4444-16C12 predate the numbering convention above and
-keep their original `profile_idc` values.
 
 ## UNCONST profiles
 
