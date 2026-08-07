@@ -39,12 +39,26 @@
 
 const int   oapv_quant_scale[6] = { 26214, 23302, 20560, 18396, 16384, 14769 };
 
+/* forward transform matrix: least-squares pseudo-inverse of the normative
+   inverse transform, scaled by 2^19 (16x the 2^15 base scale); this removes
+   the reconstruction floor caused by the non-orthogonality of the base
+   matrix pair while emitting coefficients at the same normative scale */
+static const s16 oapv_tbl_tm8_enc[8][4] = {
+    { 1024,  1024,  1024,  1024},
+    { 1426,  1203,   798,   285},
+    { 1330,   554,  -554, -1330},
+    { 1203,  -285, -1426,  -798},
+    { 1024, -1024, -1024,  1024},
+    {  798, -1426,   285,  1203},
+    {  554, -1330,  1330,  -554},
+    {  285,  -798,  1203, -1426},
+};
+
 static void oapv_tx_part(s16 *src, s16 *dst, int shift, int line)
 {
-    int j, k;
-    int E[4], O[4];
-    int EE[2], EO[2];
-    int add = 1 << (shift - 1);
+    int j, k, i;
+    s32 E[4], O[4];
+    s32 add = 1 << (shift - 1);
 
     for(j = 0; j < line; j++) {
         /* E and O*/
@@ -52,29 +66,23 @@ static void oapv_tx_part(s16 *src, s16 *dst, int shift, int line)
             E[k] = src[j * 8 + k] + src[j * 8 + 7 - k];
             O[k] = src[j * 8 + k] - src[j * 8 + 7 - k];
         }
-        /* EE and EO */
-        EE[0] = E[0] + E[3];
-        EO[0] = E[0] - E[3];
-        EE[1] = E[1] + E[2];
-        EO[1] = E[1] - E[2];
-
-        dst[0 * line + j] = (oapv_tbl_tm8[0][0] * EE[0] + oapv_tbl_tm8[0][1] * EE[1] + add) >> shift;
-        dst[4 * line + j] = (oapv_tbl_tm8[4][0] * EE[0] + oapv_tbl_tm8[4][1] * EE[1] + add) >> shift;
-        dst[2 * line + j] = (oapv_tbl_tm8[2][0] * EO[0] + oapv_tbl_tm8[2][1] * EO[1] + add) >> shift;
-        dst[6 * line + j] = (oapv_tbl_tm8[6][0] * EO[0] + oapv_tbl_tm8[6][1] * EO[1] + add) >> shift;
-
-        dst[1 * line + j] = (oapv_tbl_tm8[1][0] * O[0] + oapv_tbl_tm8[1][1] * O[1] + oapv_tbl_tm8[1][2] * O[2] + oapv_tbl_tm8[1][3] * O[3] + add) >> shift;
-        dst[3 * line + j] = (oapv_tbl_tm8[3][0] * O[0] + oapv_tbl_tm8[3][1] * O[1] + oapv_tbl_tm8[3][2] * O[2] + oapv_tbl_tm8[3][3] * O[3] + add) >> shift;
-        dst[5 * line + j] = (oapv_tbl_tm8[5][0] * O[0] + oapv_tbl_tm8[5][1] * O[1] + oapv_tbl_tm8[5][2] * O[2] + oapv_tbl_tm8[5][3] * O[3] + add) >> shift;
-        dst[7 * line + j] = (oapv_tbl_tm8[7][0] * O[0] + oapv_tbl_tm8[7][1] * O[1] + oapv_tbl_tm8[7][2] * O[2] + oapv_tbl_tm8[7][3] * O[3] + add) >> shift;
+        for(i = 0; i < 8; i += 2) {
+            dst[i * line + j] = (s16)((oapv_tbl_tm8_enc[i][0] * E[0] + oapv_tbl_tm8_enc[i][1] * E[1] +
+                                       oapv_tbl_tm8_enc[i][2] * E[2] + oapv_tbl_tm8_enc[i][3] * E[3] + add) >> shift);
+        }
+        for(i = 1; i < 8; i += 2) {
+            dst[i * line + j] = (s16)((oapv_tbl_tm8_enc[i][0] * O[0] + oapv_tbl_tm8_enc[i][1] * O[1] +
+                                       oapv_tbl_tm8_enc[i][2] * O[2] + oapv_tbl_tm8_enc[i][3] * O[3] + add) >> shift);
+        }
     }
 }
 
 static void oapv_tx(s16 *src, int shift1, int shift2, int line)
 {
     ALIGNED_16(s16 dst[OAPV_BLK_D]);
-    oapv_tx_part(src, dst, shift1, line);
-    oapv_tx_part(dst, src, shift2, line);
+    // +4 compensates the 16x scale of the encoder transform matrix
+    oapv_tx_part(src, dst, shift1 + 4, line);
+    oapv_tx_part(dst, src, shift2 + 4, line);
 }
 
 const oapv_fn_tx_t oapv_tbl_fn_tx[2] = {

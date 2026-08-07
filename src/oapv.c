@@ -1191,7 +1191,7 @@ static int enc_platform_init(oapve_ctx_t *ctx)
         ctx->fn_itx_part = oapv_tbl_fn_itx_part_avx;
         ctx->fn_itx = oapv_tbl_fn_itx_avx;
         ctx->fn_itx_adj = oapv_tbl_fn_itx_adj_avx;
-        ctx->fn_txb = oapv_tbl_fn_txb_avx;
+        // ctx->fn_txb = oapv_tbl_fn_txb_avx; // TODO: port oapv_tbl_tm8_enc constants to the AVX kernel
         ctx->fn_quant = oapv_tbl_fn_quant_avx;
         ctx->fn_dquant = oapv_tbl_fn_dquant_avx;
         ctx->fn_had8x8 = oapv_dc_removed_had8x8_avx;
@@ -1205,7 +1205,7 @@ static int enc_platform_init(oapve_ctx_t *ctx)
     ctx->fn_itx = oapv_tbl_fn_itx_neon;
     ctx->fn_itx_part = oapv_tbl_fn_itx_part_neon;
     ctx->fn_itx_adj = oapv_tbl_fn_itx_adj_neon;
-    ctx->fn_txb = oapv_tbl_fn_txb_neon;
+    // ctx->fn_txb = oapv_tbl_fn_txb_neon; // TODO: port oapv_tbl_tm8_enc constants to the NEON kernel
     ctx->fn_quant = oapv_tbl_fn_quant_neon;
     ctx->fn_dquant = oapv_tbl_fn_dquant_neon;
     ctx->fn_had8x8 = oapv_dc_removed_had8x8_neon;
