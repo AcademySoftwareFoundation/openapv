@@ -142,6 +142,16 @@ static void fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info
     finfo->bit_depth = fi->bit_depth;
     finfo->capture_time_distance = fi->capture_time_distance;
     finfo->use_companding = fi->use_companding;
+
+    // frame_info() does not carry the fields below, so set the defaults that
+    // apply when they are not signalled in the frame header
+    finfo->color_description_present_flag = 0;
+    finfo->color_primaries = 2;          // unspecified
+    finfo->transfer_characteristics = 2; // unspecified
+    finfo->matrix_coefficients = 2;      // unspecified
+    finfo->full_range_flag = 0;          // limited range
+    finfo->use_q_matrix = 0;
+    oapv_mset(finfo->q_matrix, 16, sizeof(finfo->q_matrix));
 }
 
 static void fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo)
@@ -2189,14 +2199,15 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
             return OAPV_OK; // founded access_unit_info, no need to read more PBUs
         }
         if(OAPV_PBU_TYPE_IS_FRAME(pbuh.pbu_type)) {
-            // parse frame_info in PBU
-            oapv_fi_t fi;
+            // parse frame_header in PBU to report the color description and
+            // the quantization matrix as well as frame_info
+            oapv_fh_t fh;
 
             oapv_assert_rv(frm_count < OAPV_MAX_NUM_FRAMES, OAPV_ERR_REACHED_MAX)
-            ret = oapvd_vlc_frame_info(&bs, &fi);
+            ret = oapvd_vlc_frame_header(&bs, &fh);
             oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
-            fi_to_finfo(&fi, pbuh.pbu_type, pbuh.group_id, &aui->frm_info[frm_count]);
+            fh_to_finfo(&fh, pbuh.pbu_type, pbuh.group_id, &aui->frm_info[frm_count]);
             frm_count++;
         }
         aui->num_frms = frm_count;
