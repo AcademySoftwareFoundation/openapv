@@ -243,6 +243,66 @@ and `matrix_coefficients == 0` (reported by `oapvd_info()` and in
 `oapvd_stat_t`) identifies RGB content; the decoded planes are G, B, and R
 as coded, with no conversion applied.
 
+## Zero-copy decoding input with memory-mapped files
+
+The decoder never writes to the bitstream buffer: `oapv_bitb_t.addr` is
+caller-owned memory that is only read. So instead of allocating a buffer
+and copying access units into it, the application can map the input file
+into memory and pass pointers into the mapping directly. No allocation, no
+copy — the OS page cache performs demand paging and read-ahead.
+
+POSIX:
+
+```
+fd = open(path, O_RDONLY)
+fstat(fd, &st)
+base = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0)
+madvise(base, st.st_size, MADV_SEQUENTIAL)   // read-ahead hint
+
+off = 0
+while(off + 4 <= st.st_size) {
+    au_size = read_u32_be(base + off)        // AU framing, straight from the map
+    bitb.addr = base + off + 4               // no copy
+    bitb.ssize = au_size
+    oapvd_decode(did, &bitb, &ofrms, mid, &stat)
+    off += 4 + au_size
+}
+
+munmap(base, st.st_size)
+close(fd)
+```
+
+Windows:
+
+```
+hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                   OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL)
+GetFileSizeEx(hFile, &size)
+hMap = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL)
+base = MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0)
+
+// same AU walk as above using base and size
+
+UnmapViewOfFile(base)
+CloseHandle(hMap)
+CloseHandle(hFile)
+```
+
+The same applies to PBU-based decoding (API set 1): each `pbu_size` is read
+from the map and `bitb.addr` points at the PBU bytes in place, which also
+suits tile-based partial decoding, since only the pages of the tiles that
+are actually decoded get touched.
+
+Notes:
+
+- Map read-only (`PROT_READ` / `PAGE_READONLY`); the decoder requires no
+  write access to the input
+- Keep a read-based fallback for inputs that cannot be mapped, such as
+  pipes or standard input
+- If another process truncates the file while it is mapped, accessing the
+  removed pages raises SIGBUS on POSIX systems; map files that are stable
+  during decoding
+
 ## Custom memory allocator
 
 By default the library allocates with the standard C library. An application
