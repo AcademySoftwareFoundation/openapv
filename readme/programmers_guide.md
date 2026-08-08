@@ -7,15 +7,68 @@ code. All types and functions are declared in `oapv.h`.
 
 ## Common types
 
-- `oapv_imgb_t` — an image buffer holding the planes of one frame. The
-  buffer is created and owned by the application; it carries `addref` /
-  `release` callbacks for reference counting.
-- `oapv_bitb_t` — a bitstream buffer. `addr` points to memory owned by the
-  application and `bsize` is its capacity.
-- `oapv_frms_t` — a set of frames making up one access unit (AU). Each
-  entry pairs an image buffer with a `pbu_type` and a `group_id`.
-- `oapvm_t` — a metadata container, created with `oapvm_create()`. It
-  collects the metadata of an AU during encoding or decoding.
+Instance handles. Each is an opaque pointer returned by its create function
+and released by the matching delete function. An instance is not internally
+serialized, so use one instance per thread that encodes or decodes:
+
+- `oapve_t` — an encoder instance, from `oapve_create()` with an
+  `oapve_cdesc_t`, released with `oapve_delete()`. It holds the encoding
+  parameters of every frame slot, the worker threads, and the rate control
+  state that carries across access units.
+- `oapvd_t` — a decoder instance, from `oapvd_create()` with an
+  `oapvd_cdesc_t`, released with `oapvd_delete()`. It holds the worker
+  threads and the state needed while decoding one access unit.
+- `oapvm_t` — a metadata container, from `oapvm_create()` with an
+  `oapvm_cdesc_t`, released with `oapvm_delete()`. It carries the metadata
+  of one access unit in either direction: the encoder reads what the
+  application put in it and writes it into the bitstream, and the decoder
+  fills it with what it finds. Clear it with `oapvm_rem_all()` between
+  access units.
+
+Creation descriptors, which configure an instance at create time:
+
+- `oapve_cdesc_t` — encoder settings that cannot change later: the number of
+  frames per access unit (`max_num_frms`), the bitstream buffer capacity
+  (`max_bs_buf_size`), the thread count, the custom allocator (`ops_mem`),
+  and an `oapve_param_t` for each frame slot.
+- `oapvd_cdesc_t` — decoder settings: the thread count and the custom
+  allocator.
+- `oapvm_cdesc_t` — metadata container settings: the custom allocator.
+
+Encoding parameters:
+
+- `oapve_param_t` — the coding settings of one frame slot: resolution, frame
+  rate, profile, level and band, quantization parameter or bitrate, tile
+  size, quantization matrix, and the color description. Start from
+  `oapve_param_default()` and change what you need. Most of these can also
+  be changed per frame at run time with `oapve_config()`.
+
+Data buffers, all owned by the application:
+
+- `oapv_imgb_t` — an image buffer holding the planes of one frame, together
+  with the color space, the plane strides, and the buffer sizes. It carries
+  `addref` / `release` callbacks for reference counting.
+- `oapv_bitb_t` — a bitstream buffer. `addr` points to application memory,
+  `bsize` is its capacity for encoding, and `ssize` is the size of the data
+  to read for decoding.
+- `oapv_frm_t` / `oapv_frms_t` — one frame and a set of frames making up an
+  access unit. Each entry pairs an image buffer with a `pbu_type`
+  (`OAPV_PBU_TYPE_PRIMARY_FRAME`, non-primary, preview, depth, alpha) and a
+  `group_id` that ties frames and their metadata together.
+
+Result and information types, filled by the library:
+
+- `oapve_stat_t` / `oapvd_stat_t` — the outcome of one call: how many bytes
+  were written or read, the per-frame sizes, and an `oapv_au_info_t`.
+- `oapv_au_info_t` — the frames of an access unit, each described by an
+  `oapv_frm_info_t`.
+- `oapv_frm_info_t` — the format of one frame: resolution, color space,
+  profile, level and band, bit depth, the tile grid, the quantization
+  matrix, and the color description.
+- `oapv_tile_pos_t` — the position of one tile in the frame, and its
+  location in the bitstream when the frame header carries the tile sizes.
+- `oapvm_payload_t` — one metadata payload: its type, its group, its data,
+  and a UUID for user-defined payloads.
 
 ## Writing an encoder
 
