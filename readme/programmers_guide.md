@@ -189,6 +189,9 @@ pos = malloc(finfo.num_tiles * sizeof(oapv_tile_pos_t))
 num = finfo.num_tiles
 oapvd_info_tile(pbu_buf, pbu_size, pos, &num)
 
+// oapvd_info_tile() can report the count on its own as well, by passing a
+// NULL tile array:  num = 0; oapvd_info_tile(pbu_buf, pbu_size, NULL, &num)
+
 // select the tiles to decode, e.g. the ones covering a viewport
 part_tile_idxs = { 3, 4, 7, 8 }
 num_part_tiles = 4
