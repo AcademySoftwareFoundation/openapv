@@ -201,6 +201,50 @@ oapvd_decode_frame(did, &bitb, imgb, &stat, num_part_tiles, part_tile_idxs)
 Passing `0, NULL` decodes every tile. The regions of unselected tiles are
 left untouched, so clear or reuse the image buffer accordingly.
 
+When the frame header carries the tile sizes (the encoder writes them by
+default; see `OAPV_CFG_SET_TILE_SIZE_IN_FH`), `oapvd_info_tile()` also
+reports where each tile lives in the PBU, so an application can seek to a
+tile instead of scanning the whole PBU:
+
+```
+oapvd_info_tile(pbu_buf, pbu_size, pos, &num)
+
+// pos[i].offset  byte offset of the tile unit from the start of the PBU
+// pos[i].size    byte size of the tile data
+// the tile unit spans 4 + size bytes: a 4-byte size field, then the data
+
+read(input, tile_buf, 4 + pos[i].size, at pos[i].offset)  // one tile only
+```
+
+Both fields are zero when the frame header does not carry the tile sizes, so
+a zero `size` means the location is unknown and the PBU has to be walked
+sequentially. This pairs with a memory-mapped input: only the pages of the
+tiles that are actually decoded are touched.
+
+Whether the locations are available depends on the bitstream, so treat them
+as optional:
+
+- `tile_size_present_in_fh_flag` is a per-frame choice of the encoder. This
+  encoder sets it by default and it can be turned off per frame with
+  `OAPV_CFG_SET_TILE_SIZE_IN_FH`, and a stream from another encoder may not
+  carry the sizes at all. Check `size` before relying on a location, and
+  keep the sequential path for streams that report zero.
+- The values are relative to the start of the frame PBU, not to the file or
+  the access unit. An application that reads from a file adds the position
+  where the PBU begins, which is after the 4-byte `au_size`, the `aPv1`
+  signature, and the 4-byte `pbu_size` of that PBU.
+- They describe only the tile data of that frame PBU. Metadata PBUs and
+  other frames of the same access unit are separate PBUs, so their contents
+  are not covered by these values.
+- The tile order is the raster scan order of the tile grid, the same order
+  as `idx`, and the tile units are contiguous, so the end of the last tile
+  coincides with the end of the PBU.
+- The values come from the bitstream, and the decoder rejects a frame whose
+  tile sizes do not fit within the PBU, so a successful call reports
+  locations that lie inside the PBU. Beyond that, an application that
+  forwards them to its I/O layer should still bound-check against the size
+  of the buffer or mapping it actually holds.
+
 ## Encoding RGB content
 
 The 444 profiles do not prescribe a color space: the three planes are just

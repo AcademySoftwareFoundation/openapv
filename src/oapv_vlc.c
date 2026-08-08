@@ -813,7 +813,7 @@ static int dec_vlc_q_matrix(oapv_bs_t *bs, oapv_fh_t *fh)
     return OAPV_OK;
 }
 
-static int dec_vlc_tile_info(oapv_bs_t *bs, oapv_fh_t *fh)
+static int dec_vlc_tile_info(oapv_bs_t *bs, oapv_fh_t *fh, oapv_tile_pos_t *pos_tiles, int cap)
 {
     int ret;
     int pic_w, pic_h, tile_w, tile_h, tile_cols, tile_rows;
@@ -843,10 +843,16 @@ static int dec_vlc_tile_info(oapv_bs_t *bs, oapv_fh_t *fh)
     DUMP_HLS(fh->tile_size_present_in_fh_flag, fh->tile_size_present_in_fh_flag);
 
     if(fh->tile_size_present_in_fh_flag) {
-        for(int i = 0; i < tile_cols * tile_rows; i++) {
-            u32 tile_size = oapv_bsr_read(bs, 32); // parsed for validation only
+        int num_tiles = tile_cols * tile_rows;
+        for(int i = 0; i < num_tiles; i++) {
+            u32 tile_size = oapv_bsr_read(bs, 32);
             DUMP_HLS(fh->tile_size, tile_size);
             oapv_assert_rv(tile_size > 0, OAPV_ERR_MALFORMED_BITSTREAM);
+            // report the size to the caller, if it asked for it
+            if(pos_tiles != NULL && cap >= num_tiles) {
+                oapv_assert_rv(tile_size <= (u32)INT_MAX, OAPV_ERR_MALFORMED_BITSTREAM);
+                pos_tiles[i].size = (int)tile_size;
+            }
         }
     }
     return OAPV_OK;
@@ -1108,6 +1114,11 @@ int oapvd_vlc_au_info(oapv_bs_t *bs, oapv_aui_t *aui)
 
 int oapvd_vlc_frame_header(oapv_bs_t *bs, oapv_fh_t *fh)
 {
+    return oapvd_vlc_frame_header_ex(bs, fh, NULL, 0);
+}
+
+int oapvd_vlc_frame_header_ex(oapv_bs_t *bs, oapv_fh_t *fh, oapv_tile_pos_t *pos_tiles, int cap)
+{
     int ret, reserved_zero;
     ret = oapvd_vlc_frame_info(bs, &fh->fi);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
@@ -1142,7 +1153,7 @@ int oapvd_vlc_frame_header(oapv_bs_t *bs, oapv_fh_t *fh)
         oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
     }
 
-    ret = dec_vlc_tile_info(bs, fh);
+    ret = dec_vlc_tile_info(bs, fh, pos_tiles, cap);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     reserved_zero = oapv_bsr_read(bs, 8);
