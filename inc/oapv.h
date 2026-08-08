@@ -477,6 +477,8 @@ struct oapv_tile_pos {
     int y_mb; /* y-position in MB unit */
     int w_mb; /* width in MB unit */
     int h_mb; /* height in MB unit */
+    int offset; /* byte offset of the tile from the start of the PBU */
+    int size;   /* byte size of the tile data; 0 if the frame header does not carry the tile sizes */
 };
 
 /*****************************************************************************

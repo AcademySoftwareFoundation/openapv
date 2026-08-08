@@ -2376,8 +2376,15 @@ int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *nu
     // check frame type PBU
     oapv_assert_gv(OAPV_PBU_TYPE_IS_FRAME(pbuh.pbu_type), ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
 
-    // decode frame header
-    ret = oapvd_vlc_frame_header(&bs, &fh);
+    // decode frame header; the tile sizes it may carry are reported into the
+    // caller's array, which must be cleared first since they are optional
+    if(pos_tiles != NULL) {
+        for(i = 0; i < *num_tiles; i++) {
+            pos_tiles[i].offset = 0;
+            pos_tiles[i].size = 0;
+        }
+    }
+    ret = oapvd_vlc_frame_header_ex(&bs, &fh, pos_tiles, (pos_tiles != NULL) ? *num_tiles : 0);
     oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
     pic_w_mb = (fh.fi.frame_width + (OAPV_MB_W - 1)) >> OAPV_LOG2_MB_W;
@@ -2421,6 +2428,17 @@ int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *nu
             }
             tpos->idx = i * tile_cols + j;
             tpos++;
+        }
+    }
+    if(fh.tile_size_present_in_fh_flag) {
+        // tile data follows the frame header; each tile unit is a 4-byte size
+        // field plus the tile data of the size reported above
+        s64 off = BSR_GET_READ_BYTE(&bs);
+        for(i = 0; i < n; i++) {
+            off += OAPV_TILE_SIZE_LEN + pos_tiles[i].size;
+            // the tile must lie within the PBU
+            oapv_assert_gv(off <= (s64)pbu_size, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
+            pos_tiles[i].offset = (int)(off - OAPV_TILE_SIZE_LEN - pos_tiles[i].size);
         }
     }
     *num_tiles = n;
