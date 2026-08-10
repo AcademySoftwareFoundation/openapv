@@ -1,4 +1,4 @@
-# APV Profile Extensions
+# APV Extensions
 
 This document defines additional APV profiles which are specified by the
 OpenAPV project on top of [RFC 9924](https://www.rfc-editor.org/rfc/rfc9924.html).

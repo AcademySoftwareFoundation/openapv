@@ -1,23 +1,164 @@
 # OpenAPV Programmer's Guide
 
-This guide shows how to write encoding and decoding code with the OpenAPV
-library (`liboapv`). The examples are pseudo code that follows the structure
+This guide shows how to encode and decode with the OpenAPV library
+(`liboapv`). The examples are pseudo code that follows the structure
 of the sample applications under `app/`; refer to them for complete working
 code. All types and functions are declared in `oapv.h`.
 
 ## Common types
 
-- `oapv_imgb_t` — an image buffer holding the planes of one frame. The
-  buffer is created and owned by the application; it carries `addref` /
-  `release` callbacks for reference counting.
-- `oapv_bitb_t` — a bitstream buffer. `addr` points to memory owned by the
-  application and `bsize` is its capacity.
-- `oapv_frms_t` — a set of frames making up one access unit (AU). Each
-  entry pairs an image buffer with a `pbu_type` and a `group_id`.
-- `oapvm_t` — a metadata container, created with `oapvm_create()`. It
-  collects the metadata of an AU during encoding or decoding.
+Instance handles. Each is an opaque pointer returned by its create function
+and released by the matching delete function. An instance is not internally
+serialized, so use one instance per thread that encodes or decodes:
 
-## Writing an encoder
+- `oapve_t` — an encoder instance, from `oapve_create()` with an
+  `oapve_cdesc_t`, released with `oapve_delete()`. It holds the encoding
+  parameters of every frame slot, the worker threads, and the rate control
+  state that carries across access units.
+- `oapvd_t` — a decoder instance, from `oapvd_create()` with an
+  `oapvd_cdesc_t`, released with `oapvd_delete()`. It holds the worker
+  threads and the state needed while decoding one access unit.
+- `oapvm_t` — a metadata container, from `oapvm_create()` with an
+  `oapvm_cdesc_t`, released with `oapvm_delete()`. It carries the metadata
+  of one access unit in either direction: the encoder reads what the
+  application put in it and writes it into the bitstream, and the decoder
+  fills it with what it finds. Clear it with `oapvm_rem_all()` between
+  access units.
+
+### Creation descriptors
+
+`oapve_cdesc_t` configures an encoder instance at create time:
+
+| member | description |
+|---|---|
+| `max_bs_buf_size` | capacity of the bitstream buffer the encoder writes into |
+| `max_num_frms` | number of frames in one access unit |
+| `threads` | number of worker threads, or `OAPV_CDESC_THREADS_AUTO` |
+| `param[]` | an `oapve_param_t` for each frame slot |
+| `ops_mem` | custom allocator, or `NULL` for the standard C library |
+
+`oapvd_cdesc_t` configures a decoder instance, and `oapvm_cdesc_t` a
+metadata container:
+
+| member | description |
+|---|---|
+| `threads` | number of worker threads, or `OAPV_CDESC_THREADS_AUTO` (decoder only) |
+| `ops_mem` | custom allocator, or `NULL` for the standard C library |
+
+### Encoding parameters
+
+`oapve_param_t` holds the coding settings of one frame slot. Start from
+`oapve_param_default()` and change what you need; most of these can also be
+changed per frame at run time with `oapve_config()`.
+
+| member | description |
+|---|---|
+| `w`, `h` | frame resolution in pixels |
+| `fps_num`, `fps_den` | frame rate as a fraction |
+| `profile_idc`, `level_idc`, `band_idc` | profile, level and band; level and band can be derived automatically |
+| `qp` | quantization parameter, 0 ~ 63 for 10-bit and 0 ~ 75 for 12-bit |
+| `qp_offset_c1`, `qp_offset_c2`, `qp_offset_c3` | quantization parameter offsets of components 1 to 3 |
+| `rc_type` | rate control type, constant QP or average bitrate |
+| `bitrate` | target bitrate in kbps, used by average bitrate control |
+| `use_filler` | insert filler data to keep the bitrate tight |
+| `use_q_matrix`, `q_matrix[][]` | use a custom quantization matrix, in raster-scan order |
+| `tile_w`, `tile_h` | tile size in pixels, a multiple of the macroblock size; adjusted internally if out of the range the specification allows |
+| `preset` | trade-off between encoding speed and coding gain |
+| `color_description_present_flag` | signal the four color description values below |
+| `color_primaries`, `transfer_characteristics`, `matrix_coefficients`, `full_range_flag` | color description of the source |
+
+### Data buffers
+
+These are allocated and owned by the application.
+
+`oapv_imgb_t` holds the planes of one frame. Indices run over the color
+components:
+
+| member | description |
+|---|---|
+| `cs` | color space, built with `OAPV_CS_SET()` from format, bit depth and endianness |
+| `np` | number of planes |
+| `w[]`, `h[]` | size of each plane in pixels |
+| `aw[]`, `ah[]` | size of each plane aligned to the macroblock size |
+| `x[]`, `y[]` | position of the top left sample |
+| `s[]` | stride of each plane in bytes |
+| `e[]` | elevation of each plane in bytes |
+| `a[]` | address of each plane, where the samples are read and written |
+| `baddr[]`, `bsize[]` | address and size of the allocation each plane lives in |
+| `padl[]`, `padr[]`, `padu[]`, `padb[]` | padding around each plane in pixels |
+| `hash[][]` | frame hash of each plane, filled when the hash is used |
+| `ts[]` | time-stamps |
+| `refcnt`, `addref`, `getref`, `release` | reference counting; the library calls these to keep a buffer alive while it uses it |
+| `ndata[]`, `pdata[]` | free for the application |
+
+`oapv_bitb_t` describes a bitstream buffer:
+
+| member | description |
+|---|---|
+| `addr` | address of application memory holding the bitstream |
+| `bsize` | capacity of that memory, what the encoder may fill |
+| `ssize` | size of the bitstream to read, what the decoder consumes |
+| `err` | set when the bitstream is in error |
+| `pddr`, `ndata[]`, `pdata[]`, `ts[]` | physical address, free data and time-stamps, all optional |
+
+`oapv_frm_t` is one frame of an access unit and `oapv_frms_t` a set of them:
+
+| member | description |
+|---|---|
+| `imgb` | image buffer of this frame |
+| `pbu_type` | `OAPV_PBU_TYPE_PRIMARY_FRAME`, or non-primary, preview, depth or alpha |
+| `group_id` | ties a frame and its metadata together |
+| `num_frms`, `frm[]` | (in `oapv_frms_t`) the number of frames and the frames themselves |
+
+### Result and information types
+
+These are filled by the library.
+
+`oapve_stat_t` and `oapvd_stat_t` report the outcome of one call:
+
+| member | description |
+|---|---|
+| `write` / `read` | bytes written by the encoder, or read by the decoder |
+| `frm_size[]` | bitstream size of each frame |
+| `aui` | an `oapv_au_info_t` describing the frames |
+
+`oapv_au_info_t` lists the frames of an access unit through `num_frms` and
+`frm_info[]`, each entry an `oapv_frm_info_t`:
+
+| member | description |
+|---|---|
+| `w`, `h` | frame resolution in pixels |
+| `cs` | color space to allocate the output image buffer with; 16-bit for the 444/4444-16C12 profiles |
+| `pbu_type`, `group_id` | PBU type of the frame and the group it belongs to |
+| `profile_idc`, `level_idc`, `band_idc` | profile, level and band of the frame |
+| `chroma_format_idc`, `bit_depth` | coded chroma format and bit depth |
+| `capture_time_distance` | capture time distance signalled in the frame header |
+| `use_companding` | companding is applied to the frame |
+| `use_q_matrix`, `q_matrix[][]` | a custom quantization matrix is used, and its values |
+| `color_description_present_flag` | the four color description values below are signalled |
+| `color_primaries`, `transfer_characteristics`, `matrix_coefficients`, `full_range_flag` | color description of the frame |
+| `tile_width_in_mbs`, `tile_height_in_mbs`, `tile_cols`, `tile_rows`, `num_tiles` | tile grid of the frame |
+
+`oapv_tile_pos_t` describes one tile:
+
+| member | description |
+|---|---|
+| `idx` | tile index in raster scan order |
+| `x_mb`, `y_mb` | position of the tile in macroblock units |
+| `w_mb`, `h_mb` | size of the tile in macroblock units |
+| `offset` | byte offset of the tile from the start of the PBU |
+| `size` | byte size of the tile data; 0 when the frame header does not carry the tile sizes |
+
+`oapvm_payload_t` is one metadata payload:
+
+| member | description |
+|---|---|
+| `type` | payload type, e.g. `OAPV_METADATA_MDCV` or `OAPV_METADATA_USER_DEFINED` |
+| `group_id` | group the payload belongs to |
+| `data`, `size` | address and byte size of the payload |
+| `uuid[]` | UUID of a user-defined payload |
+
+## Encoder API
 
 ```
 // create an encoder
@@ -60,10 +201,52 @@ imgb.release(imgb)
 free(bitb.addr)
 ```
 
-## Runtime configuration
+### Encoding RGB content
 
-Options can be queried and changed after creation with `oapve_config()` and
-`oapvd_config()`. Both take a config id, a value buffer, and its size:
+The 444 profiles do not prescribe a color space: the three planes are just
+components 0/1/2, and the color space interpretation is carried by the color
+description fields of the frame header. RGB content is therefore coded with a
+444 profile plus an identity matrix signal — the same convention HEVC, VP9,
+and AV1 use, which is why no separate RGB profile exists.
+
+| field | value for RGB | meaning |
+|---|---|---|
+| `matrix_coefficients` | 0 | identity matrix, no YCbCr conversion |
+| `color_primaries` | per content (e.g. sRGB/BT.709 = 1, BT.2020 = 9) | primaries |
+| `transfer_characteristics` | per content (e.g. sRGB = 13, PQ = 16) | transfer function |
+| `full_range_flag` | usually 1 | RGB is normally full range |
+
+The plane order follows the ITU-T H.273 convention: G in component 0, B in
+component 1, R in component 2 (the same order as ffmpeg's `gbrp` formats).
+
+To encode RGB, feed the G/B/R planes as a 444 image and signal the color
+description through the encoding parameters:
+
+```
+// image buffer: component 0 = G, 1 = B, 2 = R
+imgb->cs = OAPV_CS_SET(OAPV_CF_YCBCR444, 10, 0)
+
+oapve_param_default(&param)
+param.profile_idc = OAPV_PROFILE_444_10
+param.color_description_present_flag = 1
+param.color_primaries = 1           // e.g. sRGB / BT.709 primaries
+param.transfer_characteristics = 13 // e.g. sRGB transfer
+param.matrix_coefficients = 0       // identity, no YCbCr conversion
+param.full_range_flag = 1
+```
+
+The reference encoder exposes the same controls; see the encoding examples
+in the README.
+
+On the decoding side, a 444 stream with `color_description_present_flag` set
+and `matrix_coefficients == 0` (reported by `oapvd_info()` and in
+`oapvd_stat_t`) identifies RGB content; the decoded planes are G, B, and R
+as coded, with no conversion applied.
+
+### Runtime configuration
+
+Encoding options can be queried and changed after creation with
+`oapve_config()`, which takes a config id, a value buffer, and its size:
 
 ```
 value = 1
@@ -71,25 +254,15 @@ size = sizeof(int)
 oapve_config(eid, OAPV_CFG_FRM(OAPV_CFG_SET_USE_FRM_HASH, 0), &value, &size)
 ```
 
-Encoder config ids use the `OAPV_CFG_SET_*` / `OAPV_CFG_GET_*` values in
+The config ids are the `OAPV_CFG_SET_*` / `OAPV_CFG_GET_*` values in
 `oapv.h`, e.g. `OAPV_CFG_SET_QP`, `OAPV_CFG_SET_BPS`,
-`OAPV_CFG_SET_USE_FRM_HASH`, or `OAPV_CFG_SET_TILE_SIZE_IN_FH`. Most
-encoder configs apply to one frame slot of the AU; wrap the id with
+`OAPV_CFG_SET_USE_FRM_HASH`, or `OAPV_CFG_SET_TILE_SIZE_IN_FH`. Most of them
+apply to one frame slot of the AU; wrap the id with
 `OAPV_CFG_FRM(cfg, frm_idx)` to select the frame, where the plain id means
 frame 0. AU-level configs such as `OAPV_CFG_SET_AU_BS_FMT` apply to the
 whole instance and ignore the frame index.
 
-The decoder takes plain config ids without the `OAPV_CFG_FRM()` wrapper. It
-supports `OAPV_CFG_SET_USE_FRM_HASH` (verify the frame hash metadata during
-decoding) and `OAPV_CFG_SET_DISABLE_COMPANDING`:
-
-```
-value = 1
-size = sizeof(int)
-oapvd_config(did, OAPV_CFG_SET_USE_FRM_HASH, &value, &size)
-```
-
-## Writing a decoder
+## Decoder API
 
 The decoder offers two API sets. API set 0 decodes a whole AU in one call.
 API set 1 walks the bitstream PBU by PBU, which gives the application
@@ -248,49 +421,7 @@ as optional:
   forwards them to its I/O layer should still bound-check against the size
   of the buffer or mapping it actually holds.
 
-## Encoding RGB content
-
-The 444 profiles do not prescribe a color space: the three planes are just
-components 0/1/2, and the color space interpretation is carried by the color
-description fields of the frame header. RGB content is therefore coded with a
-444 profile plus an identity matrix signal — the same convention HEVC, VP9,
-and AV1 use, which is why no separate RGB profile exists.
-
-| field | value for RGB | meaning |
-|---|---|---|
-| `matrix_coefficients` | 0 | identity matrix, no YCbCr conversion |
-| `color_primaries` | per content (e.g. sRGB/BT.709 = 1, BT.2020 = 9) | primaries |
-| `transfer_characteristics` | per content (e.g. sRGB = 13, PQ = 16) | transfer function |
-| `full_range_flag` | usually 1 | RGB is normally full range |
-
-The plane order follows the ITU-T H.273 convention: G in component 0, B in
-component 1, R in component 2 (the same order as ffmpeg's `gbrp` formats).
-
-To encode RGB, feed the G/B/R planes as a 444 image and signal the color
-description through the encoding parameters:
-
-```
-// image buffer: component 0 = G, 1 = B, 2 = R
-imgb->cs = OAPV_CS_SET(OAPV_CF_YCBCR444, 10, 0)
-
-oapve_param_default(&param)
-param.profile_idc = OAPV_PROFILE_444_10
-param.color_description_present_flag = 1
-param.color_primaries = 1           // e.g. sRGB / BT.709 primaries
-param.transfer_characteristics = 13 // e.g. sRGB transfer
-param.matrix_coefficients = 0       // identity, no YCbCr conversion
-param.full_range_flag = 1
-```
-
-The reference encoder exposes the same controls; see the encoding examples
-in the README.
-
-On the decoding side, a 444 stream with `color_description_present_flag` set
-and `matrix_coefficients == 0` (reported by `oapvd_info()` and in
-`oapvd_stat_t`) identifies RGB content; the decoded planes are G, B, and R
-as coded, with no conversion applied.
-
-## Zero-copy decoding input with memory-mapped files
+### Zero-copy decoding input with memory-mapped files
 
 The decoder never writes to the bitstream buffer: `oapv_bitb_t.addr` is
 caller-owned memory that is only read. So instead of allocating a buffer
@@ -349,6 +480,19 @@ Notes:
 - If another process truncates the file while it is mapped, accessing the
   removed pages raises SIGBUS on POSIX systems; map files that are stable
   during decoding
+
+### Runtime configuration
+
+Decoding options are changed with `oapvd_config()`, which takes plain config
+ids without the `OAPV_CFG_FRM()` wrapper. It supports
+`OAPV_CFG_SET_USE_FRM_HASH` (verify the frame hash metadata during decoding)
+and `OAPV_CFG_SET_DISABLE_COMPANDING`:
+
+```
+value = 1
+size = sizeof(int)
+oapvd_config(did, OAPV_CFG_SET_USE_FRM_HASH, &value, &size)
+```
 
 ## Custom memory allocator
 
