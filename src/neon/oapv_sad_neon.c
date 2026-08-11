@@ -34,6 +34,8 @@
 
 #if ARM_NEON
 
+#define  VADDVQ_S32(sum, sads)   sum += vaddvq_s32(sads);
+
 /* SAD for 16bit **************************************************************/
 /* SSD ***********************************************************************/
 static s64 ssd_16b_neon_8x8(int w, int h, void *src1, void *src2, int s_src1, int s_src2)
@@ -223,355 +225,138 @@ const oapv_fn_ssd_t oapv_tbl_fn_ssd_16b_neon[2] =
             NULL};
 
 /* DIFF **********************************************************************/
+
 int oapv_dc_removed_had8x8_neon(pel* org, int s_org)
 {
     int satd = 0;
-    /* all 128 bit registers are named with a suffix mxnb, where m is the */
-    /* number of n bits packed in the register                            */
+    int16x8_t r0, r1, r2, r3, r4, r5, r6, r7, src, t0, t1, t4, t5 ,t6 ,t7;
 
-    int16x8_t src0_8x16b, src1_8x16b, src2_8x16b, src3_8x16b;
-    int16x8_t src4_8x16b, src5_8x16b, src6_8x16b, src7_8x16b;
-    int16x8_t pred0_8x16b, pred1_8x16b, pred2_8x16b, pred3_8x16b;
-    int16x8_t pred4_8x16b, pred5_8x16b, pred6_8x16b, pred7_8x16b;
-    int16x8_t out0_8x16b, out1_8x16b, out2_8x16b, out3_8x16b;
-    int16x8_t out4_8x16b, out5_8x16b, out6_8x16b, out7_8x16b;
+// Vert-pass
+    r0 = vld1q_s16(org);
 
-    src0_8x16b = (vld1q_s16(&org[0]));
-    org = org + s_org;
-    src1_8x16b = (vld1q_s16(&org[0]));
-    org = org + s_org;
-    src2_8x16b = (vld1q_s16(&org[0]));
-    org = org + s_org;
-    src3_8x16b = (vld1q_s16(&org[0]));
-    org = org + s_org;
-    src4_8x16b = (vld1q_s16(&org[0]));
-    org = org + s_org;
-    src5_8x16b = (vld1q_s16(&org[0]));
-    org = org + s_org;
-    src6_8x16b = (vld1q_s16(&org[0]));
-    org = org + s_org;
-    src7_8x16b = (vld1q_s16(&org[0]));
-    org = org + s_org;
+    src = vld1q_s16(org + s_org);
+    r1 = vsubq_s16(r0, src);
+    r0 = vaddq_s16(r0, src);
 
-    /**************** 8x8 horizontal transform *******************************/
-    /***********************    8x8 16 bit Transpose  ************************/
+    t0 = vld1q_s16(org + 2 * s_org);
 
-    out3_8x16b = vcombine_s16(vget_low_s16(src0_8x16b), vget_low_s16(src1_8x16b));
-    out7_8x16b = vcombine_s16(vget_high_s16(src0_8x16b), vget_high_s16(src1_8x16b));
+    src = vld1q_s16(org + 3 * s_org);
+    t1 = vsubq_s16(t0, src);
+    t0 = vaddq_s16(t0, src);
 
-    pred0_8x16b = vcombine_s16(vget_low_s16(src2_8x16b), vget_low_s16(src3_8x16b));
-    src2_8x16b = vcombine_s16(vget_high_s16(src2_8x16b), vget_high_s16(src3_8x16b));
+    r3 = vsubq_s16(r1, t1);
+    r2 = vsubq_s16(r0, t0);
+    r1 = vaddq_s16(r1, t1);
+    r0 = vaddq_s16(r0, t0);
 
-    out2_8x16b = vcombine_s16(vget_low_s16(src4_8x16b), vget_low_s16(src5_8x16b));
-    pred7_8x16b = vcombine_s16(vget_high_s16(src4_8x16b), vget_high_s16(src5_8x16b));
+    t4 = vld1q_s16(org + 4 * s_org);
 
-    pred3_8x16b = vcombine_s16(vget_low_s16(src6_8x16b), vget_low_s16(src7_8x16b));
-    src6_8x16b = vcombine_s16(vget_high_s16(src6_8x16b), vget_high_s16(src7_8x16b));
+    src = vld1q_s16(org + 5 * s_org);
+    t5 = vsubq_s16(t4, src);
+    t4 = vaddq_s16(t4, src);
 
+    t0 = vld1q_s16(org + 6 * s_org);
 
-    out1_8x16b = vzip1q_s32(out3_8x16b, pred0_8x16b);
-    out3_8x16b = vzip2q_s32(out3_8x16b, pred0_8x16b);
+    src = vld1q_s16(org + 7 * s_org);
+    t1 = vsubq_s16(t0, src);
+    t0 = vaddq_s16(t0, src);
 
-    pred1_8x16b = vzip1q_s32(out2_8x16b, pred3_8x16b);
-    pred3_8x16b = vzip2q_s32(out2_8x16b, pred3_8x16b);
+    t7 = vsubq_s16(t5, t1);
+    t6 = vsubq_s16(t4, t0);
+    t5 = vaddq_s16(t5, t1);
+    t4 = vaddq_s16(t4, t0);
 
-    out5_8x16b = vzip1q_s32(out7_8x16b, src2_8x16b);
-    out7_8x16b = vzip2q_s32(out7_8x16b, src2_8x16b);
+    r7 = vsubq_s16(r3, t7);
+    r6 = vsubq_s16(r2, t6);
+    r5 = vsubq_s16(r1, t5);
+    r4 = vsubq_s16(r0, t4);
+    r3 = vaddq_s16(r3, t7);
+    r2 = vaddq_s16(r2, t6);
+    r1 = vaddq_s16(r1, t5);
+    r0 = vaddq_s16(r0, t4);
 
-    pred5_8x16b = vzip1q_s32(pred7_8x16b, src6_8x16b);
-    pred7_8x16b = vzip2q_s32(pred7_8x16b, src6_8x16b);
+// Transpose and Horz-pass
+    int16x8x2_t tmp0_8x16bx2, tmp1_8x16bx2;
+    int32x4x2_t tmp_4x32bx2;
+    int32x4_t h0, h1, h2, h3, q0, q1, q2, q3, q4, q5, q6, q7;
 
-    out0_8x16b = vzip1q_s64(out1_8x16b,pred1_8x16b);
-    out1_8x16b = vzip2q_s64(out1_8x16b,pred1_8x16b);
-    out2_8x16b = vzip1q_s64(out3_8x16b,pred3_8x16b);
-    out3_8x16b = vzip2q_s64(out3_8x16b,pred3_8x16b);
-    out4_8x16b = vzip1q_s64(out5_8x16b,pred5_8x16b);
-    out5_8x16b = vzip2q_s64(out5_8x16b,pred5_8x16b);
-    out6_8x16b = vzip1q_s64(out7_8x16b,pred7_8x16b);
-    out7_8x16b = vzip2q_s64(out7_8x16b,pred7_8x16b);
+    tmp0_8x16bx2 = vtrnq_s16(r0, r1);
+    tmp1_8x16bx2 = vtrnq_s16(r2, r3);
 
-    /**********************   8x8 16 bit Transpose End   *********************/
+    tmp_4x32bx2 = vtrnq_s32(vreinterpretq_s32_s16(tmp0_8x16bx2.val[0]), vreinterpretq_s32_s16(tmp1_8x16bx2.val[0]));
 
-    /* r0 + r1 */
-    pred0_8x16b = vaddq_s16(out0_8x16b, out1_8x16b);
-    /* r2 + r3 */
-    pred2_8x16b = vaddq_s16(out2_8x16b, out3_8x16b);
-    /* r4 + r5 */
-    pred4_8x16b = vaddq_s16(out4_8x16b, out5_8x16b);
-    /* r6 + r7 */
-    pred6_8x16b = vaddq_s16(out6_8x16b, out7_8x16b);
+    h0 = vaddl_s16(vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
+    h1 = vsubl_s16(vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
 
+    h2 = vaddl_s16(vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
+    h3 = vsubl_s16(vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
 
-    /* r0 + r1 + r2 + r3 */
-    pred1_8x16b = vaddq_s16(pred0_8x16b, pred2_8x16b);
-    /* r4 + r5 + r6 + r7 */
-    pred5_8x16b = vaddq_s16(pred4_8x16b, pred6_8x16b);
-    /* r0 + r1 + r2 + r3 + r4 + r5 + r6 + r7 */
-    src0_8x16b = vaddq_s16(pred1_8x16b, pred5_8x16b);
-    /* r0 + r1 + r2 + r3 - r4 - r5 - r6 - r7 */
-    src4_8x16b = vsubq_s16(pred1_8x16b, pred5_8x16b);
+    q0 = vaddq_s32(h0, h2);
+    q1 = vsubq_s32(h0, h2);
+    q2 = vaddq_s32(h1, h3);
+    q3 = vsubq_s32(h1, h3);
 
-    /* r0 + r1 - r2 - r3 */
-    pred1_8x16b = vsubq_s16(pred0_8x16b, pred2_8x16b);
-    /* r4 + r5 - r6 - r7 */
-    pred5_8x16b = vsubq_s16(pred4_8x16b, pred6_8x16b);
-    /* r0 + r1 - r2 - r3 + r4 + r5 - r6 - r7 */
-    src2_8x16b = vaddq_s16(pred1_8x16b, pred5_8x16b);
-    /* r0 + r1 - r2 - r3 - r4 - r5 + r6 + r7 */
-    src6_8x16b = vsubq_s16(pred1_8x16b, pred5_8x16b);
+    tmp_4x32bx2 = vtrnq_s32(vreinterpretq_s32_s16(tmp0_8x16bx2.val[1]), vreinterpretq_s32_s16(tmp1_8x16bx2.val[1]));
 
-    /* r0 - r1 */
-    pred0_8x16b = vsubq_s16(out0_8x16b, out1_8x16b);
-    /* r2 - r3 */
-    pred2_8x16b = vsubq_s16(out2_8x16b, out3_8x16b);
-    /* r4 - r5 */
-    pred4_8x16b = vsubq_s16(out4_8x16b, out5_8x16b);
-    /* r6 - r7 */
-    pred6_8x16b = vsubq_s16(out6_8x16b, out7_8x16b);
+    h0 = vaddl_s16(vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
+    h1 = vsubl_s16(vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
 
-    /* r0 - r1 + r2 - r3 */
-    pred1_8x16b = vaddq_s16(pred0_8x16b, pred2_8x16b);
-    /* r4 - r5 + r6 - r7 */
-    pred5_8x16b = vaddq_s16(pred4_8x16b, pred6_8x16b);
-    /* r0 - r1 + r2 - r3 + r4 - r5 + r6 - r7 */
-    src1_8x16b = vaddq_s16(pred1_8x16b, pred5_8x16b);
-    /* r0 - r1 + r2 - r3 - r4 + r5 - r6 + r7 */
-    src5_8x16b = vsubq_s16(pred1_8x16b, pred5_8x16b);
+    h2 = vaddl_s16(vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
+    h3 = vsubl_s16(vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
 
-    /* r0 - r1 - r2 + r3 */
-    pred1_8x16b = vsubq_s16(pred0_8x16b, pred2_8x16b);
-    /* r4 - r5 - r6 + r7 */
-    pred5_8x16b = vsubq_s16(pred4_8x16b, pred6_8x16b);
-    /* r0 - r1 - r2 + r3 + r4 - r5 - r6 + r7 */
-    src3_8x16b = vaddq_s16(pred1_8x16b, pred5_8x16b);
-    /* r0 - r1 - r2 + r3 - r4 + r5 + r6 - r7 */
-    src7_8x16b = vsubq_s16(pred1_8x16b, pred5_8x16b);
+    q4 = vaddq_s32(h0, h2);
+    q5 = vsubq_s32(h0, h2);
+    q6 = vaddq_s32(h1, h3);
+    q7 = vsubq_s32(h1, h3);
 
+    VADDVQ_S32(satd, vabsq_s32(vsetq_lane_s32(0, vaddq_s32(q0, q4), 0)));
+    VADDVQ_S32(satd, vabdq_s32(q0, q4));
+    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q1, q5)));
+    VADDVQ_S32(satd, vabdq_s32(q1, q5));
+    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q2, q6)));
+    VADDVQ_S32(satd, vabdq_s32(q2, q6));
+    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q3, q7)));
+    VADDVQ_S32(satd, vabdq_s32(q3, q7));
 
-    /***********************    8x8 16 bit Transpose  ************************/
-    out3_8x16b = vzip1q_s16(src0_8x16b, src1_8x16b);
-    pred0_8x16b = vzip1q_s16(src2_8x16b, src3_8x16b);
-    out2_8x16b = vzip1q_s16(src4_8x16b, src5_8x16b);
-    pred3_8x16b = vzip1q_s16(src6_8x16b, src7_8x16b);
-    out7_8x16b = vzip2q_s16(src0_8x16b, src1_8x16b);
-    src2_8x16b = vzip2q_s16(src2_8x16b, src3_8x16b);
-    pred7_8x16b = vzip2q_s16(src4_8x16b, src5_8x16b);
-    src6_8x16b = vzip2q_s16(src6_8x16b, src7_8x16b);
+    tmp0_8x16bx2 = vtrnq_s16(r4, r5);
+    tmp1_8x16bx2 = vtrnq_s16(r6, r7);
 
-    out1_8x16b = vzip1q_s32(out3_8x16b, pred0_8x16b);
-    out3_8x16b = vzip2q_s32(out3_8x16b, pred0_8x16b);
+    tmp_4x32bx2 = vtrnq_s32(vreinterpretq_s32_s16(tmp0_8x16bx2.val[0]), vreinterpretq_s32_s16(tmp1_8x16bx2.val[0]));
 
-    pred1_8x16b = vzip1q_s32(out2_8x16b, pred3_8x16b);
-    pred3_8x16b = vzip2q_s32(out2_8x16b, pred3_8x16b);
+    h0 = vaddl_s16(vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
+    h1 = vsubl_s16(vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
 
-    out5_8x16b = vzip1q_s32(out7_8x16b, src2_8x16b);
-    out7_8x16b = vzip2q_s32(out7_8x16b, src2_8x16b);
+    h2 = vaddl_s16(vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
+    h3 = vsubl_s16(vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
 
-    pred5_8x16b = vzip1q_s32(pred7_8x16b, src6_8x16b);
-    pred7_8x16b = vzip2q_s32(pred7_8x16b, src6_8x16b);
+    q0 = vaddq_s32(h0, h2);
+    q1 = vsubq_s32(h0, h2);
+    q2 = vaddq_s32(h1, h3);
+    q3 = vsubq_s32(h1, h3);
 
-    src0_8x16b = vzip1q_s64(out1_8x16b,pred1_8x16b);
-    src1_8x16b = vzip2q_s64(out1_8x16b,pred1_8x16b);
-    src2_8x16b = vzip1q_s64(out3_8x16b,pred3_8x16b);
-    src3_8x16b = vzip2q_s64(out3_8x16b,pred3_8x16b);
-    src4_8x16b = vzip1q_s64(out5_8x16b,pred5_8x16b);
-    src5_8x16b = vzip2q_s64(out5_8x16b,pred5_8x16b);
-    src6_8x16b = vzip1q_s64(out7_8x16b,pred7_8x16b);
-    src7_8x16b = vzip2q_s64(out7_8x16b,pred7_8x16b);
+    tmp_4x32bx2 = vtrnq_s32(vreinterpretq_s32_s16(tmp0_8x16bx2.val[1]), vreinterpretq_s32_s16(tmp1_8x16bx2.val[1]));
 
-    /**********************   8x8 16 bit Transpose End   *********************/
-    /**************** 8x8 horizontal transform *******************************/
-    {
-        int16x8_t out0a_8x16b, out1a_8x16b, out2a_8x16b, out3a_8x16b;
-        int16x8_t out4a_8x16b, out5a_8x16b, out6a_8x16b, out7a_8x16b;
-        int16x8_t tmp0_8x16b, tmp1_8x16b, tmp2_8x16b, tmp3_8x16b;
-        int16x8_t tmp4_8x16b, tmp5_8x16b, tmp6_8x16b, tmp7_8x16b;
+    h0 = vaddl_s16(vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
+    h1 = vsubl_s16(vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_high_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
 
-        /************************* 8x8 Vertical Transform*************************/
-        tmp0_8x16b = vcombine_s16(vget_high_s16(src0_8x16b), vcreate_s32(0));
-        tmp1_8x16b = vcombine_s16(vget_high_s16(src1_8x16b), vcreate_s32(0));
-        tmp2_8x16b = vcombine_s16(vget_high_s16(src2_8x16b), vcreate_s32(0));
-        tmp3_8x16b = vcombine_s16(vget_high_s16(src3_8x16b), vcreate_s32(0));
-        tmp4_8x16b = vcombine_s16(vget_high_s16(src4_8x16b), vcreate_s32(0));
-        tmp5_8x16b = vcombine_s16(vget_high_s16(src5_8x16b), vcreate_s32(0));
-        tmp6_8x16b = vcombine_s16(vget_high_s16(src6_8x16b), vcreate_s32(0));
-        tmp7_8x16b = vcombine_s16(vget_high_s16(src7_8x16b), vcreate_s32(0));
+    h2 = vaddl_s16(vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
+    h3 = vsubl_s16(vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[0])), vget_low_s16(vreinterpretq_s16_s32(tmp_4x32bx2.val[1])));
 
-        /*************************First 4 pixels ********************************/
+    q4 = vaddq_s32(h0, h2);
+    q5 = vsubq_s32(h0, h2);
+    q6 = vaddq_s32(h1, h3);
+    q7 = vsubq_s32(h1, h3);
 
-        src0_8x16b = vmovl_s16(vget_low_s16(src0_8x16b));
-        src1_8x16b = vmovl_s16(vget_low_s16(src1_8x16b));
-        src2_8x16b = vmovl_s16(vget_low_s16(src2_8x16b));
-        src3_8x16b = vmovl_s16(vget_low_s16(src3_8x16b));
-        src4_8x16b = vmovl_s16(vget_low_s16(src4_8x16b));
-        src5_8x16b = vmovl_s16(vget_low_s16(src5_8x16b));
-        src6_8x16b = vmovl_s16(vget_low_s16(src6_8x16b));
-        src7_8x16b = vmovl_s16(vget_low_s16(src7_8x16b));
+    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q0, q4)));
+    VADDVQ_S32(satd, vabdq_s32(q0, q4));
+    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q1, q5)));
+    VADDVQ_S32(satd, vabdq_s32(q1, q5));
+    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q2, q6)));
+    VADDVQ_S32(satd, vabdq_s32(q2, q6));
+    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q3, q7)));
+    VADDVQ_S32(satd, vabdq_s32(q3, q7));
 
-        /* r0 + r1 */
-        pred0_8x16b = vaddq_s32(src0_8x16b, src1_8x16b);
-        /* r2 + r3 */
-        pred2_8x16b = vaddq_s32(src2_8x16b, src3_8x16b);
-        /* r4 + r5 */
-        pred4_8x16b = vaddq_s32(src4_8x16b, src5_8x16b);
-        /* r6 + r7 */
-        pred6_8x16b = vaddq_s32(src6_8x16b, src7_8x16b);
-
-        /* r0 + r1 + r2 + r3 */
-        pred1_8x16b = vaddq_s32(pred0_8x16b, pred2_8x16b);
-        /* r4 + r5 + r6 + r7 */
-        pred5_8x16b = vaddq_s32(pred4_8x16b, pred6_8x16b);
-        /* r0 + r1 + r2 + r3 + r4 + r5 + r6 + r7 */
-        out0_8x16b = vaddq_s32(pred1_8x16b, pred5_8x16b);
-        /* r0 + r1 + r2 + r3 - r4 - r5 - r6 - r7 */
-        out4_8x16b = vsubq_s32(pred1_8x16b, pred5_8x16b);
-
-        /* r0 + r1 - r2 - r3 */
-        pred1_8x16b = vsubq_s32(pred0_8x16b, pred2_8x16b);
-        /* r4 + r5 - r6 - r7 */
-        pred5_8x16b = vsubq_s32(pred4_8x16b, pred6_8x16b);
-        /* r0 + r1 - r2 - r3 + r4 + r5 - r6 - r7 */
-        out2_8x16b = vaddq_s32(pred1_8x16b, pred5_8x16b);
-        /* r0 + r1 - r2 - r3 - r4 - r5 + r6 + r7 */
-        out6_8x16b = vsubq_s32(pred1_8x16b, pred5_8x16b);
-
-        /* r0 - r1 */
-        pred0_8x16b = vsubq_s32(src0_8x16b, src1_8x16b);
-        /* r2 - r3 */
-        pred2_8x16b = vsubq_s32(src2_8x16b, src3_8x16b);
-        /* r4 - r5 */
-        pred4_8x16b = vsubq_s32(src4_8x16b, src5_8x16b);
-        /* r6 - r7 */
-        pred6_8x16b = vsubq_s32(src6_8x16b, src7_8x16b);
-
-        /* r0 - r1 + r2 - r3 */
-        pred1_8x16b = vaddq_s32(pred0_8x16b, pred2_8x16b);
-        /* r4 - r5 + r6 - r7 */
-        pred5_8x16b = vaddq_s32(pred4_8x16b, pred6_8x16b);
-        /* r0 - r1 + r2 - r3 + r4 - r5 + r6 - r7 */
-        out1_8x16b = vaddq_s32(pred1_8x16b, pred5_8x16b);
-        /* r0 - r1 + r2 - r3 - r4 + r5 - r6 + r7 */
-        out5_8x16b = vsubq_s32(pred1_8x16b, pred5_8x16b);
-
-        /* r0 - r1 - r2 + r3 */
-        pred1_8x16b = vsubq_s32(pred0_8x16b, pred2_8x16b);
-        /* r4 - r5 - r6 + r7 */
-        pred5_8x16b = vsubq_s32(pred4_8x16b, pred6_8x16b);
-        /* r0 - r1 - r2 + r3 + r4 - r5 - r6 + r7 */
-        out3_8x16b = vaddq_s32(pred1_8x16b, pred5_8x16b);
-        /* r0 - r1 - r2 + r3 - r4 + r5 + r6 - r7 */
-        out7_8x16b = vsubq_s32(pred1_8x16b, pred5_8x16b);
-
-        /*************************First 4 pixels ********************************/
-
-        /**************************Next 4 pixels *******************************/
-        src0_8x16b = vmovl_s16(vget_low_s16(tmp0_8x16b));
-        src1_8x16b = vmovl_s16(vget_low_s16(tmp1_8x16b));
-        src2_8x16b = vmovl_s16(vget_low_s16(tmp2_8x16b));
-        src3_8x16b = vmovl_s16(vget_low_s16(tmp3_8x16b));
-        src4_8x16b = vmovl_s16(vget_low_s16(tmp4_8x16b));
-        src5_8x16b = vmovl_s16(vget_low_s16(tmp5_8x16b));
-        src6_8x16b = vmovl_s16(vget_low_s16(tmp6_8x16b));
-        src7_8x16b = vmovl_s16(vget_low_s16(tmp7_8x16b));
-
-        /* r0 + r1 */
-        pred0_8x16b = vaddq_s32(src0_8x16b, src1_8x16b);
-        /* r2 + r3 */
-        pred2_8x16b = vaddq_s32(src2_8x16b, src3_8x16b);
-        /* r4 + r5 */
-        pred4_8x16b = vaddq_s32(src4_8x16b, src5_8x16b);
-        /* r6 + r7 */
-        pred6_8x16b = vaddq_s32(src6_8x16b, src7_8x16b);
-
-        /* r0 + r1 + r2 + r3 */
-        pred1_8x16b = vaddq_s32(pred0_8x16b, pred2_8x16b);
-        /* r4 + r5 + r6 + r7 */
-        pred5_8x16b = vaddq_s32(pred4_8x16b, pred6_8x16b);
-        /* r0 + r1 + r2 + r3 + r4 + r5 + r6 + r7 */
-        out0a_8x16b = vaddq_s32(pred1_8x16b, pred5_8x16b);
-        /* r0 + r1 + r2 + r3 - r4 - r5 - r6 - r7 */
-        out4a_8x16b = vsubq_s32(pred1_8x16b, pred5_8x16b);
-
-        /* r0 + r1 - r2 - r3 */
-        pred1_8x16b = vsubq_s32(pred0_8x16b, pred2_8x16b);
-        /* r4 + r5 - r6 - r7 */
-        pred5_8x16b = vsubq_s32(pred4_8x16b, pred6_8x16b);
-        /* r0 + r1 - r2 - r3 + r4 + r5 - r6 - r7 */
-        out2a_8x16b = vaddq_s32(pred1_8x16b, pred5_8x16b);
-        /* r0 + r1 - r2 - r3 - r4 - r5 + r6 + r7 */
-        out6a_8x16b = vsubq_s32(pred1_8x16b, pred5_8x16b);
-
-        /* r0 - r1 */
-        pred0_8x16b = vsubq_s32(src0_8x16b, src1_8x16b);
-        /* r2 - r3 */
-        pred2_8x16b = vsubq_s32(src2_8x16b, src3_8x16b);
-        /* r4 - r5 */
-        pred4_8x16b = vsubq_s32(src4_8x16b, src5_8x16b);
-        /* r6 - r7 */
-        pred6_8x16b = vsubq_s32(src6_8x16b, src7_8x16b);
-
-        /* r0 - r1 + r2 - r3 */
-        pred1_8x16b = vaddq_s32(pred0_8x16b, pred2_8x16b);
-        /* r4 - r5 + r6 - r7 */
-        pred5_8x16b = vaddq_s32(pred4_8x16b, pred6_8x16b);
-        /* r0 - r1 + r2 - r3 + r4 - r5 + r6 - r7 */
-        out1a_8x16b = vaddq_s32(pred1_8x16b, pred5_8x16b);
-        /* r0 - r1 + r2 - r3 - r4 + r5 - r6 + r7 */
-        out5a_8x16b = vsubq_s32(pred1_8x16b, pred5_8x16b);
-
-        /* r0 - r1 - r2 + r3 */
-        pred1_8x16b = vsubq_s32(pred0_8x16b, pred2_8x16b);
-        /* r4 - r5 - r6 + r7 */
-        pred5_8x16b = vsubq_s32(pred4_8x16b, pred6_8x16b);
-        /* r0 - r1 - r2 + r3 + r4 - r5 - r6 + r7 */
-        out3a_8x16b = vaddq_s32(pred1_8x16b, pred5_8x16b);
-        /* r0 - r1 - r2 + r3 - r4 + r5 + r6 - r7 */
-        out7a_8x16b = vsubq_s32(pred1_8x16b, pred5_8x16b);
-
-        /**************************Next 4 pixels *******************************/
-        /************************* 8x8 Vertical Transform*************************/
-
-        /****************************SATD calculation ****************************/
-        src0_8x16b = vabsq_s32(out0_8x16b);
-        src1_8x16b = vabsq_s32(out1_8x16b);
-        src2_8x16b = vabsq_s32(out2_8x16b);
-        src3_8x16b = vabsq_s32(out3_8x16b);
-        src4_8x16b = vabsq_s32(out4_8x16b);
-        src5_8x16b = vabsq_s32(out5_8x16b);
-        src6_8x16b = vabsq_s32(out6_8x16b);
-        src7_8x16b = vabsq_s32(out7_8x16b);
-        s32* p = (s32*)&src0_8x16b;
-        p[0] = 0;
-
-        satd = vaddvq_s32(src0_8x16b);
-        satd += vaddvq_s32(src1_8x16b);
-        satd += vaddvq_s32(src2_8x16b);
-        satd += vaddvq_s32(src3_8x16b);
-        satd += vaddvq_s32(src4_8x16b);
-        satd += vaddvq_s32(src5_8x16b);
-        satd += vaddvq_s32(src6_8x16b);
-        satd += vaddvq_s32(src7_8x16b);
-
-        src0_8x16b = vabsq_s32(out0a_8x16b);
-        src1_8x16b = vabsq_s32(out1a_8x16b);
-        src2_8x16b = vabsq_s32(out2a_8x16b);
-        src3_8x16b = vabsq_s32(out3a_8x16b);
-        src4_8x16b = vabsq_s32(out4a_8x16b);
-        src5_8x16b = vabsq_s32(out5a_8x16b);
-        src6_8x16b = vabsq_s32(out6a_8x16b);
-        src7_8x16b = vabsq_s32(out7a_8x16b);
-
-        satd += vaddvq_s32(src0_8x16b);
-        satd += vaddvq_s32(src1_8x16b);
-        satd += vaddvq_s32(src2_8x16b);
-        satd += vaddvq_s32(src3_8x16b);
-        satd += vaddvq_s32(src4_8x16b);
-        satd += vaddvq_s32(src5_8x16b);
-        satd += vaddvq_s32(src6_8x16b);
-        satd += vaddvq_s32(src7_8x16b);
-
-        satd = (satd + 2) >> 2;
-        return satd;
-    }
+    satd = (satd + 2) >> 2;
+    return satd;
 }
 #endif /* ARM_NEON */
