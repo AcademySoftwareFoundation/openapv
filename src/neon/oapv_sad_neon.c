@@ -225,7 +225,6 @@ const oapv_fn_ssd_t oapv_tbl_fn_ssd_16b_neon[2] =
             NULL};
 
 /* DIFF **********************************************************************/
-
 int oapv_dc_removed_had8x8_neon(pel* org, int s_org)
 {
     int satd = 0;
