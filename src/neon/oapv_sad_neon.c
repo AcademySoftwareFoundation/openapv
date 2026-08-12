@@ -313,14 +313,14 @@ int oapv_dc_removed_had8x8_neon(pel* org, int s_org)
     q6 = vaddq_s32(h1, h3);
     q7 = vsubq_s32(h1, h3);
 
-    VADDVQ_S32(satd, vabsq_s32(vsetq_lane_s32(0, vaddq_s32(q0, q4), 0)));
-    VADDVQ_S32(satd, vabdq_s32(q0, q4));
-    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q1, q5)));
-    VADDVQ_S32(satd, vabdq_s32(q1, q5));
-    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q2, q6)));
-    VADDVQ_S32(satd, vabdq_s32(q2, q6));
-    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q3, q7)));
-    VADDVQ_S32(satd, vabdq_s32(q3, q7));
+    int32x4_t satv = vabsq_s32(vsetq_lane_s32(0, vaddq_s32(q0, q4), 0));
+    satv = vabaq_s32(satv, q0, q4);
+    satv = vaddq_s32(satv, vabsq_s32(vaddq_s32(q1, q5)));
+    satv = vabaq_s32(satv, q1, q5);
+    satv = vaddq_s32(satv, vabsq_s32(vaddq_s32(q2, q6)));
+    satv = vabaq_s32(satv, q2, q6);
+    satv = vaddq_s32(satv, vabsq_s32(vaddq_s32(q3, q7)));
+    satv = vabaq_s32(satv, q3, q7);
 
     tmp0_8x16bx2 = vtrnq_s16(r4, r5);
     tmp1_8x16bx2 = vtrnq_s16(r6, r7);
@@ -351,16 +351,16 @@ int oapv_dc_removed_had8x8_neon(pel* org, int s_org)
     q6 = vaddq_s32(h1, h3);
     q7 = vsubq_s32(h1, h3);
 
-    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q0, q4)));
-    VADDVQ_S32(satd, vabdq_s32(q0, q4));
-    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q1, q5)));
-    VADDVQ_S32(satd, vabdq_s32(q1, q5));
-    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q2, q6)));
-    VADDVQ_S32(satd, vabdq_s32(q2, q6));
-    VADDVQ_S32(satd, vabsq_s32(vaddq_s32(q3, q7)));
-    VADDVQ_S32(satd, vabdq_s32(q3, q7));
+    satv = vaddq_s32(satv, vabsq_s32(vaddq_s32(q0, q4)));
+    satv = vabaq_s32(satv, q0, q4);
+    satv = vaddq_s32(satv, vabsq_s32(vaddq_s32(q1, q5)));
+    satv = vabaq_s32(satv, q1, q5);
+    satv = vaddq_s32(satv, vabsq_s32(vaddq_s32(q2, q6)));
+    satv = vabaq_s32(satv, q2, q6);
+    satv = vaddq_s32(satv, vabsq_s32(vaddq_s32(q3, q7)));
+    satv = vabaq_s32(satv, q3, q7);
 
-    satd = (satd + 2) >> 2;
-    return satd;
+    VADDVQ_S32(satd, satv)
+    return (satd + 2) >> 2;
 }
 #endif /* ARM_NEON */
