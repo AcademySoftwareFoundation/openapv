@@ -227,6 +227,11 @@ const oapv_fn_ssd_t oapv_tbl_fn_ssd_16b_neon[2] =
 /* DIFF **********************************************************************/
 int oapv_dc_removed_had8x8_neon(pel* org, int s_org)
 {
+    /* first pass is register-wise on 128-bit s16 row vectors, so its values
+       reach 8 * 4095 and only just fit in s16; the input is therefore limited
+       to 12-bit samples. after a transpose the second pass runs register-wise
+       on 128-bit s32 vectors, since its values can reach 64 * 4095 and do not
+       fit in s16 */
     int satd = 0;
     int16x8_t r0, r1, r2, r3, r4, r5, r6, r7, src, t0, t1, t4, t5 ,t6 ,t7;
 
