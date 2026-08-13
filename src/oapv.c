@@ -1569,8 +1569,10 @@ static int dec_block(oapvd_ctx_t *ctx, oapvd_core_t *core, int log2_w, int log2_
 {
     int bit_depth = ctx->bit_depth;
 
-    // DC prediction
-    core->coef[0] = core->dc_diff + core->prev_dc[c];
+    // DC prediction; the reconstructed value must fit the coefficient range
+    int dc = core->dc_diff + core->prev_dc[c];
+    oapv_assert_rv(dc >= MIN_TX_VAL && dc <= MAX_TX_VAL, OAPV_ERR_MALFORMED_BITSTREAM);
+    core->coef[0] = (s16)dc;
     core->prev_dc[c] = core->coef[0];
     // Inverse quantization
     ctx->fn_dquant[0](core->coef, core->q_mat[c], log2_w, log2_h, core->dq_shift[c]);
