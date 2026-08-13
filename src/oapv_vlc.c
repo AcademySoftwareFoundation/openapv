@@ -866,12 +866,15 @@ int oapvd_vlc_dc_coef(oapv_bs_t *bs, int *dc_diff, int *kparam_dc)
     abs_dc_diff = dec_vlc_read(bs, *kparam_dc);
     if(abs_dc_diff < 0) // dec_vlc_read error sentinel
         return OAPV_ERR_MALFORMED_BITSTREAM;
-    if(abs_dc_diff > 32767)
+    // DC coefficients are in [-32768, 32767], so the difference between two
+    // neighboring blocks can legally reach 65535; only the reconstructed DC
+    // value is bounded, which dec_block() checks after prediction
+    if(abs_dc_diff > 65535)
         return OAPV_ERR_MALFORMED_BITSTREAM;
     if(abs_dc_diff) {
         if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
         BSR_READ_1BIT(bs, sign);
-        *dc_diff = oapv_set_sign16(abs_dc_diff, sign);
+        *dc_diff = oapv_set_sign(abs_dc_diff, sign);
         *kparam_dc = KPARAM_DC(abs_dc_diff);
     }
     else {
