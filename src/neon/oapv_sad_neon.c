@@ -34,8 +34,6 @@
 
 #if ARM_NEON
 
-#define  VADDVQ_S32(sum, sads)   sum += vaddvq_s32(sads);
-
 /* SAD for 16bit **************************************************************/
 /* SSD ***********************************************************************/
 static s64 ssd_16b_neon_8x8(int w, int h, void *src1, void *src2, int s_src1, int s_src2)
@@ -232,7 +230,6 @@ int oapv_dc_removed_had8x8_neon(pel* org, int s_org)
        to 12-bit samples. after a transpose the second pass runs register-wise
        on 128-bit s32 vectors, since its values can reach 64 * 4095 and do not
        fit in s16 */
-    int satd = 0;
     int16x8_t r0, r1, r2, r3, r4, r5, r6, r7, src, t0, t1, t4, t5 ,t6 ,t7;
 
 // Vert-pass
@@ -360,7 +357,7 @@ int oapv_dc_removed_had8x8_neon(pel* org, int s_org)
     satv = vaddq_s32(satv, vabsq_s32(vaddq_s32(q3, q7)));
     satv = vabaq_s32(satv, q3, q7);
 
-    VADDVQ_S32(satd, satv)
+    int satd = vaddvq_s32(satv);
     return (satd + 2) >> 2;
 }
 #endif /* ARM_NEON */
