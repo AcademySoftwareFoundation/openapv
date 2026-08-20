@@ -383,6 +383,33 @@ struct oapv_imgb {
     int (*addref)(oapv_imgb_t *imgb);
     int (*getref)(oapv_imgb_t *imgb);
     int (*release)(oapv_imgb_t *imgb);
+
+    /* Optional tiled-layout output. When tiled_layout == 0 (default), `a[c]`
+     * points at a scanline-strided plane and `s[c]` is the picture stride
+     * in bytes - the historical behavior. When tiled_layout != 0, the
+     * output buffer is laid out tile-major with planes interleaved within
+     * each tile (i.e. tile k occupies one contiguous `tile_size`-byte
+     * block, and all of plane c's `tile_h[c]*tile_stride[c]` bytes live
+     * within that block at the same intra-tile offset for every tile).
+     *
+     * In tiled mode `a[c]` is the buffer base plus the intra-tile byte
+     * offset of plane c, so tile (tx, ty) for component c starts at:
+     *     a[c] + (ty * num_tile_cols + tx) * tile_size
+     * and the decoder writes pixels at tile-local coordinates using
+     * `tile_stride[c]` as the per-row byte advance.
+     *
+     * Each component is described separately, so the layout is planar: it cannot
+     * express two components sharing a plane on alternating samples. Interleaved
+     * chroma colour spaces are rejected rather than mis-written.
+     *
+     * Zero-initialised structs continue to use the scanline path. */
+    int           tiled_layout;
+    int           num_tile_cols;            /* number of tile columns in the picture */
+    int           num_tile_rows;            /* number of tile rows in the picture */
+    int           tile_size;                /* total bytes per tile (sum of plane sub-tiles, incl. padding) */
+    int           tile_w[OAPV_MAX_CC];      /* tile width  per component, in samples */
+    int           tile_h[OAPV_MAX_CC];      /* tile height per component, in samples */
+    int           tile_stride[OAPV_MAX_CC]; /* tile row stride in bytes; >= tile_w[c] * bytes_per_sample */
 };
 
 typedef struct oapv_frm oapv_frm_t;
@@ -864,6 +891,93 @@ OAPV_EXPORT int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_ti
 OAPV_EXPORT int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui);
 OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat, int num_part_tiles, const int *part_tile_idxs);
 
+/*****************************************************************************
+ * selective multi-mip decoding
+ *
+ * Decodes a chosen subset of tiles from one or more frames ("mip levels") of
+ * an access unit, reading only the bytes those tiles occupy. This lets a
+ * viewport-sized region of a large tiled image be decoded without touching the
+ * rest of the frame, and without materialising a full-frame output buffer.
+ *
+ * oapvd_decode_frame() cannot express this: it decodes into a scanline-strided
+ * oapv_imgb_t sized to the whole picture, so even a partial-tile decode has to
+ * allocate the full frame. These requests write tile-major into a buffer sized
+ * to a tile budget instead.
+ *
+ * Requires the frame headers to carry per-tile sizes
+ * (tile_size_present_in_fh_flag; the encoder writes them by default), since
+ * tile byte offsets are derived from them. oapvd_info_tile() reports those
+ * locations, and can be used to plan a selection before decoding it.
+ *****************************************************************************/
+typedef struct oapv_mip_request oapv_mip_request_t;
+struct oapv_mip_request {
+    int mip_level;  /* which frame of the access unit (0 = primary) */
+    int num_tiles;  /* number of tiles requested for this mip */
+    /* caller-owned array of 2*num_tiles ints: [col, row] pairs */
+    const int   *tile_coords;
+    oapv_imgb_t *output_buffer; /* destination for this mip level */
+
+    /* Status of this request, filled by the decoder. Each request reports its
+     * own outcome here; the decode call itself only fails on errors that
+     * affect the whole operation. */
+    int status;
+
+    /* Frame metadata, filled by the decoder */
+    int frame_width_mb_aligned;  /* frame width  aligned up to a macroblock */
+    int frame_height_mb_aligned; /* frame height aligned up to a macroblock */
+    int tile_width_mb_aligned;   /* tile width  in pixels */
+    int tile_height_mb_aligned;  /* tile height in pixels */
+    int bit_depth;
+    int chroma_format_idc;
+
+    /* Optional per-tile destination slot mapping for virtualized output.
+     *
+     * When NULL (the default for a zero-initialised struct), each tile is
+     * routed to its natural offset within output_buffer, computed as
+     * (row * num_tile_cols + col).
+     *
+     * When non-NULL, must point to a caller-owned array of at least num_tiles
+     * ints, where tile_dst_slots[i] is the destination slot for the tile at
+     * tile_coords[i*2 .. i*2+1]; that tile is written at
+     * (tile_dst_slots[i] * tile_size) within output_buffer. This lets a caller
+     * maintain a bounded resident-tile cache whose buffer is sized to a tile
+     * budget rather than to the worst-case tile count.
+     *
+     * Only honoured when output_buffer->tiled_layout != 0. The array must stay
+     * valid for the duration of the decode call. */
+    const int *tile_dst_slots;
+};
+
+/* The set of mip levels to decode in one call.
+ *
+ * Every request is served from a single pass over the access unit, and their tiles
+ * share one thread pool, so a level with few tiles does not leave workers idle.
+ * Each request reports its own outcome in 'status'; see oapv_mip_request_t. */
+typedef struct oapv_multi_mip_decode oapv_multi_mip_decode_t;
+struct oapv_multi_mip_decode {
+    int                 num_mips;     /* number of entries in mip_requests */
+    oapv_mip_request_t *mip_requests; /* caller-owned array of requests */
+};
+
+/* 'bitb' follows the same contract as oapvd_decode(): 'addr' points at the
+ * access unit's signature ('aPv1'), i.e. past the leading 4-byte au_size field,
+ * and 'ssize' is the access unit's byte size. 'bsize', when non-zero, is the
+ * capacity of the buffer behind 'addr' and must be at least 'ssize'. The bytes
+ * must stay readable and unmodified for the duration of the call.
+ *
+ * The decoder only reads through 'addr', and copies no tile bytes before
+ * decoding them. Under a memory mapping, first touch of a page faults
+ * synchronously on the touching thread, so callers should keep this off
+ * latency-sensitive threads.
+ *
+ * 'mid' is optional, as it is for oapvd_decode(): pass a container to collect the
+ * access unit's metadata, or NULL to skip it. Skipping is the cheaper path - the
+ * access unit's metadata is written after its frames, so collecting it means
+ * walking to the end of the access unit, whereas otherwise the walk stops at the
+ * last requested mip. */
+OAPV_EXPORT int oapvd_decode_selective_multi_mips(oapvd_t did, oapv_bitb_t *bitb,
+                                                  oapv_multi_mip_decode_t *multi_mip_decode,
+                                                  oapvm_t mid, oapvd_stat_t *stat);
 
 
 #ifdef __cplusplus

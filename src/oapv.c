@@ -1738,6 +1738,86 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, int num_part_tiles, const int *part
     return OAPV_OK;
 }
 
+/* Frame setup for the selective decode path.
+ *
+ * Same derivation as dec_frm_prepare(), minus everything that assumes a
+ * full-frame destination: no output buffer is bound to the context, no
+ * whole-picture capacity check is made, and no per-tile decode status is
+ * seeded (the selective path drives tiles from its own work queue). Only
+ * 'imgb_desc->cs' is read, to pick the component shifts and the block writer.
+ */
+static int dec_frm_prepare_selective(oapvd_ctx_t *ctx, const oapv_imgb_t *imgb_desc)
+{
+    int i, ret;
+
+    oapv_assert_rv(imgb_desc != NULL, OAPV_ERR_INVALID_ARGUMENT);
+
+    /* Interleaved chroma is not supported here. A tile's destination is described
+       per component - tile_w[c], tile_h[c], tile_stride[c], and a[c] biased to the
+       component's intra-tile offset - which cannot express two components sharing
+       a plane on alternating samples. Reject it rather than write V into a plane a
+       P210 buffer does not have. */
+    if(OAPV_CS_GET_FORMAT(imgb_desc->cs) == OAPV_CF_PLANAR2) {
+        return OAPV_ERR_UNSUPPORTED_COLORSPACE;
+    }
+
+    /* The component shifts below come from the output buffer's colour space while
+       the component count comes from the bitstream, so the two have to agree. This
+       is the same guard dec_frm_prepare() applies; without it a 4:2:0 buffer handed
+       a 4:4:4 stream writes chroma at half the correct coordinates and reports
+       success. */
+    if(color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb_desc->cs)) != ctx->fh.fi.chroma_format_idc) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
+
+    ctx->bit_depth = ctx->fh.fi.bit_depth;
+    ctx->cfi = ctx->fh.fi.chroma_format_idc;
+    ctx->num_c = get_num_comp(ctx->cfi);
+    ctx->c_sft[Y_C][0] = 0;
+    ctx->c_sft[Y_C][1] = 0;
+
+    for(int c = 1; c < ctx->num_c; c++) {
+        ctx->c_sft[c][0] = get_chroma_sft_w(color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb_desc->cs)));
+        ctx->c_sft[c][1] = get_chroma_sft_h(color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb_desc->cs)));
+    }
+
+    ctx->w = oapv_align_value(ctx->fh.fi.frame_width, OAPV_MB_W);
+    ctx->h = oapv_align_value(ctx->fh.fi.frame_height, OAPV_MB_H);
+
+    if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
+        // companding is the default for 16C12 profiles; the config can force it off
+        ctx->disable_companding = ctx->force_disable_companding;
+    }
+
+    if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
+        for(i = 0; i < ctx->num_c; i++) {
+            ctx->fn_blk_to_pic[i] = ctx->disable_companding ? oapv_blk_to_pic_16 : oapv_blk_to_pic_12E16;
+        }
+    }
+    else {
+        for(i = 0; i < ctx->num_c; i++) {
+            ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+        }
+    }
+
+    int tile_w = ctx->fh.tile_width_in_mbs * OAPV_MB_W;
+    int tile_h = ctx->fh.tile_height_in_mbs * OAPV_MB_H;
+    oapv_assert_rv(tile_w > 0 && tile_h > 0, OAPV_ERR_MALFORMED_BITSTREAM);
+
+    ctx->num_tile_cols = (ctx->w + (tile_w - 1)) / tile_w;
+    ctx->num_tile_rows = (ctx->h + (tile_h - 1)) / tile_h;
+
+    ret = oapv_validate_tile_topology(ctx->fh.fi.profile_idc, ctx->num_tile_cols, ctx->num_tile_rows, &ctx->num_tiles);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+    /* ctx->tile is deliberately left alone. It describes a whole-frame decode and is
+       only read by dec_thread_tile(); the selective path builds a per-tile descriptor
+       in the worker instead. Sizing it here would cost an allocation and two passes
+       over the frame's tile count - 2040 of them at 16K - for something nothing reads. */
+
+    return OAPV_OK;
+}
+
 static void dec_frm_finish(oapvd_ctx_t *ctx)
 {
     imgb_release(ctx->imgb); // decrease reference count
@@ -2357,6 +2437,32 @@ ERR:
     return ret;
 }
 
+/* Turns the per-tile sizes the frame header carried into per-tile byte offsets.
+ *
+ * Tile data follows the frame header, each unit being a 4-byte size field then
+ * that many bytes of data, so the offsets are a running sum and no tile has to be
+ * visited to find the next one. 'first_tile_off' is where the first unit starts,
+ * measured from the beginning of the PBU - that is, the bytes the frame header
+ * consumed. Each reported offset addresses the size field, so a decoder wanting
+ * the payload adds OAPV_TILE_SIZE_LEN.
+ *
+ * 'pos_tiles[i].size' must already be filled in; only 'offset' is written.
+ */
+static int dec_derive_tile_offsets(oapv_tile_pos_t *pos_tiles, int num_tiles,
+                                   s64 first_tile_off, s64 pbu_size)
+{
+    s64 off = first_tile_off;
+    for(int i = 0; i < num_tiles; i++) {
+        off += OAPV_TILE_SIZE_LEN + pos_tiles[i].size;
+        // the tile must lie within the PBU
+        if(off > pbu_size) {
+            return OAPV_ERR_MALFORMED_BITSTREAM;
+        }
+        pos_tiles[i].offset = (int)(off - OAPV_TILE_SIZE_LEN - pos_tiles[i].size);
+    }
+    return OAPV_OK;
+}
+
 int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *num_tiles)
 {
     oapv_bs_t    bs;
@@ -2433,15 +2539,8 @@ int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *nu
         }
     }
     if(fh.tile_size_present_in_fh_flag) {
-        // tile data follows the frame header; each tile unit is a 4-byte size
-        // field plus the tile data of the size reported above
-        s64 off = BSR_GET_READ_BYTE(&bs);
-        for(i = 0; i < n; i++) {
-            off += OAPV_TILE_SIZE_LEN + pos_tiles[i].size;
-            // the tile must lie within the PBU
-            oapv_assert_gv(off <= (s64)pbu_size, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
-            pos_tiles[i].offset = (int)(off - OAPV_TILE_SIZE_LEN - pos_tiles[i].size);
-        }
+        ret = dec_derive_tile_offsets(pos_tiles, n, BSR_GET_READ_BYTE(&bs), (s64)pbu_size);
+        oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
     }
     *num_tiles = n;
 
@@ -2570,6 +2669,652 @@ int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
 int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_payload_t *pld)
 {
     return OAPV_OK;
+}
+
+/*****************************************************************************
+ * selective multi-mip tile decoding
+ *****************************************************************************/
+
+/* Frame-level state shared by every tile of one mip. Held once per mip and
+   pointed at by each work item, rather than copied per tile. */
+typedef struct {
+    int          mip_level;          /* which frame of the access unit this describes */
+    int          bit_depth;          /* from this mip's frame header, not the shared context */
+    int          chroma_format_idc;
+    int          frame_width;        /* as signalled, not macroblock-aligned */
+    int          frame_height;       /* as signalled, not macroblock-aligned */
+    u8           q_matrix[N_C][OAPV_BLK_H][OAPV_BLK_W]; /* dequant matrix for this mip */
+    oapv_imgb_t *output_buffer;      /* caller's destination for this mip */
+    int          tile_width_in_mbs;  /* tile geometry, used to place a tile in the frame */
+    int          tile_height_in_mbs;
+    int          num_comp;           /* components to decode, derived from chroma_format_idc */
+    int          comp_sft[N_C][2];   /* per-component chroma shift, [0]=width [1]=height */
+    /* Captured per mip: mips in one call can differ in profile and colour
+       format, so the block writer cannot be read off the shared context. */
+    oapv_fn_blk_to_pic_t fn_blk_to_pic[N_C];
+} mip_context_t;
+
+/* Outcome of one work item. Private to this path: it has nothing to do with the
+   flag-based status on oapvd_tile_t, which describes a whole-frame decode. */
+typedef enum {
+    MIP_TILE_WORK_PENDING = 0,
+    MIP_TILE_WORK_DONE,
+    MIP_TILE_WORK_ERROR,
+} mip_tile_work_stat_t;
+
+/* One requested tile. 'data' points straight into the caller's access unit;
+   nothing is copied before decoding. */
+typedef struct {
+    int                  col;     /* tile column in the mip's grid */
+    int                  row;     /* tile row in the mip's grid */
+    u32                  size;    /* tile payload size, excluding the 4-byte prefix */
+    const u8            *data;    /* start of the tile payload */
+
+    /* Written by whichever worker claims this item, read after the join. */
+    volatile mip_tile_work_stat_t status;
+
+    /* Per-tile destination slot override. >= 0 means "write this tile at
+       dst_slot * tile_size" in tiled output (caller-virtualized routing);
+       -1 means the default (row * num_tile_cols + col) routing. Populated
+       from oapv_mip_request_t::tile_dst_slots when that field is set. */
+    int                  dst_slot;
+
+    const mip_context_t *mip_ctx; /* read-only, shared by this mip's tiles */
+} tile_work_t;
+
+/* One worker's view of the shared decode. Every field except 'core' is identical
+   across the workers of a call; each gets its own core because a core carries the
+   coefficient, prev_dc and q_mat scratch a decode mutates. */
+typedef struct {
+    oapvd_ctx_t    *ctx;           /* read-only here; workers copy what they mutate */
+    oapvd_core_t   *core;          /* this worker's own core, never shared */
+    tile_work_t    *work_queue;    /* shared queue, claimed through next_tile_idx */
+    int             num_tiles;     /* entries in work_queue */
+    oapv_sync_obj_t sync_obj;      /* guards the hand-out counter */
+    volatile int   *next_tile_idx; /* atomic hand-out counter for work items */
+} multi_mip_worker_t;
+
+/* Worker for the selective multi-mip decode. Claims work items off a shared
+   atomic counter, so tiles from different mips interleave freely across
+   threads and no thread waits on a particular mip. */
+static int dec_thread_tile_selective_multi_mip(void *arg)
+{
+    multi_mip_worker_t *worker = (multi_mip_worker_t *)arg;
+    oapvd_ctx_t        *ctx = worker->ctx;
+    oapvd_core_t       *core = worker->core;
+    tile_work_t        *work_queue = worker->work_queue;
+    int                 num_tiles = worker->num_tiles;
+
+    while(1) {
+        int ret = OAPV_OK;
+        int tile_idx = oapv_tpool_atomic_inc(worker->sync_obj, worker->next_tile_idx) - 1;
+        if(tile_idx >= num_tiles) {
+            break;
+        }
+
+        tile_work_t         *work = &work_queue[tile_idx];
+        const mip_context_t *mip_ctx = work->mip_ctx;
+
+        oapv_bs_t tile_bs;
+        oapv_bsr_init(&tile_bs, (u8 *)work->data, work->size, NULL);
+
+        oapvd_tile_t tile;
+        oapv_mset(&tile, 0, sizeof(tile));
+
+        int tile_w_config = mip_ctx->tile_width_in_mbs * OAPV_MB_W;
+        int tile_h_config = mip_ctx->tile_height_in_mbs * OAPV_MB_H;
+
+        int tile_x_start = work->col * tile_w_config;
+        int tile_y_start = work->row * tile_h_config;
+        int tile_x_end = (tile_x_start + tile_w_config < mip_ctx->frame_width) ? tile_x_start + tile_w_config : mip_ctx->frame_width;
+        int tile_y_end = (tile_y_start + tile_h_config < mip_ctx->frame_height) ? tile_y_start + tile_h_config : mip_ctx->frame_height;
+
+        tile.w = tile_x_end - tile_x_start;
+        tile.h = tile_y_end - tile_y_start;
+
+        /* Thread-local context copy: tiles from different mips are in flight
+           at once, and they disagree on component count and shifts. */
+        oapvd_ctx_t local_ctx = *ctx;
+        local_ctx.num_c = mip_ctx->num_comp;
+        local_ctx.bit_depth = mip_ctx->bit_depth;
+        oapv_mcpy(local_ctx.c_sft, mip_ctx->comp_sft, sizeof(local_ctx.c_sft));
+        oapv_mcpy(local_ctx.fn_blk_to_pic, mip_ctx->fn_blk_to_pic, sizeof(local_ctx.fn_blk_to_pic));
+
+        const int num_comp = mip_ctx->num_comp;
+
+        ret = oapvd_vlc_tile_header(&tile_bs, local_ctx.num_c, &tile.th, work->size, local_ctx.bit_depth);
+        if(OAPV_FAILED(ret)) {
+            work->status = MIP_TILE_WORK_ERROR;
+            continue;
+        }
+
+        /* Component payloads follow the tile header back to back, so each
+           one's offset is the header size plus the sizes before it. */
+        size_t tile_header_size = (size_t)(BSR_GET_CUR(&tile_bs) - tile_bs.beg);
+
+        for(int c = 0; c < num_comp; c++) {
+            core->qp[c] = tile.th.tile_qp[c];
+            u8 dq_scale = oapv_tbl_dq_scale[core->qp[c] % 6];
+            core->dq_shift[c] = mip_ctx->bit_depth - 2 - (core->qp[c] / 6);
+
+            core->kparam_dc[c] = OAPV_KPARAM_DC_MAX;
+            core->kparam_ac[c] = OAPV_KPARAM_AC_MIN;
+            core->prev_dc[c] = 0;
+
+            int midx = 0;
+            for(int y = 0; y < OAPV_BLK_H; y++) {
+                for(int x = 0; x < OAPV_BLK_W; x++) {
+                    core->q_mat[c][midx++] = dq_scale * mip_ctx->q_matrix[c][y][x];
+                }
+            }
+        }
+
+        for(int c = 0; c < num_comp; c++) {
+            int  comp_stride_bytes;
+            u16 *tile_dst;
+
+            if(mip_ctx->output_buffer->tiled_layout) {
+                /* Tiled output: tile-major, planes interleaved within each
+                   tile. Tile k occupies one contiguous 'tile_size' block, and
+                   'a[c]' is pre-biased to plane c's intra-tile offset, so the
+                   destination is just the base plus the tile's offset.
+
+                   Default routing puts tile (col,row) at its natural position;
+                   when the caller supplied a destination slot the tile goes to
+                   (dst_slot * tile_size) instead, which is what lets the output
+                   buffer be sized to a tile budget rather than a tile count. */
+                const size_t tile_bytes = (size_t)mip_ctx->output_buffer->tile_size;
+                size_t       tile_offset;
+
+                if(work->dst_slot >= 0) {
+                    tile_offset = (size_t)work->dst_slot * tile_bytes;
+                }
+                else {
+                    const int ntc = mip_ctx->output_buffer->num_tile_cols;
+                    tile_offset = ((size_t)work->row * (size_t)ntc + (size_t)work->col) * tile_bytes;
+                }
+                tile_dst = (u16 *)((u8 *)mip_ctx->output_buffer->a[c] + tile_offset);
+                comp_stride_bytes = mip_ctx->output_buffer->tile_stride[c];
+            }
+            else {
+                /* Scanline output: the tile lands at its pixel position. */
+                comp_stride_bytes = mip_ctx->output_buffer->s[c];
+
+                int comp_tile_x = tile_x_start >> local_ctx.c_sft[c][0];
+                int comp_tile_y = tile_y_start >> local_ctx.c_sft[c][1];
+
+                tile_dst = (u16 *)((u8 *)mip_ctx->output_buffer->a[c] +
+                                   ((size_t)comp_tile_y * (size_t)comp_stride_bytes) +
+                                   ((size_t)comp_tile_x * sizeof(u16)));
+            }
+
+            size_t comp_data_offset = 0;
+            for(int prev_c = 0; prev_c < c; prev_c++) {
+                comp_data_offset += tile.th.tile_data_size[prev_c];
+            }
+
+            oapv_bs_t comp_bs;
+            oapv_bsr_init(&comp_bs, (u8 *)work->data + tile_header_size + comp_data_offset,
+                          tile.th.tile_data_size[c], NULL);
+
+            /* dec_tile_comp() walks blocks from the tile's own origin, and
+               both destinations above already point at the tile, so the tile
+               origin is reset to zero rather than its frame position. */
+            oapvd_tile_t tile_for_comp = tile;
+            tile_for_comp.x = 0;
+            tile_for_comp.y = 0;
+
+            ret = dec_tile_comp(&tile_for_comp, &local_ctx, core, &comp_bs, c, comp_stride_bytes, tile_dst);
+            if(OAPV_FAILED(ret)) {
+                break;
+            }
+        }
+
+        if(OAPV_SUCCEEDED(ret)) {
+            work->status = MIP_TILE_WORK_DONE;
+        }
+        else {
+            work->status = MIP_TILE_WORK_ERROR;
+        }
+    }
+
+    return OAPV_OK;
+}
+
+/* Where one mip's frame PBU sits in the access unit. */
+typedef struct {
+    u64 pbu_pos;  /* offset of the PBU header, i.e. past the 4-byte pbu_size */
+    u32 pbu_size;
+    int found;
+} mip_location_t;
+
+/* Reads the big-endian u(32) that APV uses for its length fields. */
+static u32 mem_rd32be(const u8 *p)
+{
+    return ((u32)p[0] << 24) | ((u32)p[1] << 16) | ((u32)p[2] << 8) | (u32)p[3];
+}
+
+/* Two distinct 4-byte quantities sit at the front of an access unit and of every
+   PBU in it, and confusing them is easy: the access unit opens with a 4-byte
+   signature, and each PBU is preceded by its own u(32) size field that pbu_size
+   itself does not count. Neither is OAPV_PBU_HEADER_BYTE, which is the 4-byte PBU
+   header that follows the size field. */
+#define AU_SIGNATURE_BYTES   4
+#define PBU_SIZE_FIELD_BYTES 4
+
+/* Walks the access unit's PBU chain and records where each requested mip's
+   frame PBU begins. Mip N is the Nth frame PBU: mip 0 is the primary frame,
+   the rest are non-primary frames. */
+static int dec_locate_mips(const u8 *au, size_t au_size, const int *requested_mips,
+                           int num_mips, mip_location_t *locations, oapvm_t mid)
+{
+    for(int i = 0; i < num_mips; i++) {
+        locations[i].found = 0;
+    }
+
+    int max_mip = requested_mips[0];
+    for(int i = 1; i < num_mips; i++) {
+        if(requested_mips[i] > max_mip) {
+            max_mip = requested_mips[i];
+        }
+    }
+
+    u64 pos = AU_SIGNATURE_BYTES;
+    int frame_ord = 0;
+    int found_count = 0;
+
+    /* With no metadata container the walk only has to reach the requested mips,
+       so it stops at the last one it needs. Collecting metadata means running to
+       the end of the access unit, because metadata is written after the frames. */
+    while(pos + PBU_SIZE_FIELD_BYTES <= (u64)au_size && (mid != NULL || frame_ord <= max_mip)) {
+        u32 pbu_size = mem_rd32be(au + pos);
+        if(pbu_size < OAPV_PBU_HEADER_BYTE ||
+           pos + PBU_SIZE_FIELD_BYTES + (u64)pbu_size > (u64)au_size) {
+            return OAPV_ERR_MALFORMED_BITSTREAM;
+        }
+
+        oapv_bs_t   bs;
+        oapv_pbuh_t pbuh;
+        /* oapvd_vlc_metadata() reads the payloads that follow the header, so the
+           reader has to span the whole PBU whenever metadata is being collected. */
+        oapv_bsr_init(&bs, (u8 *)(au + pos + PBU_SIZE_FIELD_BYTES),
+                      (mid != NULL) ? pbu_size : OAPV_PBU_HEADER_BYTE, NULL);
+
+        int ret = oapvd_vlc_pbu_header(&bs, &pbuh);
+        oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+        if(OAPV_PBU_TYPE_IS_FRAME(pbuh.pbu_type)) {
+            for(int i = 0; i < num_mips; i++) {
+                if(requested_mips[i] == frame_ord && !locations[i].found) {
+                    locations[i].pbu_pos = pos + PBU_SIZE_FIELD_BYTES;
+                    locations[i].pbu_size = pbu_size;
+                    locations[i].found = 1;
+                    found_count++;
+                }
+            }
+            if(found_count == num_mips && mid == NULL) {
+                return OAPV_OK;
+            }
+            frame_ord++;
+        }
+        else if(mid != NULL && pbuh.pbu_type == OAPV_PBU_TYPE_METADATA) {
+            ret = oapvd_vlc_metadata(&bs, pbu_size, mid, pbuh.group_id);
+            oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+        }
+
+        pos += PBU_SIZE_FIELD_BYTES + (u64)pbu_size;
+    }
+
+    return OAPV_OK;
+}
+
+/* Parses one mip's frame header and resolves its tile locations.
+ *
+ * One pass yields both the frame header the decoder needs and, when the header
+ * carries them, every tile's size - from which the byte offsets follow by
+ * accumulation. No tile has to be visited to find the next one, which is what
+ * keeps a selective decode from touching pages it does not need. This is the
+ * same derivation oapvd_info_tile() exposes to callers planning a selection.
+ *
+ * 'pos_tiles' is caller-allocated with capacity '*num_tiles', and may be NULL
+ * with a capacity of 0 to query the tile count only, which returns
+ * OAPV_ERR_REACHED_MAX with '*num_tiles' set. On success '*num_tiles' is the
+ * frame's tile count and each entry's 'offset' is relative to the start of the
+ * PBU, pointing at the tile unit's 4-byte size field. */
+static int dec_parse_mip_header(const u8 *au, const mip_location_t *location, oapv_fh_t *fh,
+                                oapv_tile_pos_t *pos_tiles, int *num_tiles)
+{
+    oapv_bs_t   bs;
+    oapv_pbuh_t pbuh;
+    int         ret;
+
+    for(int i = 0; i < *num_tiles; i++) {
+        pos_tiles[i].offset = 0;
+        pos_tiles[i].size = 0;
+    }
+
+    oapv_bsr_init(&bs, (u8 *)(au + location->pbu_pos), location->pbu_size, NULL);
+
+    ret = oapvd_vlc_pbu_header(&bs, &pbuh);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+    oapv_assert_rv(OAPV_PBU_TYPE_IS_FRAME(pbuh.pbu_type), OAPV_ERR_MALFORMED_BITSTREAM);
+
+    ret = oapvd_vlc_frame_header_ex(&bs, fh, pos_tiles, *num_tiles);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+    /* Tile byte offsets are derived from the frame header's tile sizes, so
+       their absence is a hard failure rather than a silent fallback. */
+    oapv_assert_rv(fh->tile_size_present_in_fh_flag, OAPV_ERR_UNSUPPORTED);
+
+    int pic_w_mb = (fh->fi.frame_width + (OAPV_MB_W - 1)) >> OAPV_LOG2_MB_W;
+    int pic_h_mb = (fh->fi.frame_height + (OAPV_MB_H - 1)) >> OAPV_LOG2_MB_H;
+    oapv_assert_rv(fh->tile_width_in_mbs > 0 && fh->tile_height_in_mbs > 0, OAPV_ERR_MALFORMED_BITSTREAM);
+
+    int tile_cols = oapv_div_round_up(pic_w_mb, fh->tile_width_in_mbs);
+    int tile_rows = oapv_div_round_up(pic_h_mb, fh->tile_height_in_mbs);
+
+    int n = 0;
+    ret = oapv_validate_tile_topology(fh->fi.profile_idc, tile_cols, tile_rows, &n);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+    if(*num_tiles < n) {
+        *num_tiles = n;
+        return OAPV_ERR_REACHED_MAX;
+    }
+
+    ret = dec_derive_tile_offsets(pos_tiles, n, BSR_GET_READ_BYTE(&bs), (s64)location->pbu_size);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+
+    *num_tiles = n;
+    return OAPV_OK;
+}
+
+int oapvd_decode_selective_multi_mips(oapvd_t did, oapv_bitb_t *bitb,
+                                      oapv_multi_mip_decode_t *multi_mip_decode,
+                                      oapvm_t mid, oapvd_stat_t *stat)
+{
+    oapvd_ctx_t *ctx;
+    int          ret = OAPV_OK;
+    u32          bytes_referenced = 0;
+
+    ctx = dec_id_to_ctx(did);
+    oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(bitb && bitb->addr, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(multi_mip_decode && multi_mip_decode->num_mips > 0, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(multi_mip_decode->mip_requests != NULL, OAPV_ERR_INVALID_ARGUMENT);
+
+    /* Same bitb contract as oapvd_decode(): addr points at the signature and
+       ssize is the access unit's byte size. bsize, when the caller sets it, is
+       the capacity of the buffer behind addr, so it bounds ssize. */
+    oapv_assert_rv(bitb->ssize > 4, OAPV_ERR_MALFORMED_BITSTREAM);
+    if(bitb->bsize > 0) {
+        oapv_assert_rv(bitb->ssize <= bitb->bsize, OAPV_ERR_INVALID_ARGUMENT);
+    }
+
+    const u8    *au = (const u8 *)bitb->addr;
+    const size_t au_size = (size_t)bitb->ssize;
+
+    oapv_assert_rv(mem_rd32be(au) == 0x61507631, OAPV_ERR_MALFORMED_BITSTREAM);
+
+    const int num_mips = multi_mip_decode->num_mips;
+
+    int total_tiles = 0;
+    for(int m = 0; m < num_mips; m++) {
+        int n = multi_mip_decode->mip_requests[m].num_tiles;
+        oapv_assert_rv(n >= 0, OAPV_ERR_INVALID_ARGUMENT);
+        total_tiles += n;
+    }
+    oapv_assert_rv(total_tiles > 0, OAPV_ERR_INVALID_ARGUMENT);
+
+    tile_work_t    *work_queue = (tile_work_t *)oapv_ops_calloc(ctx, total_tiles, sizeof(tile_work_t));
+    mip_context_t  *mip_contexts = (mip_context_t *)oapv_ops_calloc(ctx, num_mips, sizeof(mip_context_t));
+    mip_location_t *locations = (mip_location_t *)oapv_ops_calloc(ctx, num_mips, sizeof(mip_location_t));
+    int            *requested_mips = (int *)oapv_ops_calloc(ctx, num_mips, sizeof(int));
+
+    if(!work_queue || !mip_contexts || !locations || !requested_mips) {
+        ret = OAPV_ERR_OUT_OF_MEMORY;
+        goto DONE;
+    }
+
+    for(int m = 0; m < num_mips; m++) {
+        requested_mips[m] = multi_mip_decode->mip_requests[m].mip_level;
+    }
+
+    ret = dec_locate_mips(au, au_size, requested_mips, num_mips, locations, mid);
+    if(OAPV_FAILED(ret)) {
+        goto DONE;
+    }
+
+    /* Per-mip failures are reported through mip_requests[m].status; the call
+       itself only fails on errors affecting the whole operation. */
+    int work_queue_idx = 0;
+
+    /* Reused across mips; grown to the largest tile count encountered. */
+    oapv_tile_pos_t *pos_tiles = NULL;
+    int              pos_cap = 0;
+
+    for(int m = 0; m < num_mips; m++) {
+        oapv_mip_request_t *req = &multi_mip_decode->mip_requests[m];
+
+        if(!locations[m].found) {
+            req->status = OAPV_ERR_NOT_FOUND;
+            continue;
+        }
+        if(req->output_buffer == NULL || req->num_tiles <= 0) {
+            req->status = OAPV_ERR_INVALID_ARGUMENT;
+            continue;
+        }
+        if(req->tile_coords == NULL) {
+            req->status = OAPV_ERR_INVALID_ARGUMENT;
+            continue;
+        }
+
+        /* The tile count is only known once the header's topology has been
+           read, and the size table's length depends on it, so the count is
+           queried before the array is sized. Both passes walk the PBU header
+           in place; neither reads tile data. */
+        int num_tiles_in_frame = 0;
+        int hret = dec_parse_mip_header(au, &locations[m], &ctx->fh, NULL, &num_tiles_in_frame);
+        if(hret != OAPV_ERR_REACHED_MAX && OAPV_FAILED(hret)) {
+            req->status = hret;
+            continue;
+        }
+        if(num_tiles_in_frame <= 0) {
+            req->status = OAPV_ERR_MALFORMED_BITSTREAM;
+            continue;
+        }
+
+        if(num_tiles_in_frame > pos_cap) {
+            s64 pos_bytes = (s64)sizeof(oapv_tile_pos_t) * num_tiles_in_frame;
+            if(pos_bytes > (s64)UINT_MAX) {
+                req->status = OAPV_ERR_MALFORMED_BITSTREAM;
+                continue;
+            }
+            oapv_ops_free(ctx, pos_tiles);
+            pos_tiles = NULL;
+            pos_cap = 0;
+
+            pos_tiles = (oapv_tile_pos_t *)oapv_ops_malloc(ctx, (unsigned int)pos_bytes);
+            if(!pos_tiles) {
+                req->status = OAPV_ERR_OUT_OF_MEMORY;
+                continue;
+            }
+            pos_cap = num_tiles_in_frame;
+        }
+
+        int cap = num_tiles_in_frame;
+        hret = dec_parse_mip_header(au, &locations[m], &ctx->fh, pos_tiles, &cap);
+        if(OAPV_FAILED(hret)) {
+            req->status = hret;
+            continue;
+        }
+
+        oapv_imgb_t *out = req->output_buffer;
+
+        hret = dec_frm_prepare_selective(ctx, out);
+        if(OAPV_FAILED(hret)) {
+            req->status = hret;
+            continue;
+        }
+
+        if(ctx->num_tiles != num_tiles_in_frame) {
+            req->status = OAPV_ERR_MALFORMED_BITSTREAM;
+            continue;
+        }
+
+        req->frame_width_mb_aligned = ctx->w;
+        req->frame_height_mb_aligned = ctx->h;
+        req->tile_width_mb_aligned = ctx->fh.tile_width_in_mbs * OAPV_MB_W;
+        req->tile_height_mb_aligned = ctx->fh.tile_height_in_mbs * OAPV_MB_H;
+        req->bit_depth = ctx->fh.fi.bit_depth;
+        req->chroma_format_idc = ctx->fh.fi.chroma_format_idc;
+
+        mip_context_t *mip_ctx = &mip_contexts[m];
+        mip_ctx->mip_level = req->mip_level;
+        mip_ctx->bit_depth = ctx->fh.fi.bit_depth;
+        mip_ctx->chroma_format_idc = ctx->fh.fi.chroma_format_idc;
+        mip_ctx->frame_width = ctx->fh.fi.frame_width;
+        mip_ctx->frame_height = ctx->fh.fi.frame_height;
+        mip_ctx->tile_width_in_mbs = ctx->fh.tile_width_in_mbs;
+        mip_ctx->tile_height_in_mbs = ctx->fh.tile_height_in_mbs;
+        mip_ctx->output_buffer = out;
+        mip_ctx->num_comp = ctx->num_c;
+        oapv_mcpy(mip_ctx->q_matrix, ctx->fh.q_matrix, sizeof(mip_ctx->q_matrix));
+        oapv_mcpy(mip_ctx->comp_sft, ctx->c_sft, sizeof(mip_ctx->comp_sft));
+        oapv_mcpy(mip_ctx->fn_blk_to_pic, ctx->fn_blk_to_pic, sizeof(mip_ctx->fn_blk_to_pic));
+
+        int invalid = 0;
+        for(int t = 0; t < req->num_tiles; t++) {
+            int col = req->tile_coords[t * 2];
+            int row = req->tile_coords[t * 2 + 1];
+            if(col < 0 || col >= ctx->num_tile_cols || row < 0 || row >= ctx->num_tile_rows) {
+                invalid = 1;
+                break;
+            }
+        }
+        if(invalid) {
+            req->status = OAPV_ERR_INVALID_ARGUMENT;
+            continue;
+        }
+
+        for(int t = 0; t < req->num_tiles; t++) {
+            int col = req->tile_coords[t * 2];
+            int row = req->tile_coords[t * 2 + 1];
+            int tile_idx = row * ctx->num_tile_cols + col;
+
+            tile_work_t *work = &work_queue[work_queue_idx++];
+            work->col = col;
+            work->row = row;
+            work->dst_slot = (req->tile_dst_slots != NULL) ? req->tile_dst_slots[t] : -1;
+            work->mip_ctx = mip_ctx;
+            work->size = (u32)pos_tiles[tile_idx].size;
+            /* offset addresses the tile unit; the payload starts past its
+               4-byte size field. The bytes are already addressable, so the
+               work item points straight at them: no copy, no I/O handshake. */
+            work->data = au + locations[m].pbu_pos + (u32)pos_tiles[tile_idx].offset + OAPV_TILE_SIZE_LEN;
+            work->status = MIP_TILE_WORK_PENDING;
+
+            bytes_referenced += work->size;
+        }
+
+        req->status = OAPV_OK;
+    }
+
+    oapv_ops_free(ctx, pos_tiles);
+
+    if(work_queue_idx == 0) {
+        ret = OAPV_OK;
+        goto DONE;
+    }
+
+    {
+        int num_threads = ctx->threads;
+        if(num_threads <= 0) num_threads = 1;
+        if(num_threads > work_queue_idx) num_threads = work_queue_idx;
+
+        oapv_sync_obj_t sync_obj = oapv_tpool_sync_obj_create(&ctx->ops_mem);
+        if(sync_obj == NULL) {
+            ret = OAPV_ERR_OUT_OF_MEMORY;
+            goto DONE;
+        }
+
+        volatile int next_tile_idx = 0;
+
+        multi_mip_worker_t worker;
+        worker.ctx = ctx;
+        worker.core = ctx->core[num_threads - 1]; /* main thread uses the last core */
+        worker.work_queue = work_queue;
+        worker.num_tiles = work_queue_idx;
+        worker.sync_obj = sync_obj;
+        worker.next_tile_idx = &next_tile_idx;
+
+        /* One fewer worker than num_threads: the main thread decodes too, using
+           ctx->core[num_threads-1]. Sharing a core between two threads would
+           corrupt its coef/prev_dc/q_mat state. */
+        int                  num_worker_threads = num_threads - 1;
+        multi_mip_worker_t **thread_workers = NULL;
+
+        if(num_worker_threads > 0) {
+            thread_workers = (multi_mip_worker_t **)oapv_ops_calloc(ctx, num_worker_threads, sizeof(multi_mip_worker_t *));
+        }
+
+        int started = 0;
+        if(thread_workers != NULL) {
+            for(int t = 0; t < num_worker_threads; t++) {
+                thread_workers[t] = (multi_mip_worker_t *)oapv_ops_malloc(ctx, sizeof(multi_mip_worker_t));
+                if(!thread_workers[t]) {
+                    break; /* fall back to fewer threads rather than failing */
+                }
+                *thread_workers[t] = worker;
+                thread_workers[t]->core = ctx->core[t];
+                ctx->tpool->run(ctx->thread_id[t], dec_thread_tile_selective_multi_mip, thread_workers[t]);
+                started++;
+            }
+        }
+
+        /* The main thread decodes alongside the workers. Under a memory
+           mapping, first touch of each tile faults here, inside the decode, on
+           whichever thread claimed it. */
+        dec_thread_tile_selective_multi_mip(&worker);
+
+        for(int t = 0; t < started; t++) {
+            int thread_ret;
+            ctx->tpool->join(ctx->thread_id[t], &thread_ret);
+        }
+        if(thread_workers != NULL) {
+            for(int t = 0; t < num_worker_threads; t++) {
+                oapv_ops_free(ctx, thread_workers[t]);
+            }
+            oapv_ops_free(ctx, thread_workers);
+        }
+
+        oapv_tpool_sync_obj_delete(&sync_obj);
+
+        /* A tile that failed to decode marks its mip's request, so the caller
+           can tell a partially decoded level from a clean one. */
+        for(int i = 0; i < work_queue_idx; i++) {
+            if(work_queue[i].status == MIP_TILE_WORK_ERROR) {
+                for(int m = 0; m < num_mips; m++) {
+                    if(work_queue[i].mip_ctx == &mip_contexts[m]) {
+                        multi_mip_decode->mip_requests[m].status = OAPV_ERR_MALFORMED_BITSTREAM;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if(stat) {
+        stat->read = bytes_referenced;
+    }
+    ret = OAPV_OK;
+
+DONE:
+    oapv_ops_free(ctx, requested_mips);
+    oapv_ops_free(ctx, locations);
+    oapv_ops_free(ctx, mip_contexts);
+    oapv_ops_free(ctx, work_queue);
+    return ret;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
