@@ -347,6 +347,26 @@ set_tests_properties(decode_qmatrix PROPERTIES
     RUN_SERIAL TRUE
 )
 
+# Test - encode the 12-bit sequence with the 422-12 profile
+add_test(NAME encode_12bit COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_enc -i ${CMAKE_CURRENT_SOURCE_DIR}/test/sequence/pattern2_yuv422p12le_1920x1080_25fps.y4m --profile 422-12 -q 0 --hash -r rec_12bit.yuv -o out_12bit.oapv)
+set_tests_properties(encode_12bit PROPERTIES
+    TIMEOUT 30
+    FAIL_REGULAR_EXPRESSION "Encoded frame count               = 0"
+    PASS_REGULAR_EXPRESSION "Encoded frame count               = 1"
+    RUN_SERIAL TRUE
+)
+
+# Test - decode the 422-12 bitstream
+add_test(NAME decode_12bit COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i out_12bit.oapv -v 3 --hash)
+set_tests_properties(decode_12bit PROPERTIES
+    TIMEOUT 20
+    DEPENDS encode_12bit
+    FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
+    PASS_REGULAR_EXPRESSION "Decoded frame count               = 1"
+    PASS_REGULAR_EXPRESSION ".*hash:match.*"
+    RUN_SERIAL TRUE
+)
+
 # Test - decode qp_A.apv
 add_test(NAME decode_qp_A COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_A.apv -v 3 --hash)
 set_tests_properties(decode_qp_A PROPERTIES

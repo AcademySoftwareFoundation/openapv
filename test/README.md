@@ -20,4 +20,9 @@
 | 13  | qp_F           | DC coefficient difference exceeding 16 bits at min. QP (=0)  | 422-12              | 1     | 2    | 25 fps     | 320x240    | 2          | 36eb37bc3c9ac0e7daf00d59b70214e2 |
 
 ## Test sequence
-"sequence" folder has the uncompressed video sequence for encoder testing.
+"sequence" folder has the uncompressed video sequences for encoder testing.
+
+| No. | Sequence Name                          | Description                                                       | Color Format | Bit Depth | Frame Rate | Resolution | # of Frame | MD5 sum of sequence              |
+|-----|----------------------------------------|-------------------------------------------------------------------|--------------|-----------|------------|------------|------------|----------------------------------|
+| 1   | pattern1_yuv422p10le_320x240_25fps     | Colour bar pattern with a gradient bar and a frame counter         | 422          | 10        | 25 fps     | 320x240    | 125        | 1893ddcec86acc68248425340b7e36ab |
+| 2   | pattern2_yuv422p12le_1920x1080_25fps   | High-frequency stripes and random noise spanning the full range    | 422          | 12        | 25 fps     | 1920x1080  | 1          | b87dc2f6ba3af5e0349fc33a9fcb5894 |
