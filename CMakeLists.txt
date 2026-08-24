@@ -326,6 +326,27 @@ set_tests_properties(decode_unconst PROPERTIES
     RUN_SERIAL TRUE
 )
 
+# Test - encode with an all-ones quantization matrix, which saturates the quantizer
+# and makes the DC difference between neighboring blocks exceed 16 bits
+add_test(NAME encode_qmatrix COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_enc -i ${CMAKE_CURRENT_SOURCE_DIR}/test/sequence/pattern1_yuv422p10le_320x240_25fps.y4m --max-au 2 -q 0 --q-matrix-c0 "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" --q-matrix-c1 "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" --q-matrix-c2 "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1" --hash -r rec_qmatrix.yuv -o out_qmatrix.oapv)
+set_tests_properties(encode_qmatrix PROPERTIES
+    TIMEOUT 20
+    FAIL_REGULAR_EXPRESSION "Encoded frame count               = 0"
+    PASS_REGULAR_EXPRESSION "Encoded frame count               = 2"
+    RUN_SERIAL TRUE
+)
+
+# Test - decode the all-ones quantization matrix bitstream
+add_test(NAME decode_qmatrix COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i out_qmatrix.oapv -v 3 --hash)
+set_tests_properties(decode_qmatrix PROPERTIES
+    TIMEOUT 20
+    DEPENDS encode_qmatrix
+    FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
+    PASS_REGULAR_EXPRESSION "Decoded frame count               = 2"
+    PASS_REGULAR_EXPRESSION ".*hash:match.*"
+    RUN_SERIAL TRUE
+)
+
 # Test - decode qp_A.apv
 add_test(NAME decode_qp_A COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_A.apv -v 3 --hash)
 set_tests_properties(decode_qp_A PROPERTIES
@@ -368,6 +389,15 @@ set_tests_properties(decode_qp_E PROPERTIES
     TIMEOUT 20
     FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
+    PASS_REGULAR_EXPRESSION ".*hash:match.*"
+)
+
+# Test - decode qp_F.apv
+add_test(NAME decode_qp_F COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_F.apv -v 3 --hash)
+set_tests_properties(decode_qp_F PROPERTIES
+    TIMEOUT 20
+    FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
+    PASS_REGULAR_EXPRESSION "Decoded frame count               = 2"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
 )
 

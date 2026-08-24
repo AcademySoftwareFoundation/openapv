@@ -17,6 +17,7 @@
 | 10  | qp_E           | Set different QP  between luma and chroma                    | 422-10              | 4.1   | 2    | 60 fps     | 3840x2160  | 3          | 7d626cea95f8d7a4b3f1f6e3d10e923c |
 | 11  | syn_A          | Exercise a synthetic   image with QP = 0 and QP = 51         | 422-10              | 4.1   | 2    | 60 fps     | 1920x1080  | 2          | 7b0cc8fdffdfca860dcee9b69b051053 |
 | 12  | syn_B          | Exercise a synthetic   image with Tile QP variation in Frame | 422-10              | 4.1   | 2    | 60 fps     | 1920x1080  | 2          | b87a59443b009e9241393e6e1a927d61 |
+| 13  | qp_F           | DC coefficient difference exceeding 16 bits at min. QP (=0)  | 422-12              | 1     | 2    | 25 fps     | 320x240    | 2          | 36eb37bc3c9ac0e7daf00d59b70214e2 |
 
 ## Test sequence
 "sequence" folder has the uncompressed video sequence for encoder testing.
