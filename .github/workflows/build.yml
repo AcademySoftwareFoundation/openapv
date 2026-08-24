@@ -170,3 +170,29 @@ jobs:
         run: |
           cd build-s390x
           ctest --output-on-failure --timeout 15
+
+  test-linux-arm64:
+    runs-on: ubuntu-latest
+    env:
+      QEMU_LD_PREFIX: /usr/aarch64-linux-gnu
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Install ARM toolchain and emulator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-arm64-cross qemu-user qemu-user-static
+
+      - name: Build (crosscompile) PC Linux ARM64 for tests
+        run: |
+          cmake -S ${{github.workspace}} -B ${{github.workspace}}/build-arm-test -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}/arm64_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-aarch64;-L;/usr/aarch64-linux-gnu"
+          cmake --build ${{github.workspace}}/build-arm-test
+
+      - name: Run tests for ARM64
+        run: |
+          cd build-arm-test
+          ctest --output-on-failure --timeout 15
