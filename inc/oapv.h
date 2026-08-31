@@ -864,6 +864,41 @@ OAPV_EXPORT int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_ti
 OAPV_EXPORT int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui);
 OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat, int num_part_tiles, const int *part_tile_idxs);
 
+/*****************************************************************************
+ * selective tile decoding
+ *
+ * Decodes a chosen set of tiles of one frame, each into its own buffer sized to
+ * a tile instead of to the picture. 'bitb' carries a single frame PBU, as it
+ * does for oapvd_decode_frame(), and oapvd_info_tile() reports the tile indices
+ * and dimensions needed to plan a selection.
+ *
+ * oapvd_decode_frame() also takes a tile subset, but decodes into a
+ * scanline-strided oapv_imgb_t sized to the whole picture, so a partial decode
+ * of a large frame still has to allocate that picture.
+ *****************************************************************************/
+
+/* destination of one decoded tile. unlike oapv_imgb_t this describes a tile and
+   not a picture: the tile's dimensions come from the frame header, so only the
+   address and the row stride of each component are the caller's to state. */
+typedef struct oapv_imgb_tile oapv_imgb_tile_t;
+struct oapv_imgb_tile {
+    int   cs;                 /* color space */
+    void *a[OAPV_MAX_CC];     /* address of each component */
+    int   s[OAPV_MAX_CC];     /* buffer stride (in unit of byte) */
+    int   bsize[OAPV_MAX_CC]; /* buffer size behind a[c], or 0 to skip the check */
+};
+
+typedef struct oapv_tile_req oapv_tile_req_t;
+struct oapv_tile_req {
+    int              idx; /* tile index in raster scan order */
+    oapv_imgb_tile_t imgb;
+};
+
+/* Every destination must carry the same color space, and it must correspond to
+   the bitstream's chroma format as it must for oapvd_decode_frame(). A tile
+   index appearing twice is rejected rather than decoded twice. */
+OAPV_EXPORT int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_req_t *tile_reqs);
+
 
 
 #ifdef __cplusplus

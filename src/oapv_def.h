@@ -381,6 +381,10 @@ struct oapvd_tile {
     u8          *bs_beg;    /* start position of tile in input bistream */
     u8          *bs_end;    /* end position of tile() in input bistream */
     volatile s32 stat;      /* decoding status */
+
+    /* destination of this tile, or NULL when the tile is decoded into the
+       full-frame image buffer of the context */
+    const oapv_imgb_tile_t *dst;
 };
 
 typedef struct oapvd_core oapvd_core_t;
@@ -426,6 +430,7 @@ struct oapvd_ctx {
     int                     w;
     int                     h;
     int                     threads;
+    int                     cs;            // color space of the output
     int                     cfi;           // chroma format indicator
     int                     bit_depth;     // bit depth of decoding picture
     int                     num_c;         // number of components

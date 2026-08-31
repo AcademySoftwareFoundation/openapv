@@ -1115,12 +1115,7 @@ int oapvd_vlc_au_info(oapv_bs_t *bs, oapv_aui_t *aui)
     return OAPV_OK;
 }
 
-int oapvd_vlc_frame_header(oapv_bs_t *bs, oapv_fh_t *fh)
-{
-    return oapvd_vlc_frame_header_ex(bs, fh, NULL, 0);
-}
-
-int oapvd_vlc_frame_header_ex(oapv_bs_t *bs, oapv_fh_t *fh, oapv_tile_pos_t *pos_tiles, int cap)
+int oapvd_vlc_frame_header(oapv_bs_t *bs, oapv_fh_t *fh, oapv_tile_pos_t *pos_tiles, int cap)
 {
     int ret, reserved_zero;
     ret = oapvd_vlc_frame_info(bs, &fh->fi);
