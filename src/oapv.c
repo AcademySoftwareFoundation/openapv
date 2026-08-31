@@ -1717,6 +1717,7 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, int num_part_tiles, const int *part
         ctx->tile[i].bs_beg = NULL;
     }
     ctx->tile[0].bs_beg = oapv_bsr_sink(&ctx->bs);
+    ctx->tile_idx = 0;
 
     if(num_part_tiles > 0) {
         oapv_assert_rv(part_tile_idxs != NULL, OAPV_ERR_INVALID_ARGUMENT);
