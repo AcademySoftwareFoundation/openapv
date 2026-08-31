@@ -421,6 +421,94 @@ as optional:
   forwards them to its I/O layer should still bound-check against the size
   of the buffer or mapping it actually holds.
 
+### Decoding tiles into buffers of their own
+
+`oapvd_decode_frame()` decodes a tile subset, but its output is one
+scanline-strided `oapv_imgb_t` sized to the whole picture, so a partial
+decode of a large frame still has to allocate that picture.
+`oapvd_decode_tiles()` gives each tile a destination of its own:
+
+```
+oapvd_decode_tiles(did, &bitb, num_tiles, tile_reqs)
+```
+
+`bitb` carries a single frame PBU, the same input `oapvd_decode_frame()`
+takes. Each entry of `tile_reqs` names a tile and says where to put it:
+
+```
+struct oapv_tile_req {
+    int              idx;   // tile index in raster scan order
+    oapv_imgb_tile_t imgb;  // where this tile goes
+};
+
+struct oapv_imgb_tile {
+    int   cs;                 // color space
+    void *a[OAPV_MAX_CC];     // address of each component
+    int   s[OAPV_MAX_CC];     // buffer stride, in bytes
+    int   bsize[OAPV_MAX_CC]; // buffer size behind a[c], or 0 to skip the check
+};
+```
+
+`oapv_imgb_tile_t` describes a tile rather than a picture: the tile's
+dimensions come from the frame header, so only the address and the row
+stride of each component are the application's to state. The samples of a
+tile land at its buffer's origin, not at the tile's position in the frame.
+
+```
+// plan the selection from the tile grid
+num = finfo.num_tiles
+pos = malloc(num * sizeof(oapv_tile_pos_t))
+oapvd_info_tile(pbu_buf, pbu_size, pos, &num)
+
+// one slot per tile, all inside a single allocation
+for(i = 0; i < num_wanted; i++) {
+    reqs[i].idx     = wanted[i]
+    reqs[i].imgb.cs = finfo.cs
+    for(c = 0; c < num_comp; c++) {
+        reqs[i].imgb.a[c]     = slot_address(arena, i, c)
+        reqs[i].imgb.s[c]     = tile_width(c) * 2
+        reqs[i].imgb.bsize[c] = reqs[i].imgb.s[c] * tile_height(c)
+    }
+}
+
+oapvd_decode_tiles(did, &bitb, num_wanted, reqs)
+```
+
+Because each request carries its own addresses, the application decides
+where a tile lands. Pointing them into one arena gives an output sized to
+the number of tiles asked for rather than to the frame's tile count, which
+is what a viewport-driven client wants. Pointing them into a picture-sized
+buffer, at each tile's own position, reproduces what
+`oapvd_decode_frame()` does with `part_tile_idxs`.
+
+What the call requires:
+
+- Every destination must carry the same `cs`, and it must correspond to the
+  bitstream's `chroma_format_idc`, exactly as `oapv_imgb_t.cs` must for
+  `oapvd_decode_frame()`.
+- `idx` must be within the frame's tile count, and no tile may be asked for
+  twice.
+- `s[c]` must be at least the tile's row of component `c`. Interleaved
+  chroma (`OAPV_CF_PLANAR2`) keeps Cb and Cr in the same row of the same
+  plane, so that row is twice as wide.
+- `bsize[c]` is optional, as `oapv_bitb_t.bsize` is: give the capacity
+  behind `a[c]` to have it checked, or zero to skip the check.
+- Edge tiles are clipped by the frame, so they are smaller than the tile
+  size in the frame header. `oapvd_info_tile()` reports each tile's actual
+  `w_mb` and `h_mb`.
+
+The tiles are decoded in ascending index order. Tile data is laid out in
+that order too, so the bitstream is read front to back rather than jumped
+back and forth in — which matters most when the input is a memory mapping.
+When the frame header carries the tile sizes, every tile is located from the
+header alone and the tiles that were not asked for are never touched;
+otherwise their sizes have to be read to find the tiles that follow, as
+`oapvd_decode_frame()` does.
+
+There is no `oapvd_stat_t` argument. The frame's own information is already
+available from `oapvd_info_frame()` and `oapvd_info_tile()` on the same PBU,
+which an application has called to plan the selection.
+
 ### Zero-copy decoding input with memory-mapped files
 
 The decoder never writes to the bitstream buffer: `oapv_bitb_t.addr` is

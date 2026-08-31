@@ -745,6 +745,47 @@ static int read_pbu(FILE *fp, unsigned char *pbu, unsigned int pbu_size)
     return 0;
 }
 
+/* Aim the cyclic selection's tiles at their own positions inside 'imgb', so a
+   selective decode fills the same buffer a full-frame decode would. A tile's
+   samples land at the origin of its destination, hence the per-plane bias. */
+static int set_tile_reqs(oapv_tile_req_t *reqs, int num_reqs, int frm_cnt,
+                         const oapv_frm_info_t *finfo, const oapv_imgb_t *imgb)
+{
+    int bd = OAPV_CS_GET_BYTE_DEPTH(imgb->cs);
+
+    if(finfo->tile_cols <= 0 || finfo->num_tiles <= 0) {
+        return -1;
+    }
+
+    memset(reqs, 0, sizeof(oapv_tile_req_t) * num_reqs);
+
+    for(int k = 0; k < num_reqs; k++) {
+        int idx = (frm_cnt * num_reqs + k) % finfo->num_tiles;
+        int x = (idx % finfo->tile_cols) * finfo->tile_width_in_mbs * OAPV_MB_W;
+        int y = (idx / finfo->tile_cols) * finfo->tile_height_in_mbs * OAPV_MB_H;
+
+        reqs[k].idx = idx;
+        reqs[k].imgb.cs = imgb->cs;
+
+        for(int p = 0; p < imgb->np; p++) {
+            // a subsampled plane is half as wide or half as tall; interleaved
+            // chroma keeps the luma width, its two components sharing a row
+            int sft_w = (imgb->w[p] < imgb->w[0]) ? 1 : 0;
+            int sft_h = (imgb->h[p] < imgb->h[0]) ? 1 : 0;
+            int off = ((y >> sft_h) * imgb->s[p]) + ((x >> sft_w) * bd);
+
+            if(off < 0 || off >= imgb->bsize[p]) {
+                return -1;
+            }
+            reqs[k].imgb.a[p] = (unsigned char *)imgb->a[p] + off;
+            reqs[k].imgb.s[p] = imgb->s[p];
+            reqs[k].imgb.bsize[p] = imgb->bsize[p] - off;
+        }
+    }
+
+    return 0;
+}
+
 static const char * get_key_from_val(const oapv_dict_str_int_t * dict, int val)
 {
     while(strlen(dict->key) > 0) {
@@ -763,8 +804,8 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     oapv_au_info_t    aui;
     oapvd_stat_t      stat;
     oapv_bitb_t       bitb;
-    int              *part_tile_idxs = NULL;
-    int               part_tile_cap = 0;
+    oapv_tile_req_t  *tile_reqs = NULL;
+    int               tile_req_cap = 0;
     int               num_part_tiles = 0;
 
     oapv_imgb_t      *imgb_dec = NULL;
@@ -944,17 +985,18 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                     if(num_part_tiles > finfo.num_tiles) {
                         num_part_tiles = finfo.num_tiles;
                     }
-                    if(part_tile_cap < num_part_tiles) {
-                        free(part_tile_idxs);
-                        part_tile_idxs = malloc(sizeof(int) * num_part_tiles);
-                        if(part_tile_idxs == NULL) {
-                            logerr("ERR: cannot allocate tile index buffer\n");
+                    if(tile_req_cap < num_part_tiles) {
+                        free(tile_reqs);
+                        tile_reqs = malloc(sizeof(oapv_tile_req_t) * num_part_tiles);
+                        if(tile_reqs == NULL) {
+                            logerr("ERR: cannot allocate tile request buffer\n");
                             ret = -1; goto ERR;
                         }
-                        part_tile_cap = num_part_tiles;
+                        tile_req_cap = num_part_tiles;
                     }
-                    for(int k = 0; k < num_part_tiles; k++) {
-                        part_tile_idxs[k] = (primary_frm_cnt * num_part_tiles + k) % finfo.num_tiles;
+                    if(set_tile_reqs(tile_reqs, num_part_tiles, primary_frm_cnt, &finfo, imgb_dec)) {
+                        logerr("ERR: cannot address the tiles of the decoding buffer\n");
+                        ret = -1; goto ERR;
                     }
 
                     // clear image buffer to remove previous frame's decoded tile image
@@ -968,7 +1010,12 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 
                 clk_beg = oapv_clk_get();
 
-                ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat, num_part_tiles, part_tile_idxs);
+                if(args_var->cyclic_tile_decoding) {
+                    ret = oapvd_decode_tiles(did, &bitb, num_part_tiles, tile_reqs);
+                }
+                else {
+                    ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat, 0, NULL);
+                }
 
                 clk_end = oapv_clk_from(clk_beg);
                 clk_tot += clk_end;
@@ -977,7 +1024,9 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                     logerr("ERR: failed to decode a frame (ret = %d)\n", ret);
                     ret = -1; goto ERR;
                 }
-                if(stat.read != pbu_size) {
+                // oapvd_decode_tiles() reports no read size, having been given the
+                // tiles to read rather than the whole frame
+                if(!args_var->cyclic_tile_decoding && stat.read != pbu_size) {
                     logerr("\t=> different reading of bitstream (in:%d, read:%d)\n",
                            pbu_size, stat.read);
                 }
@@ -1068,7 +1117,7 @@ ERR:
     if(pbu != NULL)
         free(pbu);
 
-    free(part_tile_idxs);
+    free(tile_reqs);
 
     return 0;
 }
