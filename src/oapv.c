@@ -1990,10 +1990,6 @@ static int dec_tiles_prepare(oapvd_ctx_t *ctx, int num_tiles, oapv_tile_req_t *t
     ret = dec_frm_setup(ctx, tile_reqs[0].imgb.cs);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
-    for(i = 0; i < ctx->num_tiles; i++) {
-        ctx->tile[i].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_SKIP); /* bypass decoding */
-    }
-
     for(i = 0; i < num_tiles; i++) {
         const oapv_imgb_tile_t *dst = &tile_reqs[i].imgb;
         int                     idx = tile_reqs[i].idx;
@@ -2008,7 +2004,6 @@ static int dec_tiles_prepare(oapvd_ctx_t *ctx, int num_tiles, oapv_tile_req_t *t
         oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
         ctx->tile[idx].dst = dst;
-        ctx->tile[idx].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_DECODE);
     }
 
     return OAPV_OK;
@@ -2067,7 +2062,6 @@ static int dec_thread_tile_sel(void *arg)
         }
         tidx = ctx->tile_idx;
         if(tidx < ctx->num_tiles) {
-            tile[tidx].stat = DEC_TILE_STAT_ON(tile[tidx].stat);
             ++ctx->tile_idx;
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
@@ -2076,16 +2070,9 @@ static int dec_thread_tile_sel(void *arg)
         }
 
         ret = dec_tile(core, &tile[tidx]);
-
-        oapv_tpool_enter_cs(ctx->sync_obj);
-        if(OAPV_SUCCEEDED(ret)) {
-            tile[tidx].stat = DEC_TILE_STAT_DONE(tile[tidx].stat);
-        }
-        else {
-            tile[tidx].stat = DEC_TILE_STAT_ERR(tile[tidx].stat);
+        if(OAPV_FAILED(ret)) {
             thread_ret = ret;
         }
-        oapv_tpool_leave_cs(ctx->sync_obj);
     }
 
     return thread_ret;
