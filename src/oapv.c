@@ -1141,12 +1141,12 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
     }
 
     oapv_tpool_t *tpool = ctx->tpool;
-    int           tidx = 0, thread_num1 = 0;
+    int           tidx = 0;
     int           parallel_task = (ctx->threads > ctx->num_tiles) ? ctx->num_tiles : ctx->threads;
 
     /* encode tiles ************************************/
     ctx->tile_idx = 0;
-    for(tidx = 0; tidx < (parallel_task - 1); tidx++) {
+    for(tidx = 0; tidx < parallel_task - 1; tidx++) {
         tpool->run(ctx->thread_id[tidx], enc_thread_tile,
                    (void *)ctx->core[tidx]);
     }
@@ -1154,9 +1154,9 @@ static int enc_frame(oapve_ctx_t *ctx, oapv_bs_t *bs)
 
     // always join spawned workers before handling any error, so no worker
     // keeps reading shared state after this function returns
-    for(thread_num1 = 0; thread_num1 < parallel_task - 1; thread_num1++) {
+    for(tidx = 0; tidx < parallel_task - 1; tidx++) {
         int thread_ret = OAPV_OK;
-        if(tpool->join(ctx->thread_id[thread_num1], &thread_ret) != TPOOL_SUCCESS) {
+        if(tpool->join(ctx->thread_id[tidx], &thread_ret) != TPOOL_SUCCESS) {
             ret = OAPV_ERR_FAILED_SYSCALL;
         }
         else if(OAPV_FAILED(thread_ret)) {
@@ -2167,8 +2167,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
             parallel_task = (ctx->threads > ctx->num_tiles) ? ctx->num_tiles : ctx->threads;
 
             /* decode tiles ************************************/
-            ctx->tile_idx = 0;
-            for(tidx = 0; tidx < (parallel_task - 1); tidx++) {
+            for(tidx = 0; tidx < parallel_task - 1; tidx++) {
                 tpool->run(ctx->thread_id[tidx], dec_thread_tile,
                            (void *)ctx->core[tidx]);
             }
@@ -2501,7 +2500,7 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
     }
 
     /* decode tiles ************************************/
-    for(tidx = 0; tidx < (parallel_task - 1); tidx++) {
+    for(tidx = 0; tidx < parallel_task - 1; tidx++) {
         tpool->run(ctx->thread_id[tidx], dec_thread_tile,
                    (void *)ctx->core[tidx]);
     }
