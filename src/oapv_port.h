@@ -180,6 +180,8 @@ int oapv_ops_mem_set(oapv_ops_mem_t *dst, const oapv_ops_mem_t *src);
     ((ctx)->ops_mem.malloc((ctx)->ops_mem.udata, (size)))
 #define oapv_ops_free(ctx, ptr) \
     ((ctx)->ops_mem.free((ctx)->ops_mem.udata, (ptr)))
+#define oapv_ops_calloc(ctx, count, size) \
+    ((ctx)->ops_mem.calloc((ctx)->ops_mem.udata, (count), (size)))
 
 #define oapv_mcpy(dst, src, size)    memcpy((dst), (src), (size))
 #define oapv_mset(dst, v, size)      memset((dst), (v), (size))

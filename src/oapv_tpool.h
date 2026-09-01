@@ -83,4 +83,8 @@ int oapv_tpool_spinlock_wait(volatile int *addr, int val);
 void oapv_tpool_enter_cs(oapv_sync_obj_t sobj);
 void oapv_tpool_leave_cs(oapv_sync_obj_t sobj);
 
+/* Atomically increments *pcnt under 'sobj' and returns the incremented value.
+   Used to hand out work items to competing worker threads. */
+int oapv_tpool_atomic_inc(oapv_sync_obj_t sobj, volatile int *pcnt);
+
 #endif // __OAPV_TPOOL_H__
