@@ -1990,6 +1990,26 @@ static int dec_tiles_prepare(oapvd_ctx_t *ctx, int num_tiles, oapv_tile_req_t *t
     ret = dec_frm_setup(ctx, tile_reqs[0].imgb.cs);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
+    // the tile sizes of the frame header land here, so the buffer follows the
+    // tile array: same count, grown the same way, and only for the frames that
+    // carry the sizes at all
+    if(ctx->fh.tile_size_present_in_fh_flag && ctx->num_tiles > ctx->pos_tiles_cap) {
+        // the allocator takes a 32-bit size, so reject a request that would not
+        // survive the conversion instead of letting it truncate
+        s64 pos_bytes = (s64)sizeof(oapv_tile_pos_t) * ctx->num_tiles;
+        oapv_assert_rv(pos_bytes <= (s64)UINT_MAX, OAPV_ERR_MALFORMED_BITSTREAM);
+
+        oapv_ops_free(ctx, ctx->pos_tiles);
+        // clear both, so a failed allocation cannot leave a stale capacity
+        // beside a pointer that is no longer valid
+        ctx->pos_tiles = NULL;
+        ctx->pos_tiles_cap = 0;
+
+        ctx->pos_tiles = (oapv_tile_pos_t *)oapv_ops_malloc(ctx, (unsigned int)pos_bytes);
+        oapv_assert_rv(ctx->pos_tiles != NULL, OAPV_ERR_OUT_OF_MEMORY);
+        ctx->pos_tiles_cap = ctx->num_tiles;
+    }
+
     for(i = 0; i < num_tiles; i++) {
         const oapv_imgb_tile_t *dst = &tile_reqs[i].imgb;
         int                     idx = tile_reqs[i].idx;
@@ -2108,6 +2128,10 @@ static void dec_flush(oapvd_ctx_t *ctx)
     oapv_ops_free(ctx, ctx->tile);
     ctx->tile = NULL;
     ctx->tile_cap = 0;
+
+    oapv_ops_free(ctx, ctx->pos_tiles);
+    ctx->pos_tiles = NULL;
+    ctx->pos_tiles_cap = 0;
 }
 
 static int dec_ready(oapvd_ctx_t *ctx)
@@ -2697,6 +2721,7 @@ int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_
     oapv_pbuh_t      pbuh;
     oapv_tile_pos_t *pos_tiles = NULL;
     u8              *fh_beg;
+    int              pos_tiles_cap;
     int              ret = OAPV_OK;
 
     ctx = dec_id_to_ctx(did);
@@ -2716,33 +2741,34 @@ int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_
     // check frame type PBU
     oapv_assert_rv(OAPV_PBU_TYPE_IS_FRAME(pbuh.pbu_type), OAPV_ERR_INVALID_ARGUMENT);
 
-    // parse frame header
+    // parse frame header. tile sizes in it locate every tile without reading a
+    // byte of any tile, which is what keeps a selective decode off the pages it
+    // does not need, so they are collected as the header is read - whenever the
+    // buffer a previous frame left behind is already large enough to take them.
     fh_beg = (u8 *)oapv_bsr_sink(&ctx->bs);
-    ret = oapvd_vlc_frame_header(&ctx->bs, &ctx->fh, NULL, 0);
+    pos_tiles_cap = ctx->pos_tiles_cap;
+    ret = oapvd_vlc_frame_header(&ctx->bs, &ctx->fh, ctx->pos_tiles, pos_tiles_cap);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     ret = dec_tiles_prepare(ctx, num_tiles, tile_reqs);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
-    // tile sizes in the frame header locate every tile without reading a byte of
-    // any tile, which is what keeps a selective decode off the pages it does not
-    // need. they are worth a second pass over the header to collect.
     if(ctx->fh.tile_size_present_in_fh_flag) {
-        oapv_bs_t bs;
-        oapv_fh_t fh;
-        s64       pos_bytes = (s64)sizeof(oapv_tile_pos_t) * ctx->num_tiles;
+        pos_tiles = ctx->pos_tiles;
+        if(pos_tiles_cap < ctx->num_tiles) {
+            // the buffer had to grow for this frame, so the pass above had
+            // nowhere to put the sizes; read the header again to collect them
+            oapv_bs_t bs;
+            oapv_fh_t fh;
 
-        oapv_assert_gv(pos_bytes <= (s64)UINT_MAX, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
-        pos_tiles = (oapv_tile_pos_t *)oapv_ops_malloc(ctx, (unsigned int)pos_bytes);
-        oapv_assert_gv(pos_tiles != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
-
-        oapv_bsr_init(&bs, fh_beg, (u32)(ctx->bs.end - fh_beg), NULL);
-        ret = oapvd_vlc_frame_header(&bs, &fh, pos_tiles, ctx->num_tiles);
-        oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+            oapv_bsr_init(&bs, fh_beg, (u32)(ctx->bs.end - fh_beg), NULL);
+            ret = oapvd_vlc_frame_header(&bs, &fh, pos_tiles, ctx->num_tiles);
+            oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+        }
     }
 
     ret = dec_derive_tile_offsets(ctx, pos_tiles);
-    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     int           thread_ret;
     oapv_tpool_t *tpool = ctx->tpool;
@@ -2763,8 +2789,6 @@ int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_
     }
     /****************************************************/
 
-ERR:
-    oapv_ops_free(ctx, pos_tiles);
     return ret;
 }
 

@@ -444,6 +444,9 @@ struct oapvd_ctx {
 
     oapv_fn_blk_to_pic_t   fn_blk_to_pic[N_C];
 
+    oapv_tile_pos_t        *pos_tiles;     // per-tile sizes of the frame header, allocated on demand
+    int                     pos_tiles_cap; // number of allocated pos_tiles entries
+
     /* platform specific data, if needed */
     void                   *pf;
 };
