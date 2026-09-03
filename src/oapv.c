@@ -556,11 +556,11 @@ static double enc_block_rdo_placebo(oapve_ctx_t* ctx, oapve_core_t* core, int lo
 static void enc_flush(oapve_ctx_t *ctx)
 {
     // Release thread pool controller and created threads
-    if(ctx->threads >= 1) {
+    if(ctx->threads >= 2) {
         if(ctx->tpool) {
             // thread controller instance is present
             // terminate the created thread
-            for(int i = 0; i < ctx->threads; i++) {
+            for(int i = 0; i < ctx->threads - 1; i++) {
                 if(ctx->thread_id[i]) {
                     // valid thread instance
                     ctx->tpool->release(&ctx->thread_id[i]);
@@ -575,6 +575,7 @@ static void enc_flush(oapve_ctx_t *ctx)
 
     if(ctx->sync_obj != NULL) {
         oapv_tpool_sync_obj_delete(&ctx->sync_obj);
+        ctx->sync_obj = NULL;
     }
     for(int i = 0; i < ctx->threads; i++) {
         enc_core_free(ctx, ctx->core[i]);
@@ -590,7 +591,6 @@ static void enc_flush(oapve_ctx_t *ctx)
 
 static int enc_ready(oapve_ctx_t *ctx)
 {
-    oapve_core_t *core = NULL;
     int           ret = OAPV_OK;
     oapv_assert(ctx->core[0] == NULL);
 
@@ -598,9 +598,8 @@ static int enc_ready(oapve_ctx_t *ctx)
     oapv_assert_g(ret == OAPV_OK, ERR);
 
     for(int i = 0; i < ctx->threads; i++) {
-        core = enc_core_alloc(ctx);
-        oapv_assert_gv(core != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
-        ctx->core[i] = core;
+        ctx->core[i] = enc_core_alloc(ctx);
+        oapv_assert_gv(ctx->core[i] != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
     }
 
     // initialize the threads to NULL
@@ -612,11 +611,11 @@ static int enc_ready(oapve_ctx_t *ctx)
     ctx->sync_obj = oapv_tpool_sync_obj_create(&ctx->ops_mem);
     oapv_assert_gv(ctx->sync_obj != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
 
-    if(ctx->threads >= 1) {
+    if(ctx->threads >= 2) {
         ctx->tpool = oapv_ops_malloc(ctx, sizeof(oapv_tpool_t));
         oapv_assert_gv(ctx->tpool != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
         oapv_tpool_init(ctx->tpool, &ctx->ops_mem, ctx->threads);
-        for(int i = 0; i < ctx->threads; i++) {
+        for(int i = 0; i < ctx->threads - 1; i++) {
             ctx->thread_id[i] = ctx->tpool->create(ctx->tpool, i);
             oapv_assert_gv(ctx->thread_id[i] != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
         }
@@ -1950,10 +1949,12 @@ static void dec_flush(oapvd_ctx_t *ctx)
 
     if(ctx->sync_obj != NULL) {
         oapv_tpool_sync_obj_delete(&(ctx->sync_obj));
+        ctx->sync_obj = NULL;
     }
 
     for(int i = 0; i < ctx->threads; i++) {
         dec_core_free(ctx, ctx->core[i]);
+        ctx->core[i] = NULL;
     }
 
     oapv_ops_free(ctx, ctx->tile);
@@ -1981,11 +1982,6 @@ static int dec_ready(oapvd_ctx_t *ctx)
             oapv_assert_gv(ctx->core[i], ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
             ctx->core[i]->ctx = ctx;
         }
-    }
-
-    // initialize the threads to NULL
-    for(i = 0; i < ctx->threads; i++) {
-        ctx->thread_id[i] = 0;
     }
 
     // get the context synchronization handle
