@@ -821,11 +821,6 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     int               pbu_cap = 0;
     int               prev_frm_w = -1, prev_frm_h = -1;
 
-    if(args_var->cyclic_tile_decoding && args_var->api_set == 0) {
-        logerr("ERR: cyclic tile-based decoding cannot be supported in API set 0\n");
-        ret = -1; goto ERR;
-    }
-
     // clear descriptor so unset fields (e.g. ops_mem) default to zero
     memset(&cdesc, 0, sizeof(oapvd_cdesc_t));
 
@@ -1177,6 +1172,13 @@ int main(int argc, const char **argv)
         args->get_int(args, "cyclic-tile-decoding", &cyc_val, &cyc_flag);
         if(cyc_flag && cyc_val <= 0) {
             logerr("ERR: invalid cyclic-tile-decoding value (%d)\n", cyc_val);
+            ret = -1;
+            goto ERR;
+        }
+        // only API set 1 reaches oapvd_decode_tiles(), so the option would be
+        // silently ignored anywhere else
+        if(cyc_flag && args_var->api_set != 1) {
+            logerr("ERR: cyclic tile-based decoding is only supported in API set 1\n");
             ret = -1;
             goto ERR;
         }
