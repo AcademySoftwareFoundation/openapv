@@ -991,7 +991,7 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
         else{
             for(int i = 0; i < ctx->num_c; i++) {
                 ctx->fn_blk_from_pic[i] = oapv_blk_from_pic_16;
-                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+                ctx->fn_blk_to_pic[i] = ctx->fn_blk_to_pic_16;
             }
         }
         ctx->fn_imgb_pad = imgb_pad;
@@ -1199,6 +1199,7 @@ static int enc_platform_init(oapve_ctx_t *ctx)
     ctx->fn_quant = oapv_tbl_fn_quant;
     ctx->fn_dquant = oapv_tbl_fn_dquant;
     ctx->fn_had8x8 = oapv_dc_removed_had8x8;
+    ctx->fn_blk_to_pic_16 = oapv_blk_to_pic_16;
 #if X86_SSE
     int check_cpu, support_sse, support_avx2;
 
@@ -1215,6 +1216,7 @@ static int enc_platform_init(oapve_ctx_t *ctx)
         ctx->fn_quant = oapv_tbl_fn_quant_avx;
         ctx->fn_dquant = oapv_tbl_fn_dquant_avx;
         ctx->fn_had8x8 = oapv_dc_removed_had8x8_avx;
+        ctx->fn_blk_to_pic_16 = oapv_blk_to_pic_16_avx;
     }
     else if(support_sse) {
         ctx->fn_ssd = oapv_tbl_fn_ssd_16b_sse;
@@ -1229,6 +1231,7 @@ static int enc_platform_init(oapve_ctx_t *ctx)
     ctx->fn_quant = oapv_tbl_fn_quant_neon;
     ctx->fn_dquant = oapv_tbl_fn_dquant_neon;
     ctx->fn_had8x8 = oapv_dc_removed_had8x8_neon;
+    ctx->fn_blk_to_pic_16 = oapv_blk_to_pic_16_neon;
 #endif
     return OAPV_OK;
 }
@@ -1666,7 +1669,7 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, int num_part_tiles, const int *part
         if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
             if(ctx->disable_companding){
                 for(i = 0; i < ctx->num_c; i++) {
-                    ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+                    ctx->fn_blk_to_pic[i] = ctx->fn_blk_to_pic_16;
                 }
             }
             else{
@@ -1677,7 +1680,7 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, int num_part_tiles, const int *part
         }
         else{
             for(i = 0; i < ctx->num_c; i++) {
-                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+                ctx->fn_blk_to_pic[i] = ctx->fn_blk_to_pic_16;
             }
         }
     }
@@ -2014,6 +2017,7 @@ static int dec_platform_init(oapvd_ctx_t *ctx)
     // default settings
     ctx->fn_itx = oapv_tbl_fn_itx;
     ctx->fn_dquant = oapv_tbl_fn_dquant;
+    ctx->fn_blk_to_pic_16 = oapv_blk_to_pic_16;
 
 #if X86_SSE
     int check_cpu, support_sse, support_avx2;
@@ -2025,6 +2029,7 @@ static int dec_platform_init(oapvd_ctx_t *ctx)
     if(support_avx2) {
         ctx->fn_itx = oapv_tbl_fn_itx_avx;
         ctx->fn_dquant = oapv_tbl_fn_dquant_avx;
+        ctx->fn_blk_to_pic_16 = oapv_blk_to_pic_16_avx;
     }
     else if(support_sse) {
         ctx->fn_itx = oapv_tbl_fn_itx;
@@ -2033,6 +2038,7 @@ static int dec_platform_init(oapvd_ctx_t *ctx)
 #elif ARM_NEON
     ctx->fn_itx = oapv_tbl_fn_itx_neon;
     ctx->fn_dquant = oapv_tbl_fn_dquant_neon;
+    ctx->fn_blk_to_pic_16 = oapv_blk_to_pic_16_neon;
 #endif
     return OAPV_OK;
 }
