@@ -330,7 +330,6 @@ struct oapve_ctx {
 
     oapv_fn_blk_from_pic_t     fn_blk_from_pic[N_C];
     oapv_fn_blk_to_pic_t       fn_blk_to_pic[N_C];
-    oapv_fn_blk_to_pic_t       fn_blk_to_pic_16;
     oapv_fn_imgb_pad_t         fn_imgb_pad;
     oapv_fn_enc_blk_cost_t     fn_enc_blk;
     oapv_fn_had8x8_t           fn_had8x8;
@@ -439,7 +438,6 @@ struct oapvd_ctx {
     const oapv_fn_dquant_t *fn_dquant;
 
     oapv_fn_blk_to_pic_t   fn_blk_to_pic[N_C];
-    oapv_fn_blk_to_pic_t   fn_blk_to_pic_16;
 
     /* platform specific data, if needed */
     void                   *pf;
