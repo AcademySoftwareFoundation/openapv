@@ -575,7 +575,6 @@ static void enc_flush(oapve_ctx_t *ctx)
 
     if(ctx->sync_obj != NULL) {
         oapv_tpool_sync_obj_delete(&ctx->sync_obj);
-        ctx->sync_obj = NULL;
     }
     for(int i = 0; i < ctx->threads; i++) {
         enc_core_free(ctx, ctx->core[i]);
@@ -614,7 +613,7 @@ static int enc_ready(oapve_ctx_t *ctx)
     if(ctx->threads >= 2) {
         ctx->tpool = oapv_ops_malloc(ctx, sizeof(oapv_tpool_t));
         oapv_assert_gv(ctx->tpool != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
-        oapv_tpool_init(ctx->tpool, &ctx->ops_mem, ctx->threads);
+        oapv_tpool_init(ctx->tpool, &ctx->ops_mem, ctx->threads - 1);
         for(int i = 0; i < ctx->threads - 1; i++) {
             ctx->thread_id[i] = ctx->tpool->create(ctx->tpool, i);
             oapv_assert_gv(ctx->thread_id[i] != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
@@ -1949,7 +1948,6 @@ static void dec_flush(oapvd_ctx_t *ctx)
 
     if(ctx->sync_obj != NULL) {
         oapv_tpool_sync_obj_delete(&(ctx->sync_obj));
-        ctx->sync_obj = NULL;
     }
 
     for(int i = 0; i < ctx->threads; i++) {
