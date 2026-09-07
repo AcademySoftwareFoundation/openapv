@@ -33,6 +33,8 @@
 
 #if X86_SSE
 void oapv_blk_to_pic_16_avx(int w, int h, void *blk, int blk_s, void *pic, int pic_x, int pic_s, int bd);
+void oapv_blk_to_pic_p21x_y_avx(int w, int h, void *blk, int blk_s, void *pic, int pic_x, int pic_s, int bd);
+void oapv_blk_to_pic_p21x_uv_avx(int w, int h, void *blk, int blk_s, void *pic, int pic_x, int pic_s, int bd);
 #endif /* X86_SSE */
 
 #endif /* _OAPV_BLK_AVX_H_ */

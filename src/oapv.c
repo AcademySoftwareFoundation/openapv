@@ -199,6 +199,34 @@ static oapv_fn_blk_to_pic_t get_blk_to_pic_16(int bd)
     return oapv_blk_to_pic_16;
 }
 
+static oapv_fn_blk_to_pic_t get_blk_to_pic_p21x_y(int bd)
+{
+#if X86_SSE
+    if(bd < 16 && ((oapv_check_cpu_info_x86() >> 2) & 1)) {
+        return oapv_blk_to_pic_p21x_y_avx;
+    }
+#elif ARM_NEON
+    if(bd < 16) {
+        return oapv_blk_to_pic_p21x_y_neon;
+    }
+#endif
+    return oapv_blk_to_pic_p21x_y;
+}
+
+static oapv_fn_blk_to_pic_t get_blk_to_pic_p21x_uv(int bd)
+{
+#if X86_SSE
+    if(bd < 16 && ((oapv_check_cpu_info_x86() >> 2) & 1)) {
+        return oapv_blk_to_pic_p21x_uv_avx;
+    }
+#elif ARM_NEON
+    if(bd < 16) {
+        return oapv_blk_to_pic_p21x_uv_neon;
+    }
+#endif
+    return oapv_blk_to_pic_p21x_uv;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // start of encoder code
 #if ENABLE_ENCODER
@@ -991,9 +1019,9 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
         ctx->fn_blk_from_pic[U_C] = oapv_blk_from_pic_p21x_uv;
         ctx->fn_blk_from_pic[V_C] = oapv_blk_from_pic_p21x_uv;
 
-        ctx->fn_blk_to_pic[Y_C] = oapv_blk_to_pic_p21x_y;
-        ctx->fn_blk_to_pic[U_C] = oapv_blk_to_pic_p21x_uv;
-        ctx->fn_blk_to_pic[V_C] = oapv_blk_to_pic_p21x_uv;
+        ctx->fn_blk_to_pic[Y_C] = get_blk_to_pic_p21x_y(ctx->bit_depth);
+        ctx->fn_blk_to_pic[U_C] = get_blk_to_pic_p21x_uv(ctx->bit_depth);
+        ctx->fn_blk_to_pic[V_C] = get_blk_to_pic_p21x_uv(ctx->bit_depth);
         ctx->fn_imgb_pad = imgb_pad_p210;
     }
     else {
@@ -1674,9 +1702,9 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, int num_part_tiles, const int *part
     }
 
     if(OAPV_CS_GET_FORMAT(imgb->cs) == OAPV_CF_PLANAR2) {
-        ctx->fn_blk_to_pic[Y_C] = oapv_blk_to_pic_p21x_y;
-        ctx->fn_blk_to_pic[U_C] = oapv_blk_to_pic_p21x_uv;
-        ctx->fn_blk_to_pic[V_C] = oapv_blk_to_pic_p21x_uv;
+        ctx->fn_blk_to_pic[Y_C] = get_blk_to_pic_p21x_y(ctx->bit_depth);
+        ctx->fn_blk_to_pic[U_C] = get_blk_to_pic_p21x_uv(ctx->bit_depth);
+        ctx->fn_blk_to_pic[V_C] = get_blk_to_pic_p21x_uv(ctx->bit_depth);
     }
     else {
         if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {

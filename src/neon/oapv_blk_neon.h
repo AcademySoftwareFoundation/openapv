@@ -33,6 +33,8 @@
 
 #if ARM_NEON
 void oapv_blk_to_pic_16_neon(int w, int h, void *blk, int blk_s, void *pic, int pic_x, int pic_s, int bd);
+void oapv_blk_to_pic_p21x_y_neon(int w, int h, void *blk, int blk_s, void *pic, int pic_x, int pic_s, int bd);
+void oapv_blk_to_pic_p21x_uv_neon(int w, int h, void *blk, int blk_s, void *pic, int pic_x, int pic_s, int bd);
 #endif /* ARM_NEON */
 
 #endif /* _OAPV_BLK_NEON_H_ */
