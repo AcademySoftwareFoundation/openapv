@@ -465,9 +465,11 @@ struct oapvd_ctx {
 #include "sse/oapv_tq_sse.h"
 #include "avx/oapv_sad_avx.h"
 #include "avx/oapv_tq_avx.h"
+#include "avx/oapv_blk_avx.h"
 #elif ARM_NEON
 #include "neon/oapv_sad_neon.h"
 #include "neon/oapv_tq_neon.h"
+#include "neon/oapv_blk_neon.h"
 #endif
 
 #endif /* _OAPV_DEF_H_4738294732894739280473892473829_ */

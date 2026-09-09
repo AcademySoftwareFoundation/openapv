@@ -483,3 +483,12 @@ set_tests_properties(decode_tile_E PROPERTIES
     PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
     PASS_REGULAR_EXPRESSION ".*hash:match.*"
 )
+
+# Test - decode qp_A.apv into P210
+# the frame hash cannot be checked here, the picture is not in the coded format
+add_test(NAME decode_p210 COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/oapv_app_dec -i ${CMAKE_CURRENT_SOURCE_DIR}/test/bitstream/qp_A.apv -v 3 --output-csp 1)
+set_tests_properties(decode_p210 PROPERTIES
+    TIMEOUT 20
+    FAIL_REGULAR_EXPRESSION "Decoded frame count               = 0"
+    PASS_REGULAR_EXPRESSION "Decoded frame count               = 3"
+)
