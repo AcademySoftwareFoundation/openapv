@@ -184,6 +184,49 @@ static void fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info
     finfo->full_range_flag = fh->full_range_flag;
 }
 
+// the SIMD kernels clip in signed 16-bit lanes, which a bit depth of 16 does not fit
+static oapv_fn_blk_to_pic_t get_blk_to_pic_16(int bd)
+{
+#if X86_SSE
+    if(bd < 16 && ((oapv_check_cpu_info_x86() >> 2) & 1)) {
+        return oapv_blk_to_pic_16_avx;
+    }
+#elif ARM_NEON
+    if(bd < 16) {
+        return oapv_blk_to_pic_16_neon;
+    }
+#endif
+    return oapv_blk_to_pic_16;
+}
+
+static oapv_fn_blk_to_pic_t get_blk_to_pic_p21x_y(int bd)
+{
+#if X86_SSE
+    if(bd < 16 && ((oapv_check_cpu_info_x86() >> 2) & 1)) {
+        return oapv_blk_to_pic_p21x_y_avx;
+    }
+#elif ARM_NEON
+    if(bd < 16) {
+        return oapv_blk_to_pic_p21x_y_neon;
+    }
+#endif
+    return oapv_blk_to_pic_p21x_y;
+}
+
+static oapv_fn_blk_to_pic_t get_blk_to_pic_p21x_uv(int bd)
+{
+#if X86_SSE
+    if(bd < 16 && ((oapv_check_cpu_info_x86() >> 2) & 1)) {
+        return oapv_blk_to_pic_p21x_uv_avx;
+    }
+#elif ARM_NEON
+    if(bd < 16) {
+        return oapv_blk_to_pic_p21x_uv_neon;
+    }
+#endif
+    return oapv_blk_to_pic_p21x_uv;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // start of encoder code
 #if ENABLE_ENCODER
@@ -556,11 +599,11 @@ static double enc_block_rdo_placebo(oapve_ctx_t* ctx, oapve_core_t* core, int lo
 static void enc_flush(oapve_ctx_t *ctx)
 {
     // Release thread pool controller and created threads
-    if(ctx->threads >= 1) {
+    if(ctx->threads >= 2) {
         if(ctx->tpool) {
             // thread controller instance is present
             // terminate the created thread
-            for(int i = 0; i < ctx->threads; i++) {
+            for(int i = 0; i < ctx->threads - 1; i++) {
                 if(ctx->thread_id[i]) {
                     // valid thread instance
                     ctx->tpool->release(&ctx->thread_id[i]);
@@ -590,7 +633,6 @@ static void enc_flush(oapve_ctx_t *ctx)
 
 static int enc_ready(oapve_ctx_t *ctx)
 {
-    oapve_core_t *core = NULL;
     int           ret = OAPV_OK;
     oapv_assert(ctx->core[0] == NULL);
 
@@ -598,9 +640,8 @@ static int enc_ready(oapve_ctx_t *ctx)
     oapv_assert_g(ret == OAPV_OK, ERR);
 
     for(int i = 0; i < ctx->threads; i++) {
-        core = enc_core_alloc(ctx);
-        oapv_assert_gv(core != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
-        ctx->core[i] = core;
+        ctx->core[i] = enc_core_alloc(ctx);
+        oapv_assert_gv(ctx->core[i] != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
     }
 
     // initialize the threads to NULL
@@ -612,11 +653,11 @@ static int enc_ready(oapve_ctx_t *ctx)
     ctx->sync_obj = oapv_tpool_sync_obj_create(&ctx->ops_mem);
     oapv_assert_gv(ctx->sync_obj != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
 
-    if(ctx->threads >= 1) {
+    if(ctx->threads >= 2) {
         ctx->tpool = oapv_ops_malloc(ctx, sizeof(oapv_tpool_t));
         oapv_assert_gv(ctx->tpool != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
-        oapv_tpool_init(ctx->tpool, &ctx->ops_mem, ctx->threads);
-        for(int i = 0; i < ctx->threads; i++) {
+        oapv_tpool_init(ctx->tpool, &ctx->ops_mem, ctx->threads - 1);
+        for(int i = 0; i < ctx->threads - 1; i++) {
             ctx->thread_id[i] = ctx->tpool->create(ctx->tpool, i);
             oapv_assert_gv(ctx->thread_id[i] != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
         }
@@ -976,9 +1017,9 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
         ctx->fn_blk_from_pic[U_C] = oapv_blk_from_pic_p21x_uv;
         ctx->fn_blk_from_pic[V_C] = oapv_blk_from_pic_p21x_uv;
 
-        ctx->fn_blk_to_pic[Y_C] = oapv_blk_to_pic_p21x_y;
-        ctx->fn_blk_to_pic[U_C] = oapv_blk_to_pic_p21x_uv;
-        ctx->fn_blk_to_pic[V_C] = oapv_blk_to_pic_p21x_uv;
+        ctx->fn_blk_to_pic[Y_C] = get_blk_to_pic_p21x_y(ctx->bit_depth);
+        ctx->fn_blk_to_pic[U_C] = get_blk_to_pic_p21x_uv(ctx->bit_depth);
+        ctx->fn_blk_to_pic[V_C] = get_blk_to_pic_p21x_uv(ctx->bit_depth);
         ctx->fn_imgb_pad = imgb_pad_p210;
     }
     else {
@@ -989,9 +1030,10 @@ static int enc_frm_prepare(oapve_ctx_t *ctx, oapve_param_t *param, oapv_imgb_t *
             }
         }
         else{
+            oapv_fn_blk_to_pic_t to_pic_16 = get_blk_to_pic_16(ctx->bit_depth);
             for(int i = 0; i < ctx->num_c; i++) {
                 ctx->fn_blk_from_pic[i] = oapv_blk_from_pic_16;
-                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+                ctx->fn_blk_to_pic[i] = to_pic_16;
             }
         }
         ctx->fn_imgb_pad = imgb_pad;
@@ -1628,15 +1670,16 @@ static int dec_frm_setup(oapvd_ctx_t *ctx, int cs)
     }
 
     if(OAPV_CS_GET_FORMAT(cs) == OAPV_CF_PLANAR2) {
-        ctx->fn_blk_to_pic[Y_C] = oapv_blk_to_pic_p21x_y;
-        ctx->fn_blk_to_pic[U_C] = oapv_blk_to_pic_p21x_uv;
-        ctx->fn_blk_to_pic[V_C] = oapv_blk_to_pic_p21x_uv;
+        ctx->fn_blk_to_pic[Y_C] = get_blk_to_pic_p21x_y(ctx->bit_depth);
+        ctx->fn_blk_to_pic[U_C] = get_blk_to_pic_p21x_uv(ctx->bit_depth);
+        ctx->fn_blk_to_pic[V_C] = get_blk_to_pic_p21x_uv(ctx->bit_depth);
     }
     else {
         if(ctx->fh.fi.profile_idc == OAPV_PROFILE_444_16C12 || ctx->fh.fi.profile_idc == OAPV_PROFILE_4444_16C12) {
             if(ctx->disable_companding){
+                oapv_fn_blk_to_pic_t to_pic_16 = get_blk_to_pic_16(ctx->bit_depth);
                 for(i = 0; i < ctx->num_c; i++) {
-                    ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+                    ctx->fn_blk_to_pic[i] = to_pic_16;
                 }
             }
             else{
@@ -1646,8 +1689,9 @@ static int dec_frm_setup(oapvd_ctx_t *ctx, int cs)
             }
         }
         else{
+            oapv_fn_blk_to_pic_t to_pic_16 = get_blk_to_pic_16(ctx->bit_depth);
             for(i = 0; i < ctx->num_c; i++) {
-                ctx->fn_blk_to_pic[i] = oapv_blk_to_pic_16;
+                ctx->fn_blk_to_pic[i] = to_pic_16;
             }
         }
     }
@@ -2123,6 +2167,7 @@ static void dec_flush(oapvd_ctx_t *ctx)
 
     for(int i = 0; i < ctx->threads; i++) {
         dec_core_free(ctx, ctx->core[i]);
+        ctx->core[i] = NULL;
     }
 
     oapv_ops_free(ctx, ctx->tile);
@@ -2154,11 +2199,6 @@ static int dec_ready(oapvd_ctx_t *ctx)
             oapv_assert_gv(ctx->core[i], ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
             ctx->core[i]->ctx = ctx;
         }
-    }
-
-    // initialize the threads to NULL
-    for(i = 0; i < ctx->threads; i++) {
-        ctx->thread_id[i] = 0;
     }
 
     // get the context synchronization handle
