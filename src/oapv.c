@@ -1737,7 +1737,7 @@ static int dec_frm_setup(oapvd_ctx_t *ctx, int cs)
     return OAPV_OK;
 }
 
-static int dec_frm_prepare(oapvd_ctx_t *ctx, int num_part_tiles, const int *part_tile_idxs, oapv_imgb_t *imgb)
+static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
 {
     int i, ret;
 
@@ -1773,21 +1773,8 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, int num_part_tiles, const int *part
     ctx->imgb = imgb;
     imgb_addref(ctx->imgb); // increase reference count
 
-    if(num_part_tiles > 0) {
-        oapv_assert_rv(part_tile_idxs != NULL, OAPV_ERR_INVALID_ARGUMENT);
-        for(i = 0; i < ctx->num_tiles; i++) {
-            ctx->tile[i].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_SKIP); /* bypass decoding */
-        }
-        for(i = 0; i < num_part_tiles; i++) {
-            int idx = part_tile_idxs[i];
-            oapv_assert_rv(idx >= 0 && idx < ctx->num_tiles, OAPV_ERR_INVALID_ARGUMENT);
-            ctx->tile[idx].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_DECODE);
-        }
-    }
-    else {
-        for(i = 0; i < ctx->num_tiles; i++) {
-            ctx->tile[i].stat = DEC_TILE_STAT_DO(DEC_TILE_STAT_DECODE);
-        }
+    for(i = 0; i < ctx->num_tiles; i++) {
+        ctx->tile[i].stat = DEC_TILE_STAT_FLAG_DO;
     }
 
     return OAPV_OK;
@@ -1938,7 +1925,7 @@ static int dec_thread_tile(void *arg)
         tidx = ctx->tile_idx;
         if (ctx->tile_idx < ctx->num_tiles) {
             oapv_assert(DEC_TILE_STAT_IS_DO(tile[tidx].stat));
-            tile[tidx].stat = DEC_TILE_STAT_ON(tile[tidx].stat);
+            tile[tidx].stat = DEC_TILE_STAT_FLAG_ON;
             ++ctx->tile_idx;
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
@@ -1973,16 +1960,14 @@ static int dec_thread_tile(void *arg)
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
 
-        if(DEC_TILE_STAT_IS_DECODE(tile[tidx].stat)) {
-            ret = dec_tile(core, &tile[tidx]);
-        }
+        ret = dec_tile(core, &tile[tidx]);
 
         oapv_tpool_enter_cs(ctx->sync_obj);
         if (OAPV_SUCCEEDED(ret)) {
-            tile[tidx].stat = DEC_TILE_STAT_DONE(tile[tidx].stat);
+            tile[tidx].stat = DEC_TILE_STAT_FLAG_DONE;
         }
         else {
-            tile[tidx].stat = DEC_TILE_STAT_ERR(tile[tidx].stat);
+            tile[tidx].stat = DEC_TILE_STAT_FLAG_ERR;
             thread_ret = ret;
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
@@ -1991,7 +1976,7 @@ static int dec_thread_tile(void *arg)
 
 ERR:
     oapv_tpool_enter_cs(ctx->sync_obj);
-    tile[tidx].stat = DEC_TILE_STAT_ERR(tile[tidx].stat);
+    tile[tidx].stat = DEC_TILE_STAT_FLAG_ERR;
     if (tidx + 1 < ctx->num_tiles)
     {
         tile[tidx + 1].bs_beg = tile[tidx].bs_beg;
@@ -2369,7 +2354,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
             ret = oapvd_vlc_frame_header(bs, &ctx->fh, NULL, 0);
             oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
-            ret = dec_frm_prepare(ctx, 0, NULL, ofrms->frm[nfrms].imgb);
+            ret = dec_frm_prepare(ctx, ofrms->frm[nfrms].imgb);
             oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
             int           thread_ret;
@@ -2663,7 +2648,7 @@ ERR:
     return ret;
 }
 
-int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat, int num_part_tiles, const int *part_tile_idxs)
+int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat)
 {
     oapvd_ctx_t *ctx;
     oapv_pbuh_t  pbuh;
@@ -2673,8 +2658,6 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(bitb != NULL && bitb->addr != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(imgb != NULL && stat != NULL, OAPV_ERR_INVALID_ARGUMENT);
-    oapv_assert_rv(num_part_tiles >= 0, OAPV_ERR_INVALID_ARGUMENT);
-    oapv_assert_rv(num_part_tiles == 0 || part_tile_idxs != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_mset(stat, 0, sizeof(oapvd_stat_t));
 
     oapv_bs_t   *bs;
@@ -2696,7 +2679,7 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
     oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
     // be ready to decode start
-    ret = dec_frm_prepare(ctx, num_part_tiles, part_tile_idxs, imgb);
+    ret = dec_frm_prepare(ctx, imgb);
     oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
     int           thread_ret;
@@ -2704,13 +2687,7 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
     int           parallel_task = 1;
     int           tidx = 0;
 
-    if(num_part_tiles > 0) {
-        oapv_assert_gv(num_part_tiles <= ctx->num_tiles, ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
-        parallel_task = (ctx->threads > num_part_tiles) ? num_part_tiles : ctx->threads;
-    }
-    else {
-        parallel_task = (ctx->threads > ctx->num_tiles) ? ctx->num_tiles : ctx->threads;
-    }
+    parallel_task = (ctx->threads > ctx->num_tiles) ? ctx->num_tiles : ctx->threads;
 
     /* decode tiles ************************************/
     for(tidx = 0; tidx < parallel_task - 1; tidx++) {

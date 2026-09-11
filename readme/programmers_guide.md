@@ -335,7 +335,7 @@ while(read_u32(input, &au_size) == OK) {
 
             bitb.addr = pbu_buf
             bitb.ssize = pbu_size
-            oapvd_decode_frame(did, &bitb, imgb, &stat, 0, NULL)  // all tiles
+            oapvd_decode_frame(did, &bitb, imgb, &stat)
 
             write_frame(output, imgb)
         }
@@ -347,35 +347,25 @@ while(read_u32(input, &au_size) == OK) {
 }
 ```
 
-### Tile-based partial decoding
+### Querying the tile layout
 
-With API set 1, `oapvd_decode_frame()` can decode only a subset of tiles.
-The tile layout of a frame is available from `oapvd_info_frame()` and
-`oapvd_info_tile()`:
+Decoding only some of the tiles of a frame starts from its tile layout,
+which is available from `oapvd_info_frame()` and `oapvd_info_tile()`:
 
 ```
 oapvd_info_frame(pbu_buf, pbu_size, &finfo)
 // finfo.num_tiles, finfo.tile_cols/tile_rows describe the tile grid
 
-// query the position of every tile, if needed
+// query the position of every tile
 pos = malloc(finfo.num_tiles * sizeof(oapv_tile_pos_t))
 num = finfo.num_tiles
 oapvd_info_tile(pbu_buf, pbu_size, pos, &num)
 
 // oapvd_info_tile() can report the count on its own as well, by passing a
 // NULL tile array:  num = 0; oapvd_info_tile(pbu_buf, pbu_size, NULL, &num)
-
-// select the tiles to decode, e.g. the ones covering a viewport
-part_tile_idxs = { 3, 4, 7, 8 }
-num_part_tiles = 4
-
-imgb = create_image_buffer(finfo.w, finfo.h, finfo.cs)
-oapvd_decode_frame(did, &bitb, imgb, &stat, num_part_tiles, part_tile_idxs)
-// only the selected tile regions of imgb are filled
 ```
 
-Passing `0, NULL` decodes every tile. The regions of unselected tiles are
-left untouched, so clear or reuse the image buffer accordingly.
+The selection itself is passed to `oapvd_decode_tiles()`, described below.
 
 When the frame header carries the tile sizes (the encoder writes them by
 default; see `OAPV_CFG_SET_TILE_SIZE_IN_FH`), `oapvd_info_tile()` also
@@ -423,10 +413,11 @@ as optional:
 
 ### Decoding tiles into buffers of their own
 
-`oapvd_decode_frame()` decodes a tile subset, but its output is one
-scanline-strided `oapv_imgb_t` sized to the whole picture, so a partial
-decode of a large frame still has to allocate that picture.
-`oapvd_decode_tiles()` gives each tile a destination of its own:
+`oapvd_decode_frame()` decodes a whole frame into one scanline-strided
+`oapv_imgb_t` sized to the picture, so an application that wants a few tiles
+of a large frame still has to allocate that picture.
+`oapvd_decode_tiles()` decodes a chosen set of tiles and gives each one a
+destination of its own:
 
 ```
 oapvd_decode_tiles(did, &bitb, num_tiles, tile_reqs)
@@ -478,8 +469,8 @@ Because each request carries its own addresses, the application decides
 where a tile lands. Pointing them into one arena gives an output sized to
 the number of tiles asked for rather than to the frame's tile count, which
 is what a viewport-driven client wants. Pointing them into a picture-sized
-buffer, at each tile's own position, reproduces what
-`oapvd_decode_frame()` does with `part_tile_idxs`.
+buffer, at each tile's own position, fills those tile regions of a frame and
+leaves the rest untouched.
 
 What the call requires:
 

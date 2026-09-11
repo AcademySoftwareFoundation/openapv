@@ -806,7 +806,7 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     oapv_bitb_t       bitb;
     oapv_tile_req_t  *tile_reqs = NULL;
     int               tile_req_cap = 0;
-    int               num_part_tiles = 0;
+    int               num_dec_tiles = 0;
 
     oapv_imgb_t      *imgb_dec = NULL;
     oapv_imgb_t      *imgb_out = NULL;
@@ -976,20 +976,20 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 }
 
                 if(args_var->cyclic_tile_decoding) {
-                    num_part_tiles = args_var->cyclic_tile_decoding;
-                    if(num_part_tiles > finfo.num_tiles) {
-                        num_part_tiles = finfo.num_tiles;
+                    num_dec_tiles = args_var->cyclic_tile_decoding;
+                    if(num_dec_tiles > finfo.num_tiles) {
+                        num_dec_tiles = finfo.num_tiles;
                     }
-                    if(tile_req_cap < num_part_tiles) {
+                    if(tile_req_cap < num_dec_tiles) {
                         free(tile_reqs);
-                        tile_reqs = malloc(sizeof(oapv_tile_req_t) * num_part_tiles);
+                        tile_reqs = malloc(sizeof(oapv_tile_req_t) * num_dec_tiles);
                         if(tile_reqs == NULL) {
                             logerr("ERR: cannot allocate tile request buffer\n");
                             ret = -1; goto ERR;
                         }
-                        tile_req_cap = num_part_tiles;
+                        tile_req_cap = num_dec_tiles;
                     }
-                    if(set_tile_reqs(tile_reqs, num_part_tiles, primary_frm_cnt, &finfo, imgb_dec)) {
+                    if(set_tile_reqs(tile_reqs, num_dec_tiles, primary_frm_cnt, &finfo, imgb_dec)) {
                         logerr("ERR: cannot address the tiles of the decoding buffer\n");
                         ret = -1; goto ERR;
                     }
@@ -1006,10 +1006,10 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 clk_beg = oapv_clk_get();
 
                 if(args_var->cyclic_tile_decoding) {
-                    ret = oapvd_decode_tiles(did, &bitb, num_part_tiles, tile_reqs);
+                    ret = oapvd_decode_tiles(did, &bitb, num_dec_tiles, tile_reqs);
                 }
                 else {
-                    ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat, 0, NULL);
+                    ret = oapvd_decode_frame(did, &bitb, imgb_dec, &stat);
                 }
 
                 clk_end = oapv_clk_from(clk_beg);

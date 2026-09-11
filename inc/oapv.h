@@ -862,7 +862,7 @@ OAPV_EXPORT int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_i
 OAPV_EXPORT int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *num_tiles);
 
 OAPV_EXPORT int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui);
-OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat, int num_part_tiles, const int *part_tile_idxs);
+OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat);
 
 /*****************************************************************************
  * selective tile decoding
@@ -872,9 +872,9 @@ OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *
  * does for oapvd_decode_frame(), and oapvd_info_tile() reports the tile indices
  * and dimensions needed to plan a selection.
  *
- * oapvd_decode_frame() also takes a tile subset, but decodes into a
- * scanline-strided oapv_imgb_t sized to the whole picture, so a partial decode
- * of a large frame still has to allocate that picture.
+ * oapvd_decode_frame() decodes every tile into a scanline-strided oapv_imgb_t
+ * sized to the whole picture, so decoding a few tiles of a large frame still
+ * has to allocate that picture.
  *****************************************************************************/
 
 /* destination of one decoded tile. unlike oapv_imgb_t this describes a tile and
