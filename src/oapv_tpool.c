@@ -343,6 +343,18 @@ void oapv_tpool_leave_cs(oapv_sync_obj_t sobj)
     pthread_mutex_unlock(&imutex->lmutex);
 }
 
+int oapv_tpool_atomic_inc(oapv_sync_obj_t sobj, volatile int *pcnt)
+{
+    thread_mutex_t *imutex = (thread_mutex_t *)(sobj);
+    int             temp;
+
+    pthread_mutex_lock(&imutex->lmutex);
+    temp = ++(*pcnt);
+    pthread_mutex_unlock(&imutex->lmutex);
+
+    return temp;
+}
+
 #else
 typedef struct thread_ctx {
     // synchronization members
@@ -654,6 +666,18 @@ void oapv_tpool_leave_cs(oapv_sync_obj_t sobj)
 {
     thread_mutex_t *imutex = (thread_mutex_t *)(sobj);
     LeaveCriticalSection(&imutex->c_section);
+}
+
+int oapv_tpool_atomic_inc(oapv_sync_obj_t sobj, volatile int *pcnt)
+{
+    thread_mutex_t *imutex = (thread_mutex_t *)(sobj);
+    int             temp;
+
+    EnterCriticalSection(&imutex->c_section);
+    temp = ++(*pcnt);
+    LeaveCriticalSection(&imutex->c_section);
+
+    return temp;
 }
 
 #endif
