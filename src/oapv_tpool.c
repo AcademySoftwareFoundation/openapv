@@ -81,12 +81,12 @@ static void *tpool_worker_thread(void *arg)
         return 0; // error handling, more like a fail safe mechanism
     }
 
+    pthread_mutex_lock(&t_context->c_section);
     while(1) {
         // worker thread loop
         // remains suspended/sleep waiting for an event
 
-        // get the mutex and check the state
-        pthread_mutex_lock(&t_context->c_section);
+        // check the state
         while(t_context->t_status == TPOOL_SUSPENDED) {
             // wait for the event
             pthread_cond_wait(&t_context->w_event, &t_context->c_section);
@@ -111,7 +111,6 @@ static void *tpool_worker_thread(void *arg)
         t_context->t_result = TPOOL_SUCCESS;
         t_context->task_ret = ret;
         pthread_cond_signal(&t_context->r_event);
-        pthread_mutex_unlock(&t_context->c_section);
     }
 
     return 0;
@@ -468,9 +467,7 @@ TERROR:
         CloseHandle(thread_context->r_event);
     }
     DeleteCriticalSection(&thread_context->c_section);
-    if(thread_context) {
-        oapv_ops_free(tp, thread_context);
-    }
+    oapv_ops_free(tp, thread_context);
 
     return NULL; // error handling, can't create a worker thread with proper initialization
 }
@@ -495,10 +492,11 @@ static tpool_result_t tpool_assign_task(oapv_thread_t thread_id, oapv_fn_thread_
     t_context->t_status = TPOOL_RUNNING;
     t_context->task = entry;
     t_context->t_arg = arg;
-    // signal the worker thread to wake up and run the task
     ResetEvent(t_context->r_event);
-    SetEvent(t_context->w_event);
     LeaveCriticalSection(&t_context->c_section);
+
+    // signal the worker thread to wake up and run the task
+    SetEvent(t_context->w_event);
 
     return TPOOL_SUCCESS;
 }
