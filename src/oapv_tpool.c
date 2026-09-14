@@ -468,9 +468,7 @@ TERROR:
         CloseHandle(thread_context->r_event);
     }
     DeleteCriticalSection(&thread_context->c_section);
-    if(thread_context) {
-        oapv_ops_free(tp, thread_context);
-    }
+    oapv_ops_free(tp, thread_context);
 
     return NULL; // error handling, can't create a worker thread with proper initialization
 }
@@ -495,10 +493,11 @@ static tpool_result_t tpool_assign_task(oapv_thread_t thread_id, oapv_fn_thread_
     t_context->t_status = TPOOL_RUNNING;
     t_context->task = entry;
     t_context->t_arg = arg;
-    // signal the worker thread to wake up and run the task
     ResetEvent(t_context->r_event);
-    SetEvent(t_context->w_event);
     LeaveCriticalSection(&t_context->c_section);
+
+    // signal the worker thread to wake up and run the task
+    SetEvent(t_context->w_event);
 
     return TPOOL_SUCCESS;
 }
