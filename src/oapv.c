@@ -2834,9 +2834,37 @@ int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
     return OAPV_OK;
 }
 
-int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_payload_t *pld)
+int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_t mid)
 {
+    oapvd_ctx_t *ctx;
+    oapv_pbuh_t  pbuh;
+    oapv_bs_t   *bs;
+    int          ret = OAPV_OK;
+
+    ctx = dec_id_to_ctx(did);
+    oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    // required in/out pointers must be valid
+    oapv_assert_rv(bitb != NULL && bitb->addr != NULL && mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
+
+    oapv_assert_gv((bitb->ssize >= 8), ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
+    if(bitb->bsize > 0) {
+        oapv_assert_gv((bitb->ssize <= bitb->bsize), ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
+    }
+    oapv_bsr_init(&ctx->bs, (u8 *)bitb->addr, bitb->ssize, NULL);
+    bs = &ctx->bs;
+
+    // parse PBU header
+    ret = oapvd_vlc_pbu_header(bs, &pbuh);
+    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+    // check metadata type PBU
+    oapv_assert_gv(pbuh.pbu_type == OAPV_PBU_TYPE_METADATA, ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
+
+    ret = oapvd_vlc_metadata(bs, bitb->ssize, mid, pbuh.group_id);
+    oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+
     return OAPV_OK;
+ERR:
+    return ret;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

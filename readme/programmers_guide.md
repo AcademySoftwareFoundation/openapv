@@ -347,6 +347,22 @@ while(read_u32(input, &au_size) == OK) {
 }
 ```
 
+A metadata PBU fills the same container through its own entry point:
+
+```
+else if(pbu_info.pbu_type == OAPV_PBU_TYPE_METADATA) {
+    bitb.addr = pbu_buf
+    bitb.ssize = pbu_size
+    oapvd_decode_metadata(did, &bitb, mid)
+}
+```
+
+`oapvd_decode_metadata()` takes one metadata PBU in `bitb`, with the same
+input convention as `oapvd_decode_frame()`, and stores every payload it
+carries into `mid` under the PBU's group id. The payloads are read back with
+`oapvm_get_all()` and cleared with `oapvm_rem_all()`, the same as after
+`oapvd_decode()`.
+
 ### Querying the tile layout
 
 Decoding only some of the tiles of a frame starts from its tile layout,

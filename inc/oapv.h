@@ -863,6 +863,7 @@ OAPV_EXPORT int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_ti
 
 OAPV_EXPORT int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui);
 OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat);
+OAPV_EXPORT int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_t mid);
 
 /*****************************************************************************
  * selective tile decoding
