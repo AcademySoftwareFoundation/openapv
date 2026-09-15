@@ -502,6 +502,15 @@ static const oapv_dict_str_int_t oapv_dict_pbu_type[] = {
     {"", 0} // termination
 };
 
+static const oapv_dict_str_int_t oapv_dict_metadata_type[] = {
+    {"itu_t_t35",       OAPV_METADATA_ITU_T_T35},
+    {"mdcv",            OAPV_METADATA_MDCV},
+    {"cll",             OAPV_METADATA_CLL},
+    {"filler",          OAPV_METADATA_FILLER},
+    {"user_defined",    OAPV_METADATA_USER_DEFINED},
+    {"", 0} // termination
+};
+
 static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
     {"422-10",      OAPV_PROFILE_422_10},
     {"422-12",      OAPV_PROFILE_422_12},
@@ -863,6 +872,7 @@ OAPV_EXPORT int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_ti
 
 OAPV_EXPORT int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui);
 OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat);
+OAPV_EXPORT int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_t mid);
 
 /*****************************************************************************
  * selective tile decoding

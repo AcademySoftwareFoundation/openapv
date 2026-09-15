@@ -800,7 +800,9 @@ static const char * get_key_from_val(const oapv_dict_str_int_t * dict, int val)
 int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
 {
     oapvd_t           did = NULL;
+    oapvm_t           mid = NULL;
     oapvd_cdesc_t     cdesc;
+    oapvm_cdesc_t     mdesc;
     oapv_au_info_t    aui;
     oapvd_stat_t      stat;
     oapv_bitb_t       bitb;
@@ -846,6 +848,15 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
     }
     if(set_extra_config(did, args_var)) {
         logerr("ERR: cannot set extra configurations\n");
+        ret = -1;
+        goto ERR;
+    }
+
+    /* create metadata container */
+    memset(&mdesc, 0, sizeof(oapvm_cdesc_t));
+    mid = oapvm_create(&mdesc, &ret);
+    if(OAPV_FAILED(ret)) {
+        logerr("ERR: cannot create OAPV metadata container (err=%d)\n", ret);
         ret = -1;
         goto ERR;
     }
@@ -1081,8 +1092,49 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 }
             }
             else if (pbu_info.pbu_type == OAPV_PBU_TYPE_METADATA) {
+                bitb.addr = pbu;
+                bitb.bsize = pbu_size;
+                bitb.ssize = pbu_size;
+
+                ret = oapvd_decode_metadata(did, &bitb, mid);
+                if(OAPV_FAILED(ret)) {
+                    logerr("ERR: failed to decode metadata (ret = %d)\n", ret);
+                    ret = -1; goto ERR;
+                }
             }
             rsize += pbu_size;
+        }
+
+        /* read the metadata payloads collected in this AU */
+        if(mid) {
+            int num_plds = 0;
+
+            ret = oapvm_get_all(mid, NULL, &num_plds);
+            if(OAPV_FAILED(ret)) {
+                logerr("ERR: failed to read metadata\n");
+                ret = -1; goto ERR;
+            }
+            if(num_plds > 0) {
+                oapvm_payload_t *pld = malloc(sizeof(oapvm_payload_t) * num_plds);
+                if(pld == NULL) {
+                    logerr("ERR: failed to allocate memory for metadata payloads (requested: %zu bytes)\n",
+                           sizeof(oapvm_payload_t) * num_plds);
+                    ret = -1; goto ERR;
+                }
+                ret = oapvm_get_all(mid, pld, &num_plds);
+                if(OAPV_FAILED(ret)) {
+                    logerr("ERR: failed to read metadata\n");
+                    free(pld);
+                    ret = -1; goto ERR;
+                }
+                for(int i = 0; i < num_plds; i++) {
+                    const char *type_str = get_key_from_val(oapv_dict_metadata_type, pld[i].type);
+                    logv3("    [%d] type=%s(%d), size=%d\n", i,
+                          type_str ? type_str : "unknown", pld[i].type, pld[i].size);
+                }
+                free(pld);
+            }
+            oapvm_rem_all(mid); // remove all metadata for next au decoding
         }
         au_cnt++;
     }
@@ -1102,6 +1154,9 @@ END:
 ERR:
     if(did)
         oapvd_delete(did);
+
+    if(mid)
+        oapvm_delete(mid);
 
     if(imgb_dec != NULL)
         imgb_dec->release(imgb_dec);
