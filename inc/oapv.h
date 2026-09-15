@@ -502,6 +502,15 @@ static const oapv_dict_str_int_t oapv_dict_pbu_type[] = {
     {"", 0} // termination
 };
 
+static const oapv_dict_str_int_t oapv_dict_metadata_type[] = {
+    {"itu_t_t35",       OAPV_METADATA_ITU_T_T35},
+    {"mdcv",            OAPV_METADATA_MDCV},
+    {"cll",             OAPV_METADATA_CLL},
+    {"filler",          OAPV_METADATA_FILLER},
+    {"user_defined",    OAPV_METADATA_USER_DEFINED},
+    {"", 0} // termination
+};
+
 static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
     {"422-10",      OAPV_PROFILE_422_10},
     {"422-12",      OAPV_PROFILE_422_12},

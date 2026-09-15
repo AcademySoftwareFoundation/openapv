@@ -1114,7 +1114,26 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 logerr("ERR: failed to read metadata\n");
                 ret = -1; goto ERR;
             }
-            logv2("  Metadata payloads                 = %d\n", num_plds);
+            if(num_plds > 0) {
+                oapvm_payload_t *pld = malloc(sizeof(oapvm_payload_t) * num_plds);
+                if(pld == NULL) {
+                    logerr("ERR: failed to allocate memory for metadata payloads (requested: %zu bytes)\n",
+                           sizeof(oapvm_payload_t) * num_plds);
+                    ret = -1; goto ERR;
+                }
+                ret = oapvm_get_all(mid, pld, &num_plds);
+                if(OAPV_FAILED(ret)) {
+                    logerr("ERR: failed to read metadata\n");
+                    free(pld);
+                    ret = -1; goto ERR;
+                }
+                for(int i = 0; i < num_plds; i++) {
+                    const char *type_str = get_key_from_val(oapv_dict_metadata_type, pld[i].type);
+                    logv2("    [%d] type=%s(%d), size=%d\n", i,
+                          type_str ? type_str : "unknown", pld[i].type, pld[i].size);
+                }
+                free(pld);
+            }
             oapvm_rem_all(mid); // remove all metadata for next au decoding
         }
         au_cnt++;
