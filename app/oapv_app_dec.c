@@ -1129,7 +1129,7 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 }
                 for(int i = 0; i < num_plds; i++) {
                     const char *type_str = get_key_from_val(oapv_dict_metadata_type, pld[i].type);
-                    logv2("    [%d] type=%s(%d), size=%d\n", i,
+                    logv3("    [%d] type=%s(%d), size=%d\n", i,
                           type_str ? type_str : "unknown", pld[i].type, pld[i].size);
                 }
                 free(pld);
