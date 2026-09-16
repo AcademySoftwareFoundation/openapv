@@ -41,6 +41,9 @@ The APV codec standard has the following features:
 - APV Family: [APV-Family](/readme/apv_family.md)
 - APV Extensions: [APV-Extensions](/readme/apv_ext.md)
 
+### Related projects
+- ffapv - FFmpeg supporting the APV codec: [https://github.com/openapv/ffapv](https://github.com/openapv/ffapv)
+
 ## How to build
 - Build Requirements
   - CMake (download from [https://cmake.org/](https://cmake.org/))
