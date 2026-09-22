@@ -1753,19 +1753,23 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
     ret = dec_frm_setup(ctx, imgb->cs);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
-    // validate buffer capacity for each component
+    // validate buffer capacity for each plane the write path touches
     int byte_depth = (ctx->fh.fi.bit_depth + 7) / 8; // bytes per pixel
+    int planar2 = (OAPV_CS_GET_FORMAT(ctx->cs) == OAPV_CF_PLANAR2);
+    int num_pln = planar2 ? 2 : ctx->num_c;
 
-    for(int c = 0; c < imgb->np; c++) {
-        int comp_w = ctx->w >> (c > 0 ? get_chroma_sft_w(ctx->cfi) : 0);
-        int comp_h = ctx->h >> (c > 0 ? get_chroma_sft_h(ctx->cfi) : 0);
-        // frame_width/height are signaled in 24 bits, so the required buffer
-        // size can exceed INT_MAX; compute in s64 so the product does not wrap
-        // and let a too-small (int) bsize incorrectly pass the check
-        int required_stride = comp_w * byte_depth;
-        s64 required_bsize = (s64)required_stride * comp_h;
+    oapv_assert_rv(imgb->np >= num_pln, OAPV_ERR_INVALID_ARGUMENT);
 
-        if((s64)imgb->bsize[c] < required_bsize) {
+    for(int p = 0; p < num_pln; p++) {
+        int c = (planar2 && p > 0) ? U_C : p; // the component stored in this plane
+        int w = ctx->w >> ctx->c_sft[c][0];
+        int h = ctx->h >> ctx->c_sft[c][1];
+        // the UV plane of PLANAR2 interleaves two components per sample
+        s64 row = (s64)w * byte_depth * ((planar2 && p > 0) ? 2 : 1);
+
+        // the capacity must cover the last row reached through the stride
+        if((s64)imgb->s[p] < row ||
+           (s64)imgb->bsize[p] < (s64)imgb->s[p] * (h - 1) + row) {
             return OAPV_ERR_INVALID_ARGUMENT;
         }
     }
@@ -2514,6 +2518,7 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
 int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_info)
 {
     oapv_bs_t bs;
+    oapv_assert_rv(pbu != NULL && pbu_info != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(pbu_size >= 4, OAPV_ERR_INVALID_ARGUMENT);
 
     oapv_bsr_init(&bs, pbu, pbu_size, NULL);
@@ -2811,9 +2816,14 @@ int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_
 
 int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
 {
-    int        ret;
-    oapv_bs_t  bs;
-    oapv_aui_t ai;
+    oapvd_ctx_t *ctx;
+    int          ret;
+    oapv_bs_t    bs;
+    oapv_aui_t   ai;
+
+    ctx = dec_id_to_ctx(did);
+    oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(bitb != NULL && bitb->addr != NULL && aui != NULL, OAPV_ERR_INVALID_ARGUMENT);
 
     if(bitb->bsize > 0) {
         oapv_assert_rv(bitb->ssize <= bitb->bsize, OAPV_ERR_INVALID_ARGUMENT);
