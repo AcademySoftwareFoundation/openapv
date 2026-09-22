@@ -1759,13 +1759,12 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
     for(int c = 0; c < imgb->np; c++) {
         int comp_w = ctx->w >> (c > 0 ? get_chroma_sft_w(ctx->cfi) : 0);
         int comp_h = ctx->h >> (c > 0 ? get_chroma_sft_h(ctx->cfi) : 0);
-        // frame_width/height are signaled in 24 bits, so the required buffer
-        // size can exceed INT_MAX; compute in s64 so the product does not wrap
-        // and let a too-small (int) bsize incorrectly pass the check
+        // s64: 24-bit frame dimensions can push the size past INT_MAX
         int required_stride = comp_w * byte_depth;
-        s64 required_bsize = (s64)required_stride * comp_h;
 
-        if((s64)imgb->bsize[c] < required_bsize) {
+        // the capacity must cover the last row reached through the stride
+        if((s64)imgb->s[c] < required_stride ||
+           (s64)imgb->bsize[c] < (s64)imgb->s[c] * (comp_h - 1) + required_stride) {
             return OAPV_ERR_INVALID_ARGUMENT;
         }
     }
