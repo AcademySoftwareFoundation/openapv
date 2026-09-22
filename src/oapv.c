@@ -1753,18 +1753,23 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
     ret = dec_frm_setup(ctx, imgb->cs);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
-    // validate buffer capacity for each component
+    // validate buffer capacity for each plane the write path touches
     int byte_depth = (ctx->fh.fi.bit_depth + 7) / 8; // bytes per pixel
+    int planar2 = (OAPV_CS_GET_FORMAT(ctx->cs) == OAPV_CF_PLANAR2);
+    int num_pln = planar2 ? 2 : ctx->num_c;
 
-    for(int c = 0; c < imgb->np; c++) {
-        int comp_w = ctx->w >> (c > 0 ? get_chroma_sft_w(ctx->cfi) : 0);
-        int comp_h = ctx->h >> (c > 0 ? get_chroma_sft_h(ctx->cfi) : 0);
-        // s64: 24-bit frame dimensions can push the size past INT_MAX
-        int required_stride = comp_w * byte_depth;
+    oapv_assert_rv(imgb->np >= num_pln, OAPV_ERR_INVALID_ARGUMENT);
+
+    for(int p = 0; p < num_pln; p++) {
+        int c = (planar2 && p > 0) ? U_C : p; // the component stored in this plane
+        int w = ctx->w >> ctx->c_sft[c][0];
+        int h = ctx->h >> ctx->c_sft[c][1];
+        // the UV plane of PLANAR2 interleaves two components per sample
+        s64 row = (s64)w * byte_depth * ((planar2 && p > 0) ? 2 : 1);
 
         // the capacity must cover the last row reached through the stride
-        if((s64)imgb->s[c] < required_stride ||
-           (s64)imgb->bsize[c] < (s64)imgb->s[c] * (comp_h - 1) + required_stride) {
+        if((s64)imgb->s[p] < row ||
+           (s64)imgb->bsize[p] < (s64)imgb->s[p] * (h - 1) + row) {
             return OAPV_ERR_INVALID_ARGUMENT;
         }
     }
