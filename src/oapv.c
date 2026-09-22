@@ -2810,9 +2810,14 @@ int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_
 
 int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
 {
-    int        ret;
-    oapv_bs_t  bs;
-    oapv_aui_t ai;
+    oapvd_ctx_t *ctx;
+    int          ret;
+    oapv_bs_t    bs;
+    oapv_aui_t   ai;
+
+    ctx = dec_id_to_ctx(did);
+    oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(bitb != NULL && bitb->addr != NULL && aui != NULL, OAPV_ERR_INVALID_ARGUMENT);
 
     if(bitb->bsize > 0) {
         oapv_assert_rv(bitb->ssize <= bitb->bsize, OAPV_ERR_INVALID_ARGUMENT);
