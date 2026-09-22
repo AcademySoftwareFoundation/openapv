@@ -2513,6 +2513,7 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
 int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_info)
 {
     oapv_bs_t bs;
+    oapv_assert_rv(pbu != NULL && pbu_info != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(pbu_size >= 4, OAPV_ERR_INVALID_ARGUMENT);
 
     oapv_bsr_init(&bs, pbu, pbu_size, NULL);
