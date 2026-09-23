@@ -239,6 +239,17 @@ bitfield TileSizeInFh {
     unsigned value : 32;
 };
 
+bitfield QMatrixComp {
+    qmatrix_00 : 8; qmatrix_01 : 8; qmatrix_02 : 8; qmatrix_03 : 8; qmatrix_04 : 8; qmatrix_05 : 8; qmatrix_06 : 8; qmatrix_07 : 8;
+    qmatrix_08 : 8; qmatrix_09 : 8; qmatrix_10 : 8; qmatrix_11 : 8; qmatrix_12 : 8; qmatrix_13 : 8; qmatrix_14 : 8; qmatrix_15 : 8;
+    qmatrix_16 : 8; qmatrix_17 : 8; qmatrix_18 : 8; qmatrix_19 : 8; qmatrix_20 : 8; qmatrix_21 : 8; qmatrix_22 : 8; qmatrix_23 : 8;
+    qmatrix_24 : 8; qmatrix_25 : 8; qmatrix_26 : 8; qmatrix_27 : 8; qmatrix_28 : 8; qmatrix_29 : 8; qmatrix_30 : 8; qmatrix_31 : 8;
+    qmatrix_32 : 8; qmatrix_33 : 8; qmatrix_34 : 8; qmatrix_35 : 8; qmatrix_36 : 8; qmatrix_37 : 8; qmatrix_38 : 8; qmatrix_39 : 8;
+    qmatrix_40 : 8; qmatrix_41 : 8; qmatrix_42 : 8; qmatrix_43 : 8; qmatrix_44 : 8; qmatrix_45 : 8; qmatrix_46 : 8; qmatrix_47 : 8;
+    qmatrix_48 : 8; qmatrix_49 : 8; qmatrix_50 : 8; qmatrix_51 : 8; qmatrix_52 : 8; qmatrix_53 : 8; qmatrix_54 : 8; qmatrix_55 : 8;
+    qmatrix_56 : 8; qmatrix_57 : 8; qmatrix_58 : 8; qmatrix_59 : 8; qmatrix_60 : 8; qmatrix_61 : 8; qmatrix_62 : 8; qmatrix_63 : 8;
+};
+
 fn get_num_tiles (auto tile_w_mb, auto tile_h_mb, auto w, auto h) {
     u32 startMb = 0;
     u32 w_mb = 0;
@@ -285,45 +296,7 @@ bitfield FrmHeader {
     bool use_q_matrix : 1;
     readbits += 1;
     if(use_q_matrix) { // quantization_matrix()
-        qmatrix0_00 : 8; qmatrix0_01 : 8; qmatrix0_02 : 8; qmatrix0_03 : 8; qmatrix0_04 : 8; qmatrix0_05 : 8; qmatrix0_06 : 8; qmatrix0_07 : 8;
-        qmatrix0_08 : 8; qmatrix0_09 : 8; qmatrix0_10 : 8; qmatrix0_11 : 8; qmatrix0_12 : 8; qmatrix0_13 : 8; qmatrix0_14 : 8; qmatrix0_15 : 8;
-        qmatrix0_16 : 8; qmatrix0_17 : 8; qmatrix0_18 : 8; qmatrix0_19 : 8; qmatrix0_20 : 8; qmatrix0_21 : 8; qmatrix0_22 : 8; qmatrix0_23 : 8;
-        qmatrix0_24 : 8; qmatrix0_25 : 8; qmatrix0_26 : 8; qmatrix0_27 : 8; qmatrix0_28 : 8; qmatrix0_29 : 8; qmatrix0_30 : 8; qmatrix0_31 : 8;
-        qmatrix0_32 : 8; qmatrix0_33 : 8; qmatrix0_34 : 8; qmatrix0_35 : 8; qmatrix0_36 : 8; qmatrix0_37 : 8; qmatrix0_38 : 8; qmatrix0_39 : 8;
-        qmatrix0_40 : 8; qmatrix0_41 : 8; qmatrix0_42 : 8; qmatrix0_43 : 8; qmatrix0_44 : 8; qmatrix0_45 : 8; qmatrix0_46 : 8; qmatrix0_47 : 8;
-        qmatrix0_48 : 8; qmatrix0_49 : 8; qmatrix0_50 : 8; qmatrix0_51 : 8; qmatrix0_52 : 8; qmatrix0_53 : 8; qmatrix0_54 : 8; qmatrix0_55 : 8;
-        qmatrix0_56 : 8; qmatrix0_57 : 8; qmatrix0_58 : 8; qmatrix0_59 : 8; qmatrix0_60 : 8; qmatrix0_61 : 8; qmatrix0_62 : 8; qmatrix0_63 : 8;
-
-        if(NumComps > 1) {
-        qmatrix1_00 : 8; qmatrix1_01 : 8; qmatrix1_02 : 8; qmatrix1_03 : 8; qmatrix1_04 : 8; qmatrix1_05 : 8; qmatrix1_06 : 8; qmatrix1_07 : 8;
-        qmatrix1_08 : 8; qmatrix1_09 : 8; qmatrix1_10 : 8; qmatrix1_11 : 8; qmatrix1_12 : 8; qmatrix1_13 : 8; qmatrix1_14 : 8; qmatrix1_15 : 8;
-        qmatrix1_16 : 8; qmatrix1_17 : 8; qmatrix1_18 : 8; qmatrix1_19 : 8; qmatrix1_20 : 8; qmatrix1_21 : 8; qmatrix1_22 : 8; qmatrix1_23 : 8;
-        qmatrix1_24 : 8; qmatrix1_25 : 8; qmatrix1_26 : 8; qmatrix1_27 : 8; qmatrix1_28 : 8; qmatrix1_29 : 8; qmatrix1_30 : 8; qmatrix1_31 : 8;
-        qmatrix1_32 : 8; qmatrix1_33 : 8; qmatrix1_34 : 8; qmatrix1_35 : 8; qmatrix1_36 : 8; qmatrix1_37 : 8; qmatrix1_38 : 8; qmatrix1_39 : 8;
-        qmatrix1_40 : 8; qmatrix1_41 : 8; qmatrix1_42 : 8; qmatrix1_43 : 8; qmatrix1_44 : 8; qmatrix1_45 : 8; qmatrix1_46 : 8; qmatrix1_47 : 8;
-        qmatrix1_48 : 8; qmatrix1_49 : 8; qmatrix1_50 : 8; qmatrix1_51 : 8; qmatrix1_52 : 8; qmatrix1_53 : 8; qmatrix1_54 : 8; qmatrix1_55 : 8;
-        qmatrix1_56 : 8; qmatrix1_57 : 8; qmatrix1_58 : 8; qmatrix1_59 : 8; qmatrix1_60 : 8; qmatrix1_61 : 8; qmatrix1_62 : 8; qmatrix1_63 : 8;
-        }
-        if(NumComps > 2) {
-        qmatrix2_00 : 8; qmatrix2_01 : 8; qmatrix2_02 : 8; qmatrix2_03 : 8; qmatrix2_04 : 8; qmatrix2_05 : 8; qmatrix2_06 : 8; qmatrix2_07 : 8;
-        qmatrix2_08 : 8; qmatrix2_09 : 8; qmatrix2_10 : 8; qmatrix2_11 : 8; qmatrix2_12 : 8; qmatrix2_13 : 8; qmatrix2_14 : 8; qmatrix2_15 : 8;
-        qmatrix2_16 : 8; qmatrix2_17 : 8; qmatrix2_18 : 8; qmatrix2_19 : 8; qmatrix2_20 : 8; qmatrix2_21 : 8; qmatrix2_22 : 8; qmatrix2_23 : 8;
-        qmatrix2_24 : 8; qmatrix2_25 : 8; qmatrix2_26 : 8; qmatrix2_27 : 8; qmatrix2_28 : 8; qmatrix2_29 : 8; qmatrix2_30 : 8; qmatrix2_31 : 8;
-        qmatrix2_32 : 8; qmatrix2_33 : 8; qmatrix2_34 : 8; qmatrix2_35 : 8; qmatrix2_36 : 8; qmatrix2_37 : 8; qmatrix2_38 : 8; qmatrix2_39 : 8;
-        qmatrix2_40 : 8; qmatrix2_41 : 8; qmatrix2_42 : 8; qmatrix2_43 : 8; qmatrix2_44 : 8; qmatrix2_45 : 8; qmatrix2_46 : 8; qmatrix2_47 : 8;
-        qmatrix2_48 : 8; qmatrix2_49 : 8; qmatrix2_50 : 8; qmatrix2_51 : 8; qmatrix2_52 : 8; qmatrix2_53 : 8; qmatrix2_54 : 8; qmatrix2_55 : 8;
-        qmatrix2_56 : 8; qmatrix2_57 : 8; qmatrix2_58 : 8; qmatrix2_59 : 8; qmatrix2_60 : 8; qmatrix2_61 : 8; qmatrix2_62 : 8; qmatrix2_63 : 8;
-        }
-        if(NumComps > 3) {
-        qmatrix3_00 : 8; qmatrix3_01 : 8; qmatrix3_02 : 8; qmatrix3_03 : 8; qmatrix3_04 : 8; qmatrix3_05 : 8; qmatrix3_06 : 8; qmatrix3_07 : 8;
-        qmatrix3_08 : 8; qmatrix3_09 : 8; qmatrix3_10 : 8; qmatrix3_11 : 8; qmatrix3_12 : 8; qmatrix3_13 : 8; qmatrix3_14 : 8; qmatrix3_15 : 8;
-        qmatrix3_16 : 8; qmatrix3_17 : 8; qmatrix3_18 : 8; qmatrix3_19 : 8; qmatrix3_20 : 8; qmatrix3_21 : 8; qmatrix3_22 : 8; qmatrix3_23 : 8;
-        qmatrix3_24 : 8; qmatrix3_25 : 8; qmatrix3_26 : 8; qmatrix3_27 : 8; qmatrix3_28 : 8; qmatrix3_29 : 8; qmatrix3_30 : 8; qmatrix3_31 : 8;
-        qmatrix3_32 : 8; qmatrix3_33 : 8; qmatrix3_34 : 8; qmatrix3_35 : 8; qmatrix3_36 : 8; qmatrix3_37 : 8; qmatrix3_38 : 8; qmatrix3_39 : 8;
-        qmatrix3_40 : 8; qmatrix3_41 : 8; qmatrix3_42 : 8; qmatrix3_43 : 8; qmatrix3_44 : 8; qmatrix3_45 : 8; qmatrix3_46 : 8; qmatrix3_47 : 8;
-        qmatrix3_48 : 8; qmatrix3_49 : 8; qmatrix3_50 : 8; qmatrix3_51 : 8; qmatrix3_52 : 8; qmatrix3_53 : 8; qmatrix3_54 : 8; qmatrix3_55 : 8;
-        qmatrix3_56 : 8; qmatrix3_57 : 8; qmatrix3_58 : 8; qmatrix3_59 : 8; qmatrix3_60 : 8; qmatrix3_61 : 8; qmatrix3_62 : 8; qmatrix3_63 : 8;
-        }
+        QMatrixComp q_matrix[NumComps];
         readbits += (NumComps * 8 * 8) * 8;
     }
     // tile_info()
