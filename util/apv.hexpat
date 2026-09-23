@@ -343,6 +343,17 @@ struct Tile {
     }
 } [[name(std::format("Tile[{}]", tile_index))]];
 
+/*
+FrmHeader is wrapped in an empty bitfield so that ImHex treats it as a
+bitfield member: only members with a parent bitfield get a bit-exact size
+display (e.g. "19 bytes, 3 bits"), while top-level bitfields are rounded
+up to whole bytes. The wrapper is inlined so it does not show up in the
+pattern tree.
+*/
+bitfield FrmHeaderWrap {
+    FrmHeader fh [[name("frame_header()")]];
+};
+
 struct PbuFrm:PbuBase {
     frm_total += 1;
 
@@ -354,15 +365,15 @@ struct PbuFrm:PbuBase {
     else if(pbu_type == PbuType::FRM_GAINMAP) ptype_str = "Frm(Gainmap)";
     else ptype_str = "Frm(Unknown)";
 
-    FrmHeader fh [[name("frame_info()")]];
+    FrmHeaderWrap fhw [[inline]];
 
     /* collect distinct frame configurations; brackets keep contains() exact */
-    u32 w = fh.finfo.frame_width;
-    u32 h = fh.finfo.frame_height;
-    u32 c = u32(fh.finfo.chroma_format_idc);
-    u32 bd = fh.finfo.bit_depth_minus8 + 8;
-    u32 p = u32(fh.finfo.profile_idc);
-    u32 uc = fh.finfo.use_companding;
+    u32 w = fhw.fh.finfo.frame_width;
+    u32 h = fhw.fh.finfo.frame_height;
+    u32 c = u32(fhw.fh.finfo.chroma_format_idc);
+    u32 bd = fhw.fh.finfo.bit_depth_minus8 + 8;
+    u32 p = u32(fhw.fh.finfo.profile_idc);
+    u32 uc = fhw.fh.finfo.use_companding;
 
     str cfg = std::format("[{}x{}, {}, {}-bit, {}", w, h, get_chroma_str(c), bd, get_profile_str(p));
     if(uc) {
@@ -414,19 +425,19 @@ struct PbuFrm:PbuBase {
     }
     au_frm_idx += 1;
 
-    read += (fh.readbits + 7) >> 3;
+    read += (fhw.fh.readbits + 7) >> 3;
     u64 pbu_end = $ + pbu_size - read;
 
     if(pbu_end < $) {
         std::warning(std::format("PBU[{}] pbu_size ({}) is smaller than its frame header", pbu_count, pbu_size));
     }
-    else if(fh.NumTiles == 0) {
+    else if(fhw.fh.NumTiles == 0) {
         std::warning(std::format("PBU[{}] invalid tile_info, skipping frame data", pbu_count));
         u8 frame_data[pbu_end - $] [[sealed]];
     }
     else {
-        num_comps = fh.NumComps;
-        Tile tile[fh.NumTiles] [[inline]];
+        num_comps = fhw.fh.NumComps;
+        Tile tile[fhw.fh.NumTiles] [[inline]];
 
         if($ < pbu_end) {
             u8 filler[pbu_end - $] [[sealed]];
