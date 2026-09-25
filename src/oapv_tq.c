@@ -407,7 +407,7 @@ static void oapv_dquant(s16 *coef, s16 q_matrix[OAPV_BLK_D], int log2_w, int log
         }
     }
     else {
-        int left_shift = -shift;
+        int left_shift = oapv_clip3(0, 30, -shift);
         for(i = 0; i < pixels; i++) {
             lev = (coef[i] * q_matrix[i]) << left_shift;
             coef[i] = (s16)oapv_clip3(-32768, 32767, lev);
