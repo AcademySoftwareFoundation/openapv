@@ -314,6 +314,7 @@ int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size)
 
     oapv_mdp_t *mdp_t = meta_find_mdp(md, type, uuid);
     if(mdp_t == NULL) { // add new one
+        oapv_assert_gv(md->mdp_num < OAPV_MAX_NUM_META_PAYLOADS, ret, OAPV_ERR_REACHED_MAX, ERR);
         mdp_new = oapv_ops_malloc(ctx, sizeof(oapv_mdp_t));
         oapv_assert_gv(mdp_new != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
         mdp_new->pld_size = size;
