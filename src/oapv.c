@@ -1387,7 +1387,10 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         oapve_vlc_pbu_header(bs, frm->pbu_type, frm->group_id);
         // encode a frame
         ret = enc_frame(ctx, bs);
-        oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+        if(OAPV_FAILED(ret)) {
+            enc_frm_finish(ctx, stat);
+            return ret;
+        }
 
         /* Save the updated RC state back into this slot for the next AU. */
         ctx->rc_param_frm[i] = ctx->rc_param;
@@ -1407,9 +1410,15 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         if(ctx->use_frm_hash[i]) {
             if(frm->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME ||
                frm->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME) {
-                oapv_assert_rv(mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
+                if(mid == NULL) {
+                    enc_frm_finish(ctx, stat);
+                    return OAPV_ERR_INVALID_ARGUMENT;
+                }
                 ret = oapv_set_md5_pld(mid, frm->group_id, ctx->imgb_r);
-                oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+                if(OAPV_FAILED(ret)) {
+                    enc_frm_finish(ctx, stat);
+                    return ret;
+                }
             }
         }
 
