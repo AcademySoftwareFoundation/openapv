@@ -1256,9 +1256,11 @@ int oapvd_vlc_metadata(oapv_bs_t *bs, u32 pbu_size, oapvm_t mid, int group_id)
             oapv_assert_gv(metadata_size > 0, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
             metadata_size -= 1;
             if(t0 == 0xFF) {
+                oapv_assert_gv(payload_type <= (0xFFFFFFFFU - 255), ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
                 payload_type += 255;
             }
         } while(t0 == 0xFF);
+        oapv_assert_gv(payload_type <= (0xFFFFFFFFU - t0), ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
         payload_type += t0;
 
         t0 = 0;
@@ -1269,9 +1271,11 @@ int oapvd_vlc_metadata(oapv_bs_t *bs, u32 pbu_size, oapvm_t mid, int group_id)
             oapv_assert_gv(metadata_size > 0, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
             metadata_size -= 1;
             if(t0 == 0xFF) {
+                oapv_assert_gv(payload_size <= (0xFFFFFFFFU - 255), ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
                 payload_size += 255;
             }
         } while(t0 == 0xFF);
+        oapv_assert_gv(payload_size <= (0xFFFFFFFFU - t0), ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
         payload_size += t0;
         oapv_assert_gv(payload_size <= metadata_size, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
 
