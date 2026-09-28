@@ -565,6 +565,12 @@ static int enc_update_param_tile(oapve_ctx_t* ctx, oapve_param_t* param)
     if(param->tile_h > ctx->h) {
         param->tile_h = ctx->h;
     }
+
+    if(!unconst) {
+        param->tile_w = oapv_max(param->tile_w, OAPV_MIN_TILE_W);
+        param->tile_h = oapv_max(param->tile_h, OAPV_MIN_TILE_H);
+    }
+
     oapv_assert_rv((param->tile_w & (OAPV_MB_W - 1)) == 0 && (param->tile_h & (OAPV_MB_H - 1)) == 0, OAPV_ERR_INVALID_ARGUMENT);
 
     if (!unconst && oapv_div_round_up(ctx->w, param->tile_w) > OAPV_MAX_TILE_COLS) {
