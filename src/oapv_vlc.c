@@ -775,9 +775,11 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
             }
             else {
                 // No k range check here on purpose; a per-bit branch slows
-                // down decoding. (k & 31) keeps the shift valid. At buffer end,
-                // BSR_FLUSH_1BYTE feeds 1-bits and sets is_eob, so the loop
-                // exits; the k check below and the callers reject the stream.
+                // down decoding. (k & 31) is not in the APV spec. It is a no-op
+                // for a valid bitstream (k < 32) and exists only to avoid
+                // shift-count UB when a malformed bitstream drives k past 31;
+                // the k check below rejects such a symbol. BSR_FLUSH_1BYTE
+                // feeds 1-bits at buffer end and sets is_eob; the loop exits.
                 symbol += 1u << (k & 31);
                 k++;
             }
