@@ -1355,6 +1355,13 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
     oapv_assert_rv(ifrms != NULL && stat != NULL, OAPV_ERR_INVALID_ARGUMENT);
     // bound the frame count to the frm[]/param[] array sizes
     oapv_assert_rv(ifrms->num_frms >= 1 && ifrms->num_frms <= OAPV_MAX_NUM_FRAMES, OAPV_ERR_INVALID_ARGUMENT);
+    for(i = 0; i < ifrms->num_frms; i++) {
+        frm = &ifrms->frm[i];
+        if(ctx->use_frm_hash[i] &&
+           (frm->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME || frm->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME)) {
+            oapv_assert_rv(mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
+        }
+    }
 
     bs = &bsw;
 
@@ -1387,7 +1394,7 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         oapve_vlc_pbu_header(bs, frm->pbu_type, frm->group_id);
         // encode a frame
         ret = enc_frame(ctx, bs);
-        oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+        oapv_assert_gv(OAPV_SUCCEEDED(ret), ret, ret, ERR);
 
         /* Save the updated RC state back into this slot for the next AU. */
         ctx->rc_param_frm[i] = ctx->rc_param;
@@ -1407,9 +1414,8 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         if(ctx->use_frm_hash[i]) {
             if(frm->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME ||
                frm->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME) {
-                oapv_assert_rv(mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
                 ret = oapv_set_md5_pld(mid, frm->group_id, ctx->imgb_r);
-                oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+                oapv_assert_gv(OAPV_SUCCEEDED(ret), ret, ret, ERR);
             }
         }
 
@@ -1454,6 +1460,10 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
     stat->write = bsw_get_write_byte(bs);
 
     return OAPV_OK;
+
+ERR:
+    enc_frm_finish(ctx, stat);
+    return ret;
 }
 
 int oapve_config(oapve_t eid, int cfg, void *buf, int *size)
