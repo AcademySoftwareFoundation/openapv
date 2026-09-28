@@ -959,20 +959,22 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
                 return OAPV_ERR_MALFORMED_BITSTREAM;
             level += 1;
         }
-        if(level > 32767)
-            return OAPV_ERR_MALFORMED_BITSTREAM;
-        k_ac = KPARAM_AC(level);
+        // sign parsing
+        if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
+        BSR_READ_1BIT(bs, flag);
 
+        // the reconstructed AC coefficient must be in [-32768, 32767]
+        int val = oapv_set_sign16(level, flag);
+        if(val < MIN_TX_VAL || val > MAX_TX_VAL)
+            return OAPV_ERR_MALFORMED_BITSTREAM;
+
+        k_ac = KPARAM_AC(level);
         if(first_ac) {
             first_ac = 0;
             *kparam_ac = k_ac; // backup
         }
 
-        // sign parsing
-        if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-        BSR_READ_1BIT(bs, flag);
-
-        coef[scanp[scan_pos_offset++]] = oapv_set_sign16(level, flag);
+        coef[scanp[scan_pos_offset++]] = (s16)val;
 
         if(scan_pos_offset >= OAPV_BLK_D) {
             break;
