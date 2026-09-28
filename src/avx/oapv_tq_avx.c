@@ -468,7 +468,6 @@ static void oapv_dquant_avx(s16 *coef, s16 dq_mat[OAPV_BLK_D], int log2_w, int l
     }
     else
     {
-        int left_shift = -shift;
         // clip before the shift so that it cannot wrap; see oapv_dquant()
         __m256i min_16 = _mm256_set1_epi32(-32768);
         __m256i max_16 = _mm256_set1_epi32(32767);
@@ -480,8 +479,8 @@ static void oapv_dquant_avx(s16 *coef, s16 dq_mat[OAPV_BLK_D], int log2_w, int l
             __m256i hi = _mm256_mulhi_epi16(c, q);
             __m256i p0 = _mm256_unpacklo_epi16(lo, hi);
             __m256i p1 = _mm256_unpackhi_epi16(lo, hi);
-            p0 = _mm256_slli_epi32(_mm256_min_epi32(_mm256_max_epi32(p0, min_16), max_16), left_shift);
-            p1 = _mm256_slli_epi32(_mm256_min_epi32(_mm256_max_epi32(p1, min_16), max_16), left_shift);
+            p0 = _mm256_slli_epi32(_mm256_min_epi32(_mm256_max_epi32(p0, min_16), max_16), -shift);
+            p1 = _mm256_slli_epi32(_mm256_min_epi32(_mm256_max_epi32(p1, min_16), max_16), -shift);
             _mm256_storeu_si256((__m256i*)(coef + i), _mm256_packs_epi32(p0, p1));
         }
     }

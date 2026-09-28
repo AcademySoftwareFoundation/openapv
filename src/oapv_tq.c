@@ -407,13 +407,15 @@ static void oapv_dquant(s16 *coef, s16 dq_mat[OAPV_BLK_D], int log2_w, int log2_
         }
     }
     else {
-        // left_shift is at most 2, since qp <= MAX_QUANT(bit_depth) keeps
-        // dq_shift >= -2. Clipping before the shift gives the same result as
-        // clipping after it, without overflow or a shift of a negative value.
-        int left_shift = -shift;
+        // -shift is at most 2, since qp <= MAX_QUANT(bit_depth) keeps
+        // dq_shift >= -2. The shift is written as a multiplication, because
+        // left-shifting a negative value is undefined behavior in C. The
+        // product is clipped first, because it can reach about 2^29.1 and
+        // multiplying it by 4 would overflow int; since the result is
+        // clipped to 16 bits anyway, clipping first does not change it.
         for(i = 0; i < pixels; i++) {
             lev = oapv_clip3(-32768, 32767, coef[i] * dq_mat[i]);
-            coef[i] = (s16)oapv_clip3(-32768, 32767, lev * (1 << left_shift));
+            coef[i] = (s16)oapv_clip3(-32768, 32767, lev * (1 << (-shift)));
         }
     }
 }
