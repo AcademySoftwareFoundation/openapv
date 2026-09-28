@@ -662,7 +662,7 @@ int oapve_vlc_get_coef_rate(oapve_core_t* core, s16* coef, int c)
 
 static int dec_vlc_read_kparam0(oapv_bs_t *bs)
 {
-    int symbol;
+    u32 symbol;
     int flag, k;
 
     symbol = 2;
@@ -679,7 +679,7 @@ static int dec_vlc_read_kparam0(oapv_bs_t *bs)
             k++;
         }
     }
-    oapv_assert_rv(k < 32, -1); /* prevent too large (impossible) k value */
+    oapv_assert_rv(k < 30, -1); /* prevent too large (impossible) k value */
 
     if(k > 0) {
         symbol += ((u32)0xFFFFFFFF) >> (32 - k);
@@ -693,18 +693,18 @@ static int dec_vlc_read_kparam0(oapv_bs_t *bs)
         bs->code <<= k;
         bs->leftbits -= k;
     }
-    return symbol;
+    return (int)symbol;
 }
 
 static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
 {
-    int symbol;
+    u32 symbol;
     int flag, k;
 
     if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
     BSR_READ_1BIT(bs, flag);
 
-    symbol = (1 + flag);
+    symbol = (u32)(1 + flag);
     k = 0;
     if(flag) { // parse_exp_golomb
         while(1) {
@@ -720,7 +720,7 @@ static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
         }
     }
 
-    oapv_assert_rv(k < 32, -1); /* prevent too large (impossible) k value */
+    oapv_assert_rv(k < 30, -1); /* prevent too large (impossible) k value */
 
     if(k > 0) {
         symbol += ((u32)0xFFFFFFFF) >> (32 - k);
@@ -734,7 +734,7 @@ static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
         bs->code <<= k;
         bs->leftbits -= k;
     }
-    return symbol;
+    return (int)symbol;
 }
 
 static int dec_vlc_read(oapv_bs_t *bs, int k)
