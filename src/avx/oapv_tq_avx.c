@@ -393,7 +393,7 @@ const oapv_fn_itx_t oapv_tbl_fn_itx_avx[2] =
         NULL
 };
 
-static int oapv_quant_avx(s16* coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset)
+static int oapv_quant_avx(s16* coef, u8 qp, int q_mat[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset)
 {
     s64 offset;
     int shift;
@@ -417,7 +417,7 @@ static int oapv_quant_avx(s16* coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_w
             __m256i c32 = _mm256_cvtepi16_epi32(c16);
             __m256i sign = _mm256_srai_epi32(c32, 31);
             __m256i a = _mm256_abs_epi32(c32);
-            __m256i q = _mm256_loadu_si256((__m256i*)(q_matrix + i + g * 8));
+            __m256i q = _mm256_loadu_si256((__m256i*)(q_mat + i + g * 8));
 
             // 32x32 -> 64-bit products for even and odd lanes; the quantized
             // level after the shift fits in 21 bits, so the upper dword is 0
@@ -443,7 +443,7 @@ const oapv_fn_quant_t oapv_tbl_fn_quant_avx[2] =
         NULL
 };
 
-static void oapv_dquant_avx(s16 *coef, s16 q_matrix[OAPV_BLK_D], int log2_w, int log2_h, s8 shift)
+static void oapv_dquant_avx(s16 *coef, s16 dq_mat[OAPV_BLK_D], int log2_w, int log2_h, s8 shift)
 {
     int i;
     int pixels = (1 << (log2_w + log2_h));
@@ -456,7 +456,7 @@ static void oapv_dquant_avx(s16 *coef, s16 q_matrix[OAPV_BLK_D], int log2_w, int
         for (i = 0; i < pixels; i += 16)
         {
             __m256i c = _mm256_loadu_si256((__m256i*)(coef + i));
-            __m256i q = _mm256_loadu_si256((__m256i*)(q_matrix + i));
+            __m256i q = _mm256_loadu_si256((__m256i*)(dq_mat + i));
             __m256i lo = _mm256_mullo_epi16(c, q);
             __m256i hi = _mm256_mulhi_epi16(c, q);
             __m256i p0 = _mm256_unpacklo_epi16(lo, hi);
@@ -472,7 +472,7 @@ static void oapv_dquant_avx(s16 *coef, s16 q_matrix[OAPV_BLK_D], int log2_w, int
         for (i = 0; i < pixels; i += 16)
         {
             __m256i c = _mm256_loadu_si256((__m256i*)(coef + i));
-            __m256i q = _mm256_loadu_si256((__m256i*)(q_matrix + i));
+            __m256i q = _mm256_loadu_si256((__m256i*)(dq_mat + i));
             __m256i lo = _mm256_mullo_epi16(c, q);
             __m256i hi = _mm256_mulhi_epi16(c, q);
             __m256i p0 = _mm256_slli_epi32(_mm256_unpacklo_epi16(lo, hi), left_shift);

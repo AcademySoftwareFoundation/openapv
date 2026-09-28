@@ -492,7 +492,7 @@ const oapv_fn_itx_t oapv_tbl_fn_itx_neon[2] =
             NULL
 };
 
-static int oapv_quant_neon(s16* coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset)
+static int oapv_quant_neon(s16* coef, u8 qp, int q_mat[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset)
 {
     s64 offset;
     int shift;
@@ -529,11 +529,11 @@ static int oapv_quant_neon(s16* coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_
         int32x4_t coef_low_32b  = vmovl_s16(vget_low_s16(coef_row_abs));
         int32x4_t coef_high_32b = vmovl_high_s16(coef_row_abs);
 
-        // Load q_matrix elements
-        int32x4_t quant_matrix_low  = vld1q_s32(q_matrix + i);
-        int32x4_t quant_matrix_high = vld1q_s32(q_matrix + i + 4);
+        // Load q_mat elements
+        int32x4_t quant_matrix_low  = vld1q_s32(q_mat + i);
+        int32x4_t quant_matrix_high = vld1q_s32(q_mat + i + 4);
 
-        // Multiply 2X: 32-bit coef with 32-bit q_matrix and add 64-bit offset_vector to store result as 64-bit
+        // Multiply 2X: 32-bit coef with 32-bit q_mat and add 64-bit offset_vector to store result as 64-bit
         int64x2_t coef_low_32b_first_half   = vmlal_s32(offset_vector, vget_low_s32 (coef_low_32b), vget_low_s32 (quant_matrix_low));
         int64x2_t coef_low_32b_second_half  = vmlal_s32(offset_vector, vget_high_s32(coef_low_32b), vget_high_s32(quant_matrix_low));
 
@@ -738,7 +738,7 @@ const oapv_fn_itx_part_t oapv_tbl_fn_itx_part_neon[2] =
     NULL
 };
 
-static void oapv_dquant_neon(s16* coef, s16 q_matrix[OAPV_BLK_D], int log2_w, int log2_h, s8 shift)
+static void oapv_dquant_neon(s16* coef, s16 dq_mat[OAPV_BLK_D], int log2_w, int log2_h, s8 shift)
 {
     int i;
     int pixels = (1 << (log2_w + log2_h));
@@ -747,7 +747,7 @@ static void oapv_dquant_neon(s16* coef, s16 q_matrix[OAPV_BLK_D], int log2_w, in
         int32x4_t sh = vdupq_n_s32(-shift); // rounding right shift via vrshlq
         for(i = 0; i < pixels; i += 8) {
             int16x8_t c = vld1q_s16(coef + i);
-            int16x8_t q = vld1q_s16(q_matrix + i);
+            int16x8_t q = vld1q_s16(dq_mat + i);
             int32x4_t p0 = vmull_s16(vget_low_s16(c), vget_low_s16(q));
             int32x4_t p1 = vmull_high_s16(c, q);
             p0 = vrshlq_s32(p0, sh);
@@ -759,7 +759,7 @@ static void oapv_dquant_neon(s16* coef, s16 q_matrix[OAPV_BLK_D], int log2_w, in
         int32x4_t sh = vdupq_n_s32(-shift);
         for(i = 0; i < pixels; i += 8) {
             int16x8_t c = vld1q_s16(coef + i);
-            int16x8_t q = vld1q_s16(q_matrix + i);
+            int16x8_t q = vld1q_s16(dq_mat + i);
             int32x4_t p0 = vshlq_s32(vmull_s16(vget_low_s16(c), vget_low_s16(q)), sh);
             int32x4_t p1 = vshlq_s32(vmull_high_s16(c, q), sh);
             vst1q_s16(coef + i, vcombine_s16(vqmovn_s32(p0), vqmovn_s32(p1)));

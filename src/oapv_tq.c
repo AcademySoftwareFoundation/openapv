@@ -105,7 +105,7 @@ void oapve_init_rdoq(oapve_core_t * core, int bit_depth, int ch_type)
     double err_scale;
 
     for(int cnt = 0; cnt < OAPV_BLK_D; cnt++) {
-        int q_value = core->q_mat_enc[ch_type][cnt];
+        int q_value = core->q_mat[ch_type][cnt];
         int tr_shift = MAX_TX_DYNAMIC_RANGE - bit_depth - 3;
         err_scale = (double)pow(2.0, -tr_shift);
         err_scale = err_scale / q_value ;
@@ -147,7 +147,7 @@ int oapve_rdoq(oapve_core_t* core, s16 *src_coef, s16 *dst_coef, int log2_cuw, i
         s64 temp_level;
         double err;
 
-        temp_level = ((s64)oapv_abs(src_coef[blk_pos]) * core->q_mat_enc[ch_type][blk_pos]);
+        temp_level = ((s64)oapv_abs(src_coef[blk_pos]) * core->q_mat[ch_type][blk_pos]);
         level_double = (s32)oapv_min(temp_level, ((s32)0x7FFFFFFF) - ((1 << q_bits) - 1));
         tmp_level_double[blk_pos] = level_double;
         max_abs_level = (u32)oapv_min((level_double + ((1 << q_bits) - 1)) >> q_bits, (1 << MAX_TX_DYNAMIC_RANGE) - 1);
@@ -271,12 +271,12 @@ int oapve_rdoq(oapve_core_t* core, s16 *src_coef, s16 *dst_coef, int log2_cuw, i
     return nnz;
 }
 
-static int oapv_quant(s16 *coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset)
+static int oapv_quant(s16 *coef, u8 qp, int q_mat[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset)
 {
     // coef is the output of the transform, the bit range is 16
-    // q_matrix has the value of q_scale * 16 / q_matrix, the bit range is 19
+    // q_mat has the value of q_scale * 16 / q_matrix, the bit range is 19
     // (precision of q_scale is 15, and the range of q_mtrix is 1~255)
-    // lev is the product of abs(coef) and q_matrix, the bit range is 35
+    // lev is the product of abs(coef) and q_mat, the bit range is 35
 
     s64 lev;
     s32 offset;
@@ -293,7 +293,7 @@ static int oapv_quant(s16 *coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_w, in
 
     for(i = 0; i < pixels; i++) {
         sign = oapv_get_sign(coef[i]);
-        lev = (s64)oapv_abs(coef[i]) * (q_matrix[i]);
+        lev = (s64)oapv_abs(coef[i]) * (q_mat[i]);
         lev = (lev + offset) >> shift;
         lev = oapv_set_sign(lev, sign);
         coef[i] = (s16)(oapv_clip3(-32768, 32767, lev));
@@ -393,7 +393,7 @@ const oapv_fn_itx_t oapv_tbl_fn_itx[2] = {
     NULL
 };
 
-static void oapv_dquant(s16 *coef, s16 q_matrix[OAPV_BLK_D], int log2_w, int log2_h, s8 shift)
+static void oapv_dquant(s16 *coef, s16 dq_mat[OAPV_BLK_D], int log2_w, int log2_h, s8 shift)
 {
     int i;
     int lev;
@@ -402,14 +402,14 @@ static void oapv_dquant(s16 *coef, s16 q_matrix[OAPV_BLK_D], int log2_w, int log
     if(shift > 0) {
         s32 offset = (1 << (shift - 1));
         for(i = 0; i < pixels; i++) {
-            lev = (coef[i] * q_matrix[i] + offset) >> shift;
+            lev = (coef[i] * dq_mat[i] + offset) >> shift;
             coef[i] = (s16)oapv_clip3(-32768, 32767, lev);
         }
     }
     else {
         int left_shift = -shift;
         for(i = 0; i < pixels; i++) {
-            lev = (coef[i] * q_matrix[i]) << left_shift;
+            lev = (coef[i] * dq_mat[i]) << left_shift;
             coef[i] = (s16)oapv_clip3(-32768, 32767, lev);
         }
     }
