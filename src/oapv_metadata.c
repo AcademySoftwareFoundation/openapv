@@ -119,6 +119,15 @@ static int meta_rm_mdp(oapvm_ctx_t *ctx, oapv_md_t *md, int mdt, unsigned char *
     return OAPV_OK;
 }
 
+static int meta_get_num_mdp(oapvm_ctx_t *ctx)
+{
+    int num = 0;
+    for(int i = 0; i < ctx->num; i++) {
+        num += ctx->md_arr[i].mdp_num;
+    }
+    return num;
+}
+
 static oapv_md_t *meta_find_md(oapvm_ctx_t *ctx, int group_id)
 {
     for(int n = 0; n < ctx->num; n++) {
@@ -314,6 +323,7 @@ int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size)
 
     oapv_mdp_t *mdp_t = meta_find_mdp(md, type, uuid);
     if(mdp_t == NULL) { // add new one
+        oapv_assert_gv(meta_get_num_mdp(ctx) < OAPV_MAX_NUM_META_PAYLOADS, ret, OAPV_ERR_REACHED_MAX, ERR);
         mdp_new = oapv_ops_malloc(ctx, sizeof(oapv_mdp_t));
         oapv_assert_gv(mdp_new != NULL, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
         mdp_new->pld_size = size;
@@ -395,12 +405,9 @@ int oapvm_get_all(oapvm_t mid, oapvm_payload_t *pld, int *num_plds)
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(num_plds != NULL, OAPV_ERR_INVALID_ARGUMENT);
     if(pld == NULL) {
-        int num_payload = 0;
-        for(int i = 0; i < ctx->num; i++) {
-            num_payload += ctx->md_arr[i].mdp_num;
-            if(num_payload > OAPV_MAX_NUM_META_PAYLOADS || num_payload < 0)
-                return OAPV_ERR_REACHED_MAX;
-        }
+        int num_payload = meta_get_num_mdp(ctx);
+        if(num_payload > OAPV_MAX_NUM_META_PAYLOADS || num_payload < 0)
+            return OAPV_ERR_REACHED_MAX;
         *num_plds = num_payload;
         return OAPV_OK;
     }
