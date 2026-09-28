@@ -407,10 +407,13 @@ static void oapv_dquant(s16 *coef, s16 dq_mat[OAPV_BLK_D], int log2_w, int log2_
         }
     }
     else {
+        // left_shift is at most 2, since qp <= MAX_QUANT(bit_depth) keeps
+        // dq_shift >= -2. Clipping before the shift gives the same result as
+        // clipping after it, without overflow or a shift of a negative value.
         int left_shift = -shift;
         for(i = 0; i < pixels; i++) {
-            lev = (coef[i] * dq_mat[i]) << left_shift;
-            coef[i] = (s16)oapv_clip3(-32768, 32767, lev);
+            lev = oapv_clip3(-32768, 32767, coef[i] * dq_mat[i]);
+            coef[i] = (s16)oapv_clip3(-32768, 32767, lev * (1 << left_shift));
         }
     }
 }

@@ -756,12 +756,13 @@ static void oapv_dquant_neon(s16* coef, s16 dq_mat[OAPV_BLK_D], int log2_w, int 
         }
     }
     else {
+        // saturating shift so that a large product cannot wrap
         int32x4_t sh = vdupq_n_s32(-shift);
         for(i = 0; i < pixels; i += 8) {
             int16x8_t c = vld1q_s16(coef + i);
             int16x8_t q = vld1q_s16(dq_mat + i);
-            int32x4_t p0 = vshlq_s32(vmull_s16(vget_low_s16(c), vget_low_s16(q)), sh);
-            int32x4_t p1 = vshlq_s32(vmull_high_s16(c, q), sh);
+            int32x4_t p0 = vqshlq_s32(vmull_s16(vget_low_s16(c), vget_low_s16(q)), sh);
+            int32x4_t p1 = vqshlq_s32(vmull_high_s16(c, q), sh);
             vst1q_s16(coef + i, vcombine_s16(vqmovn_s32(p0), vqmovn_s32(p1)));
         }
     }
