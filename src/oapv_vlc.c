@@ -783,7 +783,7 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
         }
     }
 
-    oapv_assert_rv(k < 32, -1); /* prevent too large (impossible) k value */
+    oapv_assert_rv(k < 30, -1); /* prevent too large (impossible) k value */
 
     if(k > 0) {
         while(bs->leftbits < k) {
@@ -795,7 +795,7 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
         bs->code <<= k;
         bs->leftbits -= k;
     }
-    return symbol;
+    return (int)symbol;
 }
 
 static int dec_vlc_q_matrix(oapv_bs_t *bs, oapv_fh_t *fh)
