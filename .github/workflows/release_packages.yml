@@ -37,7 +37,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           file: "build/*.deb; build/*.md5"
-          update_latest_release: true
+          release_id: ${{ github.event.release.id }}
+          update_latest_release: ${{ github.event_name != 'release' }}
           draft: false
           overwrite: true
 
@@ -77,7 +78,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           file: "build-arm/*.deb; build-arm/*.md5"
-          update_latest_release: true
+          release_id: ${{ github.event.release.id }}
+          update_latest_release: ${{ github.event_name != 'release' }}
           draft: false
           overwrite: true
 
@@ -106,7 +108,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           file: "build-darwin/*.tar.gz; build-darwin/*.md5"
-          update_latest_release: true
+          release_id: ${{ github.event.release.id }}
+          update_latest_release: ${{ github.event_name != 'release' }}
           draft: false
           overwrite: true
 
@@ -135,7 +138,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           file: "build/*.dmg; build/*.md5"
-          update_latest_release: true
+          release_id: ${{ github.event.release.id }}
+          update_latest_release: ${{ github.event_name != 'release' }}
           draft: false
           overwrite: true
 
@@ -175,7 +179,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           file: "build-windows/*.zip; build-windows/*.md5"
-          update_latest_release: true
+          release_id: ${{ github.event.release.id }}
+          update_latest_release: ${{ github.event_name != 'release' }}
           draft: false
           overwrite: true
 
