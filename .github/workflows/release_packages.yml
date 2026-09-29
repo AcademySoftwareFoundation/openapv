@@ -178,3 +178,22 @@ jobs:
           update_latest_release: true
           draft: false
           overwrite: true
+
+  sign-source:
+    if: github.event_name == 'release'
+    uses: ./.github/workflows/sign-release.yml
+    permissions:
+      contents: write
+      id-token: write
+    with:
+      tag: ${{ github.event.release.tag_name }}
+
+  # SHA256SUMS must cover every asset, so it runs only after all uploads
+  checksums:
+    if: github.event_name == 'release'
+    needs: [build-linux-amd64, build-linux-arm64, build-darwin-arm64, build-darwin-universal, build-windows, sign-source]
+    uses: ./.github/workflows/release-checksums.yml
+    permissions:
+      contents: write
+    with:
+      tag: ${{ github.event.release.tag_name }}

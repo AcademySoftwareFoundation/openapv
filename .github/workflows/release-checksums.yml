@@ -1,0 +1,56 @@
+name: Release Checksums
+
+# Writes a SHA256SUMS file covering all release assets and uploads it to the
+# release. On release, it is called from release_packages.yml after all
+# packages and the signed source tarball are uploaded.
+#
+# To regenerate SHA256SUMS of an existing release (e.g. after assets were
+# added): Actions -> Release Checksums -> Run workflow -> enter the tag.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.1.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  checksums:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required for gh release upload
+    env:
+      TAG: ${{ inputs.tag }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Download release assets
+        run: |
+          gh release download ${TAG} \
+            --repo ${{ github.repository }} \
+            --dir release-assets \
+            --pattern "*.tar.gz" \
+            --pattern "*.zip" \
+            --pattern "*.deb" \
+            --pattern "*.dmg"
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload SHA256SUMS to release
+        run: |
+          gh release upload ${TAG} \
+            --repo ${{ github.repository }} \
+            release-assets/SHA256SUMS \
+            --clobber
