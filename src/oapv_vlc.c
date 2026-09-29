@@ -664,14 +664,14 @@ int oapve_vlc_get_coef_rate(oapve_core_t* core, s16* coef, int c)
     }
 
 #if defined(_MSC_VER)
-static inline int bsr_clz64(u64 x)
+static force_inline int bsr_clz64(u64 x)
 {
     unsigned long i;
     _BitScanReverse64(&i, x);
     return 63 - (int)i;
 }
 #else
-static inline int bsr_clz64(u64 x)
+static force_inline int bsr_clz64(u64 x)
 {
     return __builtin_clzll(x);
 }
