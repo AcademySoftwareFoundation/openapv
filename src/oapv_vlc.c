@@ -660,96 +660,61 @@ int oapve_vlc_get_coef_rate(oapve_core_t* core, s16* coef, int c)
         (bs)->leftbits -= 1;                    \
     }
 
-static int dec_vlc_read_kparam0(oapv_bs_t *bs)
-{
-    u32 symbol;
-    int flag, k;
-
-    symbol = 2;
-    k = 0;
-
-    while(1) {
-        if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-        BSR_READ_1BIT(bs, flag);
-
-        if(flag) {
-            break;
-        }
-        else {
-            // No k range check here on purpose; a per-bit branch slows
-            // down decoding. At buffer end, BSR_FLUSH_1BYTE feeds 1-bits
-            // and sets is_eob, so the loop exits; the k check below and
-            // the callers' BSR_IS_UNEXPECTED_EOB check reject the stream.
-            k++;
-        }
-    }
-    oapv_assert_rv(k < 30, -1); /* prevent too large (impossible) k value */
-
-    if(k > 0) {
-        symbol += ((u32)0xFFFFFFFF) >> (32 - k);
-
-        while(bs->leftbits < k) {
-            symbol += bs->code >> (64 - k);
-            k -= bs->leftbits;
-            BSR_FLUSH_1BYTE(bs);
-        }
-        symbol += bs->code >> (64 - k);
-        bs->code <<= k;
-        bs->leftbits -= k;
-    }
-    return (int)symbol;
-}
-
-static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
-{
-    u32 symbol;
-    int flag, k;
-
-    if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-    BSR_READ_1BIT(bs, flag);
-
-    symbol = (u32)(1 + flag);
-    k = 0;
-    if(flag) { // parse_exp_golomb
-        while(1) {
-            if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-            BSR_READ_1BIT(bs, flag);
-
-            if(flag) {
-                break;
-            }
-            else {
-                // No k range check here on purpose; a per-bit branch slows
-                // down decoding. At buffer end, BSR_FLUSH_1BYTE feeds 1-bits
-                // and sets is_eob, so the loop exits; the k check below and
-                // the callers' BSR_IS_UNEXPECTED_EOB check reject the stream.
-                k++;
-            }
-        }
+// Top up the bit buffer with whole bytes below the valid bits, up to 63 bits,
+// without reading past the end. The bits below the valid bits stay zero, and
+// is_eob is not touched; BSR_FLUSH_1BYTE still handles the buffer end.
+#define BSR_TOPUP(bs) {                                                      \
+        int n_ = (63 - (bs)->leftbits) >> 3;                                 \
+        if((bs)->end - (bs)->cur >= 8) {                                     \
+            const u8 *p_ = (bs)->cur;                                        \
+            u64 v_ = ((u64)p_[0] << 56) | ((u64)p_[1] << 48) |               \
+                     ((u64)p_[2] << 40) | ((u64)p_[3] << 32) |               \
+                     ((u64)p_[4] << 24) | ((u64)p_[5] << 16) |               \
+                     ((u64)p_[6] << 8) | (u64)p_[7];                         \
+            v_ &= ~(~(u64)0 >> (n_ << 3));                                   \
+            (bs)->code |= v_ >> (bs)->leftbits;                              \
+            (bs)->cur += n_;                                                 \
+            (bs)->leftbits += n_ << 3;                                       \
+        }                                                                    \
+        else {                                                               \
+            while(n_ > 0 && (bs)->cur < (bs)->end) {                         \
+                (bs)->code |= (u64)(*(bs)->cur++) << (56 - (bs)->leftbits);  \
+                (bs)->leftbits += 8;                                         \
+                n_--;                                                        \
+            }                                                                \
+        }                                                                    \
     }
 
-    oapv_assert_rv(k < 30, -1); /* prevent too large (impossible) k value */
-
-    if(k > 0) {
-        symbol += ((u32)0xFFFFFFFF) >> (32 - k);
-
-        while(bs->leftbits < k) {
-            symbol += bs->code >> (64 - k);
-            k -= bs->leftbits;
-            BSR_FLUSH_1BYTE(bs);
-        }
-        symbol += bs->code >> (64 - k);
-        bs->code <<= k;
-        bs->leftbits -= k;
+// Consume the 0-bits of an exp-golomb prefix and its terminating 1-bit, and
+// add the number of 0-bits to k. The sentinel bit just below the valid bits
+// keeps clz defined and stops it at the end of the valid bits; only a prefix
+// that runs past the valid bits takes another iteration.
+// NOTE: k is deliberately not range-checked here, since a check per iteration
+// slows down decoding. At buffer end, BSR_FLUSH_1BYTE feeds 1-bits and sets
+// is_eob, so the loop exits; the callers' k check and BSR_IS_UNEXPECTED_EOB
+// check reject the stream.
+#define BSR_READ_ZERO_PREFIX(bs, k) {                                        \
+        while(1) {                                                           \
+            if((bs)->leftbits == 0) BSR_FLUSH_1BYTE(bs);                     \
+            int z_ = bsr_clz64((bs)->code | ((u64)1 << (63 - (bs)->leftbits))); \
+            if(z_ < (bs)->leftbits) {                                        \
+                (k) += z_;                                                   \
+                (bs)->code = ((bs)->code << z_) << 1;                        \
+                (bs)->leftbits -= z_ + 1;                                    \
+                break;                                                       \
+            }                                                                \
+            (k) += (bs)->leftbits;                                           \
+            (bs)->leftbits = 0;                                              \
+        }                                                                    \
     }
-    return (int)symbol;
-}
 
 static int dec_vlc_read(oapv_bs_t *bs, int k)
 {
     u32 symbol;
     int flag;
     int parse_exp_golomb = 0;
+
+    if(bs->leftbits < 32) BSR_TOPUP(bs);
 
     if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
     BSR_READ_1BIT(bs, flag);
@@ -766,26 +731,12 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
         symbol = 0;
     }
     if(parse_exp_golomb) {
-        while(1) {
-            if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-            BSR_READ_1BIT(bs, flag);
-
-            if(flag == 1) {
-                break;
-            }
-            else {
-                // No k range check here on purpose; a per-bit branch slows
-                // down decoding. At buffer end, BSR_FLUSH_1BYTE feeds 1-bits
-                // and sets is_eob, so the loop exits; the k check below and
-                // the callers' BSR_IS_UNEXPECTED_EOB check reject the stream.
-                k++;
-            }
-        }
+        BSR_READ_ZERO_PREFIX(bs, k);
         // The APV spec starts the '01' prefix at (2 << k0) and adds (1 << k)
-        // for each prefix 0-bit. Here the loop only counts k, and the whole
+        // for each prefix 0-bit. Here the prefix only counts k, and the whole
         // sum, (1 << k0) + (1 << k), is added in one step after the k check,
         // so symbol cannot wrap on a malformed bitstream. This also drops the
-        // per-bit shift and add from the loop, which helps at low QP.
+        // per-bit shift and add, which speeds up decoding.
         oapv_assert_rv(k < 30, -1); /* prevent too large (impossible) k value */
         symbol += 1u << k;
     }
@@ -906,31 +857,9 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
     k_ac = *kparam_ac;
 
     do {
+        if(bs->leftbits < 32) BSR_TOPUP(bs);
         // run parsing
-        if(k_run == 0) { // early termination
-            if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-            BSR_READ_1BIT(bs, flag);
-
-            if(flag) {
-                run = 0;
-            }
-            else {
-                if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-                BSR_READ_1BIT(bs, flag);
-
-                if(flag == 0) {
-                    run = 1;
-                }
-                else {
-                    run = dec_vlc_read_kparam0(bs);
-                    if(run < 0)
-                        return OAPV_ERR_MALFORMED_BITSTREAM;
-                }
-            }
-        }
-        else {
-            run = dec_vlc_read(bs, k_run);
-        }
+        run = dec_vlc_read(bs, k_run);
 
         oapv_assert_rv(run >= 0 && run <= OAPV_BLK_D - scan_pos_offset, OAPV_ERR_MALFORMED_BITSTREAM);
 
@@ -944,26 +873,10 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
         k_run = KPARAM_RUN(run); // backup
 
         // level parsing
-        if(k_ac == 0) {
-            if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-            BSR_READ_1BIT(bs, flag);
-
-            if(flag) {
-                level = 1;
-            }
-            else {
-                level = dec_vlc_read_1bit_read(bs);
-                if(level < 0)
-                    return OAPV_ERR_MALFORMED_BITSTREAM;
-                level += 1;
-            }
-        }
-        else {
-            level = dec_vlc_read(bs, k_ac);
-            if(level < 0)
-                return OAPV_ERR_MALFORMED_BITSTREAM;
-            level += 1;
-        }
+        level = dec_vlc_read(bs, k_ac);
+        if(level < 0)
+            return OAPV_ERR_MALFORMED_BITSTREAM;
+        level += 1;
         // sign parsing
         if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
         BSR_READ_1BIT(bs, flag);
