@@ -371,7 +371,7 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     NAME_CMP("tile-h") {
         // profile-dependent minimum is checked in enc_update_param_tile()
         GET_INTEGER_MIN_OR_ERR(value, ti0, OAPV_MB_H, OAPV_ERR_INVALID_ARGUMENT);
-        oapv_assert_rv((ti0 & (OAPV_MB_W - 1)) == 0, OAPV_ERR_INVALID_ARGUMENT);
+        oapv_assert_rv((ti0 & (OAPV_MB_H - 1)) == 0, OAPV_ERR_INVALID_ARGUMENT);
         param->tile_h = ti0;
     }
     NAME_CMP("color-primaries") {
@@ -544,12 +544,7 @@ static int enc_update_param_tile(oapve_ctx_t* ctx, oapve_param_t* param)
     oapv_assert_rv(param->w > 0 && param->w <= ((1 << 24) - 1), OAPV_ERR_INVALID_WIDTH);
     oapv_assert_rv(param->h > 0 && param->h <= ((1 << 24) - 1), OAPV_ERR_INVALID_HEIGHT);
 
-    /* set various value */
-    ctx->w = oapv_div_round_up(param->w, OAPV_MB_W) * OAPV_MB_W;
-    ctx->h = oapv_div_round_up(param->h, OAPV_MB_H) * OAPV_MB_H;
-
-    /* find correct tile width and height */
-    int tile_w, tile_h;
+    oapv_assert_rv((param->tile_w & (OAPV_MB_W - 1)) == 0 && (param->tile_h & (OAPV_MB_H - 1)) == 0, OAPV_ERR_INVALID_ARGUMENT);
 
     int unconst = OAPV_PROFILE_IS_UNCONST(param->profile_idc);
     if(unconst) {
@@ -558,6 +553,11 @@ static int enc_update_param_tile(oapve_ctx_t* ctx, oapve_param_t* param)
     else {
         oapv_assert_rv(param->tile_w >= OAPV_MIN_TILE_W && param->tile_h >= OAPV_MIN_TILE_H, OAPV_ERR_INVALID_ARGUMENT);
     }
+
+    /* set various value */
+    ctx->w = oapv_div_round_up(param->w, OAPV_MB_W) * OAPV_MB_W;
+    ctx->h = oapv_div_round_up(param->h, OAPV_MB_H) * OAPV_MB_H;
+
     // a tile larger than the picture means a single tile; clamp to picture size
     if(param->tile_w > ctx->w) {
         param->tile_w = ctx->w;
@@ -566,30 +566,19 @@ static int enc_update_param_tile(oapve_ctx_t* ctx, oapve_param_t* param)
         param->tile_h = ctx->h;
     }
 
+    // constrained profiles: enforce the minimum tile size and the tile grid limits
     if(!unconst) {
         param->tile_w = oapv_max(param->tile_w, OAPV_MIN_TILE_W);
         param->tile_h = oapv_max(param->tile_h, OAPV_MIN_TILE_H);
-    }
 
-    oapv_assert_rv((param->tile_w & (OAPV_MB_W - 1)) == 0 && (param->tile_h & (OAPV_MB_H - 1)) == 0, OAPV_ERR_INVALID_ARGUMENT);
-
-    if (!unconst && oapv_div_round_up(ctx->w, param->tile_w) > OAPV_MAX_TILE_COLS) {
-        tile_w = oapv_div_round_up(ctx->w, OAPV_MAX_TILE_COLS);
-        tile_w = oapv_div_round_up(tile_w, OAPV_MB_W) * OAPV_MB_W; // align to MB width
+        if(oapv_div_round_up(ctx->w, param->tile_w) > OAPV_MAX_TILE_COLS) {
+            param->tile_w = oapv_align_value(oapv_div_round_up(ctx->w, OAPV_MAX_TILE_COLS), OAPV_MB_W);
+        }
+        if(oapv_div_round_up(ctx->h, param->tile_h) > OAPV_MAX_TILE_ROWS) {
+            param->tile_h = oapv_align_value(oapv_div_round_up(ctx->h, OAPV_MAX_TILE_ROWS), OAPV_MB_H);
+        }
     }
-    else {
-        tile_w = param->tile_w;
-    }
-    param->tile_w = tile_w;
-
-    if (!unconst && oapv_div_round_up(ctx->h, param->tile_h) > OAPV_MAX_TILE_ROWS) {
-        tile_h = oapv_div_round_up(ctx->h, OAPV_MAX_TILE_ROWS);
-        tile_h = oapv_div_round_up(tile_h, OAPV_MB_H) * OAPV_MB_H; // align to MB height
-    }
-    else {
-        tile_h = param->tile_h;
-    }
-    param->tile_h = tile_h;
+    // UNCONST profiles use tile_w/tile_h as-is, without the profile tile constraints
 
     return OAPV_OK;
 }
