@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_TQ_NEON_H_
-#define _OAPV_TQ_NEON_H_
+#ifndef OPENAPV_OAPV_TQ_NEON_H_
+#define OPENAPV_OAPV_TQ_NEON_H_
 
 ///////////////////////////////////////////////////////////////////////////////
 // start of encoder code
@@ -53,4 +53,4 @@ extern const oapv_fn_itx_adj_t oapv_tbl_fn_itx_adj_neon[2];
 #endif // ENABLE_ENCODER
 ///////////////////////////////////////////////////////////////////////////////
 
-#endif /* _OAPV_TQ_NEON_H_  */
+#endif /* OPENAPV_OAPV_TQ_NEON_H_  */

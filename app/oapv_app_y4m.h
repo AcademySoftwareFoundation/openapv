@@ -28,8 +28,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef _OAPV_APP_Y4M_H_
-#define _OAPV_APP_Y4M_H_
+#ifndef OPENAPV_OAPV_APP_Y4M_H_
+#define OPENAPV_OAPV_APP_Y4M_H_
 
 typedef struct y4m_params {
     int w;
@@ -354,4 +354,4 @@ static int check_file_name_type(char * fname)
     return -1; // false
 }
 
-#endif /* _OAPV_APP_Y4M_H_ */
+#endif /* OPENAPV_OAPV_APP_Y4M_H_ */

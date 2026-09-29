@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_TQ_H_
-#define _OAPV_TQ_H_
+#ifndef OPENAPV_OAPV_TQ_H_
+#define OPENAPV_OAPV_TQ_H_
 
 #include "oapv_def.h"
 
@@ -79,4 +79,4 @@ extern const oapv_fn_itx_adj_t  oapv_tbl_fn_itx_adj[2];
 #endif // ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
 
-#endif /* _OAPV_TQ_H_ */
+#endif /* OPENAPV_OAPV_TQ_H_ */

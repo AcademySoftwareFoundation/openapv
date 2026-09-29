@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_VLC_H_
-#define _OAPV_VLC_H_
+#ifndef OPENAPV_OAPV_VLC_H_
+#define OPENAPV_OAPV_VLC_H_
 
 #include "oapv_def.h"
 #include "oapv_metadata.h"
@@ -74,4 +74,4 @@ int  oapvd_vlc_metadata(oapv_bs_t* bs, u32 pbu_size, oapvm_t mid, int group_id);
 int  oapvd_vlc_filler(oapv_bs_t* bs, u32 filler_size);
 int  oapvd_vlc_dc_coef(oapv_bs_t *bs, int *dc_diff, int *kparam_dc);
 int  oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac);
-#endif /* _OAPV_VLC_H_ */
+#endif /* OPENAPV_OAPV_VLC_H_ */

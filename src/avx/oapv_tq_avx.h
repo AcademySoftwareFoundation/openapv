@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_TQ_AVX_H_
-#define _OAPV_TQ_AVX_H_
+#ifndef OPENAPV_OAPV_TQ_AVX_H_
+#define OPENAPV_OAPV_TQ_AVX_H_
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -138,4 +138,4 @@ extern const oapv_fn_itx_adj_t oapv_tbl_fn_itx_adj_avx[2];
 #endif /* X86_SSE */
 
 
-#endif /* _OAPV_TQ_AVX_H_  */
+#endif /* OPENAPV_OAPV_TQ_AVX_H_  */

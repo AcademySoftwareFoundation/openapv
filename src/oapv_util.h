@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __OAPV_UTIL_H__
-#define __OAPV_UTIL_H__
+#ifndef OPENAPV_OAPV_UTIL_H_
+#define OPENAPV_OAPV_UTIL_H_
 
 #include "oapv_def.h"
 
@@ -230,4 +230,4 @@ void oapv_dump_delete0();
 #endif
 /* For debugging (END) */
 
-#endif /* __OAPV_UTIL_H__ */
+#endif /* OPENAPV_OAPV_UTIL_H_ */

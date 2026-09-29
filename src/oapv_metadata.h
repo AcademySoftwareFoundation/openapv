@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_METADATA_H_
-#define _OAPV_METADATA_H_
+#ifndef OPENAPV_OAPV_METADATA_H_
+#define OPENAPV_OAPV_METADATA_H_
 
 #include "oapv_def.h"
 
@@ -109,4 +109,4 @@ struct oapv_md_ud {
     u8 *undefined_data_payload;
 };
 
-#endif /* _OAPV_METADATA_H_ */
+#endif /* OPENAPV_OAPV_METADATA_H_ */

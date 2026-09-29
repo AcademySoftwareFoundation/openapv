@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_RC_H_
-#define _OAPV_RC_H_
+#ifndef OPENAPV_OAPV_RC_H_
+#define OPENAPV_OAPV_RC_H_
 
 #include "oapv_def.h"
 #include <math.h>

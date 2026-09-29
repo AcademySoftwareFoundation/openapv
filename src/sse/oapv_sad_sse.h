@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_SAD_SSE_H_
-#define _OAPV_SAD_SSE_H_
+#ifndef OPENAPV_OAPV_SAD_SSE_H_
+#define OPENAPV_OAPV_SAD_SSE_H_
 
 #include "oapv_def.h"
 
@@ -40,5 +40,5 @@ int oapv_dc_removed_had8x8_sse(pel* org, int s_org);
 
 #endif /* X86_SSE */
 
-#endif /* _OAPV_SAD_SSE_H_ */
+#endif /* OPENAPV_OAPV_SAD_SSE_H_ */
 

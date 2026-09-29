@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __OAPV_TPOOL_H__
-#define __OAPV_TPOOL_H__
+#ifndef OPENAPV_OAPV_TPOOL_H_
+#define OPENAPV_OAPV_TPOOL_H_
 
 typedef void *oapv_thread_t;
 typedef int (*oapv_fn_thread_entry_t)(void *arg);
@@ -83,4 +83,4 @@ int oapv_tpool_spinlock_wait(volatile int *addr, int val);
 void oapv_tpool_enter_cs(oapv_sync_obj_t sobj);
 void oapv_tpool_leave_cs(oapv_sync_obj_t sobj);
 
-#endif // __OAPV_TPOOL_H__
+#endif // OPENAPV_OAPV_TPOOL_H_

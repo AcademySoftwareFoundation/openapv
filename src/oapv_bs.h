@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_BSR_H_
-#define _OAPV_BSR_H_
+#ifndef OPENAPV_OAPV_BS_H_
+#define OPENAPV_OAPV_BS_H_
 
 #include "oapv_port.h"
 
@@ -152,4 +152,4 @@ int oapv_bsr_read_direct(const void *addr, int len, u32 *out);
 #endif // ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
 
-#endif /* _OAPV_BSR_H_ */
+#endif /* OPENAPV_OAPV_BS_H_ */

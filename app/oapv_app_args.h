@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_APP_ARGS_H_
-#define _OAPV_APP_ARGS_H_
+#ifndef OPENAPV_OAPV_APP_ARGS_H_
+#define OPENAPV_OAPV_APP_ARGS_H_
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -598,4 +598,4 @@ ERR:
     return NULL;
 }
 
-#endif /*_OAPV_APP_ARGS_H_ */
+#endif /*OPENAPV_OAPV_APP_ARGS_H_ */
