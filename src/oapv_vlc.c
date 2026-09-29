@@ -725,67 +725,6 @@ static inline int bsr_clz64(u64 x)
         }                                                                    \
     }
 
-static int dec_vlc_read_kparam0(oapv_bs_t *bs)
-{
-    u32 symbol;
-    int k;
-
-    if(bs->leftbits < 32) BSR_TOPUP(bs);
-
-    symbol = 2;
-    k = 0;
-
-    BSR_READ_ZERO_PREFIX(bs, k);
-    oapv_assert_rv(k < 30, -1); /* prevent too large (impossible) k value */
-
-    if(k > 0) {
-        symbol += ((u32)0xFFFFFFFF) >> (32 - k);
-
-        while(bs->leftbits < k) {
-            symbol += bs->code >> (64 - k);
-            k -= bs->leftbits;
-            BSR_FLUSH_1BYTE(bs);
-        }
-        symbol += bs->code >> (64 - k);
-        bs->code <<= k;
-        bs->leftbits -= k;
-    }
-    return (int)symbol;
-}
-
-static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
-{
-    u32 symbol;
-    int flag, k;
-
-    if(bs->leftbits < 32) BSR_TOPUP(bs);
-
-    if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-    BSR_READ_1BIT(bs, flag);
-
-    symbol = (u32)(1 + flag);
-    k = 0;
-    if(flag) { // parse_exp_golomb
-        BSR_READ_ZERO_PREFIX(bs, k);
-    }
-
-    oapv_assert_rv(k < 30, -1); /* prevent too large (impossible) k value */
-
-    if(k > 0) {
-        symbol += ((u32)0xFFFFFFFF) >> (32 - k);
-
-        while(bs->leftbits < k) {
-            symbol += bs->code >> (64 - k);
-            k -= bs->leftbits;
-            BSR_FLUSH_1BYTE(bs);
-        }
-        symbol += bs->code >> (64 - k);
-        bs->code <<= k;
-        bs->leftbits -= k;
-    }
-    return (int)symbol;
-}
-
 static int dec_vlc_read(oapv_bs_t *bs, int k)
 {
     u32 symbol;
@@ -937,30 +876,7 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
     do {
         if(bs->leftbits < 32) BSR_TOPUP(bs);
         // run parsing
-        if(k_run == 0) { // early termination
-            if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-            BSR_READ_1BIT(bs, flag);
-
-            if(flag) {
-                run = 0;
-            }
-            else {
-                if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-                BSR_READ_1BIT(bs, flag);
-
-                if(flag == 0) {
-                    run = 1;
-                }
-                else {
-                    run = dec_vlc_read_kparam0(bs);
-                    if(run < 0)
-                        return OAPV_ERR_MALFORMED_BITSTREAM;
-                }
-            }
-        }
-        else {
-            run = dec_vlc_read(bs, k_run);
-        }
+        run = dec_vlc_read(bs, k_run);
 
         oapv_assert_rv(run >= 0 && run <= OAPV_BLK_D - scan_pos_offset, OAPV_ERR_MALFORMED_BITSTREAM);
 
@@ -974,26 +890,10 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
         k_run = KPARAM_RUN(run); // backup
 
         // level parsing
-        if(k_ac == 0) {
-            if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
-            BSR_READ_1BIT(bs, flag);
-
-            if(flag) {
-                level = 1;
-            }
-            else {
-                level = dec_vlc_read_1bit_read(bs);
-                if(level < 0)
-                    return OAPV_ERR_MALFORMED_BITSTREAM;
-                level += 1;
-            }
-        }
-        else {
-            level = dec_vlc_read(bs, k_ac);
-            if(level < 0)
-                return OAPV_ERR_MALFORMED_BITSTREAM;
-            level += 1;
-        }
+        level = dec_vlc_read(bs, k_ac);
+        if(level < 0)
+            return OAPV_ERR_MALFORMED_BITSTREAM;
+        level += 1;
         // sign parsing
         if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
         BSR_READ_1BIT(bs, flag);
