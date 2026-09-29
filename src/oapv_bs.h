@@ -86,26 +86,6 @@ int oapv_bsw_write(oapv_bs_t *bs, u32 val, int len);
 // start of decoder code
 #if ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
-#if 0
-#if defined(X86F) || defined(ARMV8N_64)
-/* on X86 machine, 32-bit shift means remaining of original value, so we
-should set zero in that case. */
-#define BSR_SKIP_CODE(bs, size) \
-    oapv_assert((bs)->leftbits >= (size)); \
-    if((size) == 32) {(bs)->code = 0; (bs)->leftbits = 0;} \
-    else           {(bs)->code <<= (size); (bs)->leftbits -= (size);}
-#else
-#define BSR_SKIP_CODE(bs, size) \
-    oapv_assert((bs)->leftbits >= (size)); \
-    (bs)->code <<= (size); (bs)->leftbits -= (size);
-#endif
-#else
-#define BSR_SKIP_CODE(bs, size) \
-    /* 64bit is missing here to avoid the arithmetic left shift */ \
-    oapv_assert((bs)->leftbits >= (size) && (size) < 64); \
-    (bs)->code <<= (size); (bs)->leftbits -= (size);
-#endif
-
 /*! Is end of bitstream ? */
 #define BSR_IS_EOB(bs) (((bs)->cur >= (bs)->end && (bs)->leftbits==0)? 1: 0)
 

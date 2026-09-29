@@ -205,11 +205,6 @@ void oapv_bsr_init(oapv_bs_t *bs, u8 *buf, u32 size, oapv_bs_fn_flush_t fn_flush
 
 void oapv_bsr_align8(oapv_bs_t *bs)
 {
-    /*
-    while (!bsr_is_align8(bs)) {
-        oapv_bsr_read1(bs);
-    }
-    */
     int size;
 
     size = bs->leftbits & 0x7;
