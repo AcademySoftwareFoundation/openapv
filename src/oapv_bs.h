@@ -57,9 +57,11 @@ struct oapv_bs {
 
 /* move current write position to a specific bitstream address */
 #define BSW_MOVE_CUR(bs, addr) \
-    (bs)->cur = addr; \
-    (bs)->code = 0; \
-    (bs)->leftbits = 64;
+    do { \
+        (bs)->cur = (addr); \
+        (bs)->code = 0; \
+        (bs)->leftbits = 64; \
+    } while(0)
 
 static force_inline bool bsw_is_align8(oapv_bs_t *bs)
 {
@@ -114,9 +116,11 @@ int oapv_bsw_write(oapv_bs_t *bs, u32 val, int len);
 
 /* move to # bytes align position */
 #define BSR_MOVE_BYTE_ALIGN(bs, byte) \
-    (bs)->cur += (byte) - ((bs)->leftbits >> 3); \
-    (bs)->code = 0; \
-    (bs)->leftbits = 0;
+    do { \
+        (bs)->cur += (byte) - ((bs)->leftbits >> 3); \
+        (bs)->code = 0; \
+        (bs)->leftbits = 0; \
+    } while(0)
 
 void oapv_bsr_init(oapv_bs_t *bs, u8 *buf, u32 size, oapv_bs_fn_flush_t fn_flush);
 void oapv_bsr_align8(oapv_bs_t *bs);
