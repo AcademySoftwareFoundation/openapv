@@ -2,20 +2,25 @@ name: Sign Release
 
 # Creates a source tarball of the release tag, signs it with Sigstore
 # (keyless, via the GitHub OIDC identity of this workflow), and uploads
-# the tarball, the .sigstore.json bundle, and a SHA256SUMS file covering
-# all release assets.
+# the tarball and the .sigstore.json bundle. On release, it is called from
+# release_packages.yml, which then runs release-checksums.yml once all
+# packages are uploaded.
 #
 # To verify a downloaded source tarball:
 #
 #   % pip install sigstore
 #   % sigstore verify github --cert-identity https://github.com/AcademySoftwareFoundation/openapv/.github/workflows/sign-release.yml@refs/tags/<tag> openapv-<version>.tar.gz
 #
-# To sign an existing release again (e.g. after assets were added):
-# Actions -> Sign Release -> Run workflow -> enter the release tag.
+# To sign an existing release again:
+# Actions -> Sign Release -> Run workflow from the release tag, and enter
+# the same tag. Running it from another branch changes the signing identity.
 
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tag:
@@ -33,7 +38,7 @@ jobs:
       contents: write # required for gh release upload
       id-token: write # required for sigstore OIDC signing
     env:
-      TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.event.release.tag_name }}
+      TAG: ${{ inputs.tag }}
     steps:
       - name: Set source archive name
         # tag "v0.3.0.0" -> tarball "openapv-0.3.0.0.tar.gz" extracting into "openapv-0.3.0.0/"
@@ -63,29 +68,4 @@ jobs:
           gh release upload ${TAG} \
             ${OAPV_TARBALL} \
             ${OAPV_TARBALL}.sigstore.json \
-            --clobber
-
-      - name: Download release assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release download ${TAG} \
-            --dir release-assets \
-            --pattern "*.tar.gz" \
-            --pattern "*.zip" \
-            --pattern "*.deb" \
-            --pattern "*.dmg"
-
-      - name: Generate SHA256SUMS
-        run: |
-          cd release-assets
-          sha256sum * > SHA256SUMS
-          cat SHA256SUMS
-
-      - name: Upload SHA256SUMS to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload ${TAG} \
-            release-assets/SHA256SUMS \
             --clobber
