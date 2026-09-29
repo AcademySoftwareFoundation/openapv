@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __OAPV_BLK_H_3243243920473824893204832876483924637286__
-#define __OAPV_BLK_H_3243243920473824893204832876483924637286__
+#ifndef OPENAPV_OAPV_BLK_H_
+#define OPENAPV_OAPV_BLK_H_
 
 #include "oapv_port.h"
 
@@ -46,4 +46,4 @@ void oapv_blk_to_pic_12E16(int w, int h, void *blk, int blk_s, void *pic, int pi
 void oapv_blk_to_pic_p21x_y(int w, int h, void *blk, int blk_s, void *pic, int pic_x, int pic_s, int bd);
 void oapv_blk_to_pic_p21x_uv(int w, int h, void *blk, int blk_s, void *pic, int pic_x, int pic_s, int bd);
 
-#endif /* __OAPV_BLK_H_3243243920473824893204832876483924637286__ */
+#endif /* OPENAPV_OAPV_BLK_H_ */

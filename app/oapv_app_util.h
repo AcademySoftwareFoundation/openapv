@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_APP_UTIL_H_
-#define _OAPV_APP_UTIL_H_
+#ifndef OPENAPV_OAPV_APP_UTIL_H_
+#define OPENAPV_OAPV_APP_UTIL_H_
 
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
@@ -850,4 +850,4 @@ static unsigned char char_to_hex(char a)
     return ret;
 }
 
-#endif /* _OAPV_APP_UTIL_H_ */
+#endif /* OPENAPV_OAPV_APP_UTIL_H_ */

@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_TQ_SSE_H_
-#define _OAPV_TQ_SSE_H_
+#ifndef OPENAPV_OAPV_TQ_SSE_H_
+#define OPENAPV_OAPV_TQ_SSE_H_
 
 
-#endif /* _OAPV_TQ_SSE_H_  */
+#endif /* OPENAPV_OAPV_TQ_SSE_H_  */

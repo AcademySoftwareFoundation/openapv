@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_PORT_H_
-#define _OAPV_PORT_H_
+#ifndef OPENAPV_OAPV_PORT_H_
+#define OPENAPV_OAPV_PORT_H_
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -209,5 +209,5 @@ static __inline void oapv_mset_16b(s16 *dst, s16 v, int cnt)
 /* CPU information */
 int oapv_get_num_cpu_cores(void);
 
-#endif /* _OAPV_PORT_H_ */
+#endif /* OPENAPV_OAPV_PORT_H_ */
 

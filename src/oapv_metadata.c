@@ -42,17 +42,17 @@ oapvm_ctx_t *oapvm_id_to_ctx(oapvm_t id)
 }
 #define div_255_fast(x)  (((x) + (((x) + 257) >> 8)) >> 8)
 
-static inline u32 meta_get_byte_pld_type(oapv_mdp_t *mdp)
+static force_inline u32 meta_get_byte_pld_type(oapv_mdp_t *mdp)
 {
     return (mdp->pld_type < 65536 ? div_255_fast(mdp->pld_type) : mdp->pld_type / 255) + 1;
 }
 
-static inline u32 meta_get_byte_pld_size(oapv_mdp_t *mdp)
+static force_inline u32 meta_get_byte_pld_size(oapv_mdp_t *mdp)
 {
     return (mdp->pld_size < 65536 ? div_255_fast(mdp->pld_size) : mdp->pld_size / 255) + 1;
 }
 
-static inline u32 meta_get_byte_pld_all(oapv_mdp_t *mdp)
+static force_inline u32 meta_get_byte_pld_all(oapv_mdp_t *mdp)
 {
     return meta_get_byte_pld_type(mdp) + meta_get_byte_pld_size(mdp) + mdp->pld_size;
 }

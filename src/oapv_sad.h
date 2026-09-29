@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_SAD_H_
-#define _OAPV_SAD_H_
+#ifndef OPENAPV_OAPV_SAD_H_
+#define OPENAPV_OAPV_SAD_H_
 
 #include "oapv_port.h"
 
@@ -39,4 +39,4 @@ int oapv_dc_removed_had8x8(pel *org, int s_org);
 
 extern const oapv_fn_ssd_t  oapv_tbl_fn_ssd_16b[2];
 
-#endif /* _OAPV_SAD_H_ */
+#endif /* OPENAPV_OAPV_SAD_H_ */

@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_BSR_H_
-#define _OAPV_BSR_H_
+#ifndef OPENAPV_OAPV_BS_H_
+#define OPENAPV_OAPV_BS_H_
 
 #include "oapv_port.h"
 #if defined(_MSC_VER)
@@ -60,16 +60,18 @@ struct oapv_bs {
 
 /* move current write position to a specific bitstream address */
 #define BSW_MOVE_CUR(bs, addr) \
-    (bs)->cur = addr; \
-    (bs)->code = 0; \
-    (bs)->leftbits = 64;
+    do { \
+        (bs)->cur = (addr); \
+        (bs)->code = 0; \
+        (bs)->leftbits = 64; \
+    } while(0)
 
-static inline bool bsw_is_align8(oapv_bs_t *bs)
+static force_inline bool bsw_is_align8(oapv_bs_t *bs)
 {
     return (bool)(!((bs)->leftbits & 0x7));
 }
 
-static inline int bsw_get_write_byte(oapv_bs_t *bs)
+static force_inline int bsw_get_write_byte(oapv_bs_t *bs)
 {
     return (int)((u8 *)(bs->cur) - (u8 *)(bs->beg));
 }
@@ -89,26 +91,6 @@ int oapv_bsw_write(oapv_bs_t *bs, u32 val, int len);
 // start of decoder code
 #if ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
-#if 0
-#if defined(X86F) || defined(ARMV8N_64)
-/* on X86 machine, 32-bit shift means remaining of original value, so we
-should set zero in that case. */
-#define BSR_SKIP_CODE(bs, size) \
-    oapv_assert((bs)->leftbits >= (size)); \
-    if((size) == 32) {(bs)->code = 0; (bs)->leftbits = 0;} \
-    else           {(bs)->code <<= (size); (bs)->leftbits -= (size);}
-#else
-#define BSR_SKIP_CODE(bs, size) \
-    oapv_assert((bs)->leftbits >= (size)); \
-    (bs)->code <<= (size); (bs)->leftbits -= (size);
-#endif
-#else
-#define BSR_SKIP_CODE(bs, size) \
-    /* 64bit is missing here to avoid the arithmetic left shift */ \
-    oapv_assert((bs)->leftbits >= (size) && (size) < 64); \
-    (bs)->code <<= (size); (bs)->leftbits -= (size);
-#endif
-
 /*! Is end of bitstream ? */
 #define BSR_IS_EOB(bs) (((bs)->cur >= (bs)->end && (bs)->leftbits==0)? 1: 0)
 
@@ -137,9 +119,11 @@ should set zero in that case. */
 
 /* move to # bytes align position */
 #define BSR_MOVE_BYTE_ALIGN(bs, byte) \
-    (bs)->cur += (byte) - ((bs)->leftbits >> 3); \
-    (bs)->code = 0; \
-    (bs)->leftbits = 0;
+    do { \
+        (bs)->cur += (byte) - ((bs)->leftbits >> 3); \
+        (bs)->code = 0; \
+        (bs)->leftbits = 0; \
+    } while(0)
 
 #if defined(_MSC_VER)
 static force_inline int bsr_clz64(u64 x)
@@ -169,4 +153,4 @@ int oapv_bsr_read_direct(const void *addr, int len, u32 *out);
 #endif // ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
 
-#endif /* _OAPV_BSR_H_ */
+#endif /* OPENAPV_OAPV_BS_H_ */

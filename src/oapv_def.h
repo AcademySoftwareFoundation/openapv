@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _OAPV_DEF_H_4738294732894739280473892473829_
-#define _OAPV_DEF_H_4738294732894739280473892473829_
+#ifndef OPENAPV_OAPV_DEF_H_
+#define OPENAPV_OAPV_DEF_H_
 
 #ifndef ENABLE_ENCODER
 #define ENABLE_ENCODER 1 // for enabling encoder functionality
@@ -469,4 +469,4 @@ struct oapvd_ctx {
 #include "neon/oapv_blk_neon.h"
 #endif
 
-#endif /* _OAPV_DEF_H_4738294732894739280473892473829_ */
+#endif /* OPENAPV_OAPV_DEF_H_ */

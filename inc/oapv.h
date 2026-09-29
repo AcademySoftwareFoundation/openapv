@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __OAPV_H__3342320849320483827648324783920483920432847382948__
-#define __OAPV_H__3342320849320483827648324783920483920432847382948__
+#ifndef OPENAPV_OAPV_H_
+#define OPENAPV_OAPV_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -915,4 +915,4 @@ OAPV_EXPORT int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles
 } /* extern "C" */
 #endif
 
-#endif /* __OAPV_H__3342320849320483827648324783920483920432847382948__ */
+#endif /* OPENAPV_OAPV_H_ */
