@@ -33,6 +33,9 @@
 #define _OAPV_BSR_H_
 
 #include "oapv_port.h"
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
 
 typedef struct oapv_bs oapv_bs_t;
 typedef int (*oapv_bs_fn_flush_t)(oapv_bs_t *bs, int byte);
@@ -137,6 +140,20 @@ should set zero in that case. */
     (bs)->cur += (byte) - ((bs)->leftbits >> 3); \
     (bs)->code = 0; \
     (bs)->leftbits = 0;
+
+#if defined(_MSC_VER)
+static force_inline int bsr_clz64(u64 x)
+{
+    unsigned long i;
+    _BitScanReverse64(&i, x);
+    return 63 - (int)i;
+}
+#else
+static force_inline int bsr_clz64(u64 x)
+{
+    return __builtin_clzll(x);
+}
+#endif
 
 void oapv_bsr_init(oapv_bs_t *bs, u8 *buf, u32 size, oapv_bs_fn_flush_t fn_flush);
 void oapv_bsr_align8(oapv_bs_t *bs);

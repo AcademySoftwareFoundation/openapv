@@ -31,9 +31,6 @@
 
 #include "oapv_def.h"
 #include "oapv_metadata.h"
-#if defined(_MSC_VER)
-#include <intrin.h>
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // start of encoder code
@@ -662,20 +659,6 @@ int oapve_vlc_get_coef_rate(oapve_core_t* core, s16* coef, int c)
         (bs)->code <<= 1;                       \
         (bs)->leftbits -= 1;                    \
     }
-
-#if defined(_MSC_VER)
-static force_inline int bsr_clz64(u64 x)
-{
-    unsigned long i;
-    _BitScanReverse64(&i, x);
-    return 63 - (int)i;
-}
-#else
-static force_inline int bsr_clz64(u64 x)
-{
-    return __builtin_clzll(x);
-}
-#endif
 
 // Top up the bit buffer with whole bytes below the valid bits, up to 63 bits,
 // without reading past the end. The bits below the valid bits stay zero, and
