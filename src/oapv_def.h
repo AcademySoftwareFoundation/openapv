@@ -190,8 +190,8 @@ typedef void (*oapv_fn_itx_part_t)(s16 *coef, s16 *t, int shift, int line);
 typedef void (*oapv_fn_itx_t)(s16 *coef, int shift1, int shift2, int line);
 typedef void (*oapv_fn_tx_t)(s16 *coef, int shift1, int shift2, int line);
 typedef void (*oapv_fn_itx_adj_t)(int *src, int *dst, int itrans_diff_idx, int diff_step, int shift);
-typedef int (*oapv_fn_quant_t)(s16 *coef, u8 qp, int q_matrix[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset);
-typedef void (*oapv_fn_dquant_t)(s16 *coef, s16 q_matrix[OAPV_BLK_D], int log2_w, int log2_h, s8 shift);
+typedef int (*oapv_fn_quant_t)(s16 *coef, u8 qp, int q_mat[OAPV_BLK_D], int log2_w, int log2_h, int bit_depth, int deadzone_offset);
+typedef void (*oapv_fn_dquant_t)(s16 *coef, s16 dq_mat[OAPV_BLK_D], int log2_w, int log2_h, s8 shift);
 typedef s64 (*oapv_fn_ssd_t)(int w, int h, void *src1, void *src2, int s_src1, int s_src2);
 
 typedef double (*oapv_fn_enc_blk_cost_t)(oapve_ctx_t *ctx, oapve_core_t *core, int log2_w, int log2_h, int c);
@@ -245,8 +245,8 @@ struct oapve_core {
     int          qp[N_C]; // QPs for Y, Cb(U), Cr(V)
     int          dq_shift[N_C];
 
-    int          q_mat_enc[N_C][OAPV_BLK_D];
-    s16          q_mat_dec[N_C][OAPV_BLK_D];
+    int          q_mat[N_C][OAPV_BLK_D];
+    s16          dq_mat[N_C][OAPV_BLK_D];
     double       err_scale_tbl[N_C][OAPV_BLK_D];
     int          thread_idx;
 
@@ -381,7 +381,7 @@ typedef struct oapvd_ctx  oapvd_ctx_t;
 
 struct oapvd_core {
     ALIGNED_16(s16 coef[OAPV_MB_D]);
-    s16          q_mat[N_C][OAPV_BLK_D];
+    s16          dq_mat[N_C][OAPV_BLK_D];
 
     int          kparam_dc[N_C];
     int          kparam_ac[N_C];

@@ -310,14 +310,14 @@ static double enc_block(oapve_ctx_t *ctx, oapve_core_t *core, int log2_w, int lo
     int bit_depth = ctx->bit_depth;
 
     oapv_trans(ctx, core->coef, log2_w, log2_h, bit_depth);
-    ctx->fn_quant[0](core->coef, core->qp[c], core->q_mat_enc[c], log2_w, log2_h, bit_depth, ctx->dz[c]);
+    ctx->fn_quant[0](core->coef, core->qp[c], core->q_mat[c], log2_w, log2_h, bit_depth, ctx->dz[c]);
 
     core->dc_diff = core->coef[0] - core->prev_dc[c];
     core->prev_dc[c] = core->coef[0];
 
     if(ctx->imgb_r) {
         oapv_mcpy(core->coef_rec, core->coef, sizeof(s16) * OAPV_BLK_D);
-        ctx->fn_dquant[0](core->coef_rec, core->q_mat_dec[c], log2_w, log2_h, core->dq_shift[c]);
+        ctx->fn_dquant[0](core->coef_rec, core->dq_mat[c], log2_w, log2_h, core->dq_shift[c]);
         ctx->fn_itx[0](core->coef_rec, ITX_SHIFT1, ITX_SHIFT2(bit_depth), 1 << log2_w);
     }
 
@@ -338,7 +338,7 @@ static double enc_block_rdo_medium(oapve_ctx_t *ctx, oapve_core_t *core, int log
 
     if(ctx->imgb_r) {
         oapv_mcpy(core->coef_rec, core->coef, sizeof(s16) * OAPV_BLK_D);
-        ctx->fn_dquant[0](core->coef_rec, core->q_mat_dec[c], log2_w, log2_h, core->dq_shift[c]);
+        ctx->fn_dquant[0](core->coef_rec, core->dq_mat[c], log2_w, log2_h, core->dq_shift[c]);
         ctx->fn_itx[0](core->coef_rec, ITX_SHIFT1, ITX_SHIFT2(bit_depth), 1 << log2_w);
     }
 
@@ -376,7 +376,7 @@ static double enc_block_rdo_slow(oapve_ctx_t *ctx, oapve_core_t *core, int log2_
 
     {
         oapv_mcpy(recon, coeff, sizeof(s16) * OAPV_BLK_D);
-        ctx->fn_dquant[0](recon, core->q_mat_dec[c], log2_w, log2_h, core->dq_shift[c]);
+        ctx->fn_dquant[0](recon, core->dq_mat[c], log2_w, log2_h, core->dq_shift[c]);
         ctx->fn_itx_part[0](recon, tmp_buf, ITX_SHIFT1, 1 << log2_w);
         oapv_itx_get_wo_sft(tmp_buf, recon, rec_ups, ITX_SHIFT2(bit_depth), 1 << log2_h);
 
@@ -406,10 +406,10 @@ static double enc_block_rdo_slow(oapve_ctx_t *ctx, oapve_core_t *core, int log2_
             }
             int q_step = 0;
             if(core->dq_shift[c] > 0) {
-                q_step = (core->q_mat_dec[c][scanp[j]] + (1 << (core->dq_shift[c] - 1))) >> core->dq_shift[c];
+                q_step = (core->dq_mat[c][scanp[j]] + (1 << (core->dq_shift[c] - 1))) >> core->dq_shift[c];
             }
             else {
-                q_step = (core->q_mat_dec[c][scanp[j]]) << (-core->dq_shift[c]);
+                q_step = (core->dq_mat[c][scanp[j]]) << (-core->dq_shift[c]);
             }
 
             for(int i = 1; i < adj_rng && !zero_dist; i++) {
@@ -452,7 +452,7 @@ static double enc_block_rdo_slow(oapve_ctx_t *ctx, oapve_core_t *core, int log2_
 
     if(ctx->imgb_r) {
         oapv_mcpy(best_recon, best_coeff, sizeof(s16) * OAPV_BLK_D);
-        ctx->fn_dquant[0](best_recon, core->q_mat_dec[c], log2_w, log2_h, core->dq_shift[c]);
+        ctx->fn_dquant[0](best_recon, core->dq_mat[c], log2_w, log2_h, core->dq_shift[c]);
         ctx->fn_itx[0](best_recon, ITX_SHIFT1, ITX_SHIFT2(bit_depth), 1 << log2_w);
     }
 
@@ -519,10 +519,10 @@ static double enc_block_rdo_placebo(oapve_ctx_t* ctx, oapve_core_t* core, int lo
 
     oapv_mcpy(org, core->coef, sizeof(s16) * OAPV_BLK_D);
     oapv_trans(ctx, core->coef, log2_w, log2_h, bit_depth);
-    ctx->fn_quant[0](core->coef, qp, core->q_mat_enc[c], log2_w, log2_h, bit_depth, c ? 128 : 128);
+    ctx->fn_quant[0](core->coef, qp, core->q_mat[c], log2_w, log2_h, bit_depth, c ? 128 : 128);
 
     oapv_mcpy(recon, core->coef, sizeof(s16) * OAPV_BLK_D);
-    ctx->fn_dquant[0](recon, core->q_mat_dec[c], log2_w, log2_h, core->dq_shift[c]);
+    ctx->fn_dquant[0](recon, core->dq_mat[c], log2_w, log2_h, core->dq_shift[c]);
     ctx->fn_itx[0](recon, ITX_SHIFT1, ITX_SHIFT2(bit_depth), 1 << log2_w);
     best_cost = (int)ctx->fn_ssd[0](blk_w, blk_h, org, recon, blk_w, blk_w);
 
@@ -548,7 +548,7 @@ static double enc_block_rdo_placebo(oapve_ctx_t* ctx, oapve_core_t* core, int lo
                 coeff[scanp[j]] = test_coef;
 
                 int test_rate = oapve_vlc_get_coef_rate(core, coeff, c);
-                ctx->fn_dquant[0](coeff, core->q_mat_dec[c], log2_w, log2_h, core->dq_shift[c]);
+                ctx->fn_dquant[0](coeff, core->dq_mat[c], log2_w, log2_h, core->dq_shift[c]);
                 ctx->fn_itx[0](coeff, ITX_SHIFT1, ITX_SHIFT2(bit_depth), 1 << log2_w);
                 double cost = (int)ctx->fn_ssd[0](blk_w, blk_h, org, coeff, blk_w, blk_w);
                 cost += (lambda) * (test_rate);
@@ -572,7 +572,7 @@ static double enc_block_rdo_placebo(oapve_ctx_t* ctx, oapve_core_t* core, int lo
                 coeff[coef_list[i].coef_pos] = ((j >> i) & 1) ? coef_list[i].coef_test : coef_list[i].coef_org;
             }
             oapv_mcpy(recon, coeff, sizeof(s16) * OAPV_BLK_D);
-            ctx->fn_dquant[0](recon, core->q_mat_dec[c], log2_w, log2_h, core->dq_shift[c]);
+            ctx->fn_dquant[0](recon, core->dq_mat[c], log2_w, log2_h, core->dq_shift[c]);
             ctx->fn_itx[0](recon, ITX_SHIFT1, ITX_SHIFT2(bit_depth), 1 << log2_w);
             double cost = (int)ctx->fn_ssd[0](blk_w, blk_h, org, recon, blk_w, blk_w);
             int test_rate = oapve_vlc_get_coef_rate(core, coeff, c);
@@ -586,7 +586,7 @@ static double enc_block_rdo_placebo(oapve_ctx_t* ctx, oapve_core_t* core, int lo
 
     if(ctx->imgb_r) {
         oapv_mcpy(best_recon, best_coeff, sizeof(s16) * OAPV_BLK_D);
-        ctx->fn_dquant[0](best_recon, core->q_mat_dec[c], log2_w, log2_h, core->dq_shift[c]);
+        ctx->fn_dquant[0](best_recon, core->dq_mat[c], log2_w, log2_h, core->dq_shift[c]);
         ctx->fn_itx[0](best_recon, ITX_SHIFT1, ITX_SHIFT2(bit_depth), 1 << log2_w);
     }
 
@@ -762,7 +762,7 @@ static int enc_tile(oapve_ctx_t *ctx, oapve_core_t *core, oapve_tile_t *tile)
         s32 scale_multiply_16 = (s32)(qscale << 4); // 15bit + 4bit
         for(int y = 0; y < OAPV_BLK_H; y++) {
             for(int x = 0; x < OAPV_BLK_W; x++) {
-                core->q_mat_enc[c][cnt++] = scale_multiply_16 / ctx->fh.q_matrix[c][y][x];
+                core->q_mat[c][cnt++] = scale_multiply_16 / ctx->fh.q_matrix[c][y][x];
             }
         }
 
@@ -773,7 +773,7 @@ static int enc_tile(oapve_ctx_t *ctx, oapve_core_t *core, oapve_tile_t *tile)
             u8 dq_scale = oapv_tbl_dq_scale[core->qp[c] % 6];
             for(int y = 0; y < OAPV_BLK_H; y++) {
                 for(int x = 0; x < OAPV_BLK_W; x++) {
-                    core->q_mat_dec[c][cnt++] = dq_scale * ctx->fh.q_matrix[c][y][x];
+                    core->dq_mat[c][cnt++] = dq_scale * ctx->fh.q_matrix[c][y][x];
                 }
             }
         }
@@ -1627,7 +1627,7 @@ static int dec_block(oapvd_ctx_t *ctx, oapvd_core_t *core, int log2_w, int log2_
     core->coef[0] = (s16)dc;
     core->prev_dc[c] = core->coef[0];
     // Inverse quantization
-    ctx->fn_dquant[0](core->coef, core->q_mat[c], log2_w, log2_h, core->dq_shift[c]);
+    ctx->fn_dquant[0](core->coef, core->dq_mat[c], log2_w, log2_h, core->dq_shift[c]);
     // Inverse transform
     ctx->fn_itx[0](core->coef, ITX_SHIFT1, ITX_SHIFT2(bit_depth), 1 << log2_w);
     return OAPV_OK;
@@ -1879,7 +1879,7 @@ static int dec_tile(oapvd_core_t *core, oapvd_tile_t *tile)
         midx = 0;
         for(y = 0; y < OAPV_BLK_H; y++) {
             for(x = 0; x < OAPV_BLK_W; x++) {
-                core->q_mat[c][midx++] = dq_scale * ctx->fh.q_matrix[c][y][x]; // 7bit + 8bit
+                core->dq_mat[c][midx++] = dq_scale * ctx->fh.q_matrix[c][y][x]; // 7bit + 8bit
             }
         }
     }
