@@ -35,6 +35,9 @@
 #include "oapv_def.h"
 #include "oapv_metadata.h"
 
+// level and run are never negative and OAPV_KPARAM_*_MIN is 0, so the lower
+// clamp of oapv_clip3() is not needed; these run for every coefficient, where
+// even one extra compare slows down VLC coding
 #define KPARAM_DC(level)      oapv_min((level)>>1, OAPV_KPARAM_DC_MAX)
 #define KPARAM_AC(level)      oapv_min((level)>>2, OAPV_KPARAM_AC_MAX)
 #define KPARAM_RUN(run)       oapv_min((run)>>2, OAPV_KPARAM_RUN_MAX)

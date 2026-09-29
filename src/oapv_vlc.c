@@ -676,6 +676,10 @@ static int dec_vlc_read_kparam0(oapv_bs_t *bs)
             break;
         }
         else {
+            // No k range check here on purpose; a per-bit branch slows
+            // down decoding. At buffer end, BSR_FLUSH_1BYTE feeds 1-bits
+            // and sets is_eob, so the loop exits; the k check below and
+            // the callers' BSR_IS_UNEXPECTED_EOB check reject the stream.
             k++;
         }
     }
@@ -715,6 +719,10 @@ static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
                 break;
             }
             else {
+                // No k range check here on purpose; a per-bit branch slows
+                // down decoding. At buffer end, BSR_FLUSH_1BYTE feeds 1-bits
+                // and sets is_eob, so the loop exits; the k check below and
+                // the callers' BSR_IS_UNEXPECTED_EOB check reject the stream.
                 k++;
             }
         }
@@ -739,7 +747,6 @@ static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
 
 static int dec_vlc_read(oapv_bs_t *bs, int k)
 {
-    // u32 so accumulation wraps (defined) instead of signed-overflow UB
     u32 symbol;
     int flag;
     int parse_exp_golomb = 0;
@@ -751,7 +758,8 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
         if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
         BSR_READ_1BIT(bs, flag);
 
-        symbol = (u32)(1 + flag) << k;
+        // for '01', this is the (1 << k0) part of the prefix sum below
+        symbol = 1u << k;
         parse_exp_golomb = flag;
     }
     else {
@@ -766,24 +774,21 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
                 break;
             }
             else {
-                // The APV spec has no (k & 31) here: for a valid bitstream k
-                // stays below 32 so the mask is a no-op. It exists only to
-                // keep the shift count in [0,31] for a malformed stream that
-                // drives k past 31, which would otherwise be shift-count UB.
-                // Such a stream is rejected by the (k < 32) check after the
-                // loop, so the masked value is never used.
-                //
-                // The mask is used instead of an in-loop (k < 32) branch on
-                // purpose: this is the hot coefficient-decoding loop, and an
-                // extra conditional here would add a mispredictable branch and
-                // slow down decoding of every symbol. Masking is branch-free.
-                symbol += 1u << (k & 31);
+                // No k range check here on purpose; a per-bit branch slows
+                // down decoding. At buffer end, BSR_FLUSH_1BYTE feeds 1-bits
+                // and sets is_eob, so the loop exits; the k check below and
+                // the callers' BSR_IS_UNEXPECTED_EOB check reject the stream.
                 k++;
             }
         }
+        // The APV spec starts the '01' prefix at (2 << k0) and adds (1 << k)
+        // for each prefix 0-bit. Here the loop only counts k, and the whole
+        // sum, (1 << k0) + (1 << k), is added in one step after the k check,
+        // so symbol cannot wrap on a malformed bitstream. This also drops the
+        // per-bit shift and add from the loop, which helps at low QP.
+        oapv_assert_rv(k < 30, -1); /* prevent too large (impossible) k value */
+        symbol += 1u << k;
     }
-
-    oapv_assert_rv(k < 30, -1); /* prevent too large (impossible) k value */
 
     if(k > 0) {
         while(bs->leftbits < k) {
