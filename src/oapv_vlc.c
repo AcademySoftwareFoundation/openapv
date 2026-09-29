@@ -677,6 +677,31 @@ static inline int bsr_clz64(u64 x)
 }
 #endif
 
+// Top up the bit buffer with whole bytes below the valid bits, up to 63 bits,
+// without reading past the end. The bits below the valid bits stay zero, and
+// is_eob is not touched; BSR_FLUSH_1BYTE still handles the buffer end.
+#define BSR_TOPUP(bs) {                                                      \
+        int n_ = (63 - (bs)->leftbits) >> 3;                                 \
+        if((bs)->end - (bs)->cur >= 8) {                                     \
+            const u8 *p_ = (bs)->cur;                                        \
+            u64 v_ = ((u64)p_[0] << 56) | ((u64)p_[1] << 48) |               \
+                     ((u64)p_[2] << 40) | ((u64)p_[3] << 32) |               \
+                     ((u64)p_[4] << 24) | ((u64)p_[5] << 16) |               \
+                     ((u64)p_[6] << 8) | (u64)p_[7];                         \
+            v_ &= ~(~(u64)0 >> (n_ << 3));                                   \
+            (bs)->code |= v_ >> (bs)->leftbits;                              \
+            (bs)->cur += n_;                                                 \
+            (bs)->leftbits += n_ << 3;                                       \
+        }                                                                    \
+        else {                                                               \
+            while(n_ > 0 && (bs)->cur < (bs)->end) {                         \
+                (bs)->code |= (u64)(*(bs)->cur++) << (56 - (bs)->leftbits);  \
+                (bs)->leftbits += 8;                                         \
+                n_--;                                                        \
+            }                                                                \
+        }                                                                    \
+    }
+
 // Consume the 0-bits of an exp-golomb prefix and its terminating 1-bit, and
 // add the number of 0-bits to k. The sentinel bit just below the valid bits
 // keeps clz defined and stops it at the end of the valid bits; only a prefix
@@ -705,6 +730,8 @@ static int dec_vlc_read_kparam0(oapv_bs_t *bs)
     u32 symbol;
     int k;
 
+    if(bs->leftbits < 32) BSR_TOPUP(bs);
+
     symbol = 2;
     k = 0;
 
@@ -730,6 +757,8 @@ static int dec_vlc_read_1bit_read(oapv_bs_t *bs)
 {
     u32 symbol;
     int flag, k;
+
+    if(bs->leftbits < 32) BSR_TOPUP(bs);
 
     if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
     BSR_READ_1BIT(bs, flag);
@@ -762,6 +791,8 @@ static int dec_vlc_read(oapv_bs_t *bs, int k)
     u32 symbol;
     int flag;
     int parse_exp_golomb = 0;
+
+    if(bs->leftbits < 32) BSR_TOPUP(bs);
 
     if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
     BSR_READ_1BIT(bs, flag);
@@ -904,6 +935,7 @@ int oapvd_vlc_ac_coef(oapv_bs_t *bs, s16 *coef, int *kparam_ac)
     k_ac = *kparam_ac;
 
     do {
+        if(bs->leftbits < 32) BSR_TOPUP(bs);
         // run parsing
         if(k_run == 0) { // early termination
             if(bs->leftbits == 0) BSR_FLUSH_1BYTE(bs);
