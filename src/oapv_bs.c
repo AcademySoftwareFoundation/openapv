@@ -146,7 +146,7 @@ int oapv_bsw_write(oapv_bs_t *bs, u32 val, int len)
 #if ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
 
-static inline void bsr_skip_code(oapv_bs_t *bs, int size)
+static force_inline void bsr_skip_code(oapv_bs_t *bs, int size)
 {
     oapv_assert(size <= 32);
     oapv_assert(bs->leftbits >= size);

@@ -61,12 +61,12 @@ struct oapv_bs {
     (bs)->code = 0; \
     (bs)->leftbits = 64;
 
-static inline bool bsw_is_align8(oapv_bs_t *bs)
+static force_inline bool bsw_is_align8(oapv_bs_t *bs)
 {
     return (bool)(!((bs)->leftbits & 0x7));
 }
 
-static inline int bsw_get_write_byte(oapv_bs_t *bs)
+static force_inline int bsw_get_write_byte(oapv_bs_t *bs)
 {
     return (int)((u8 *)(bs->cur) - (u8 *)(bs->beg));
 }

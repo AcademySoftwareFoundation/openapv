@@ -77,7 +77,7 @@
 // validate tile topology and compute number of tiles (overflow-safe).
 // UNCONST profiles have no limit on the number of tile columns and rows.
 // returns OAPV_OK and sets *num_tiles on success, error otherwise.
-static inline int oapv_validate_tile_topology(int profile_idc, int tile_cols, int tile_rows, int *num_tiles)
+static force_inline int oapv_validate_tile_topology(int profile_idc, int tile_cols, int tile_rows, int *num_tiles)
 {
     int unconst = OAPV_PROFILE_IS_UNCONST(profile_idc);
     if(tile_cols < 1 || (!unconst && tile_cols > OAPV_MAX_TILE_COLS))
@@ -96,7 +96,7 @@ static inline int oapv_validate_tile_topology(int profile_idc, int tile_cols, in
 // validate that (header + payload) fits within remaining bytes without
 // integer wrap. operands are promoted to u64 so a crafted u32 payload
 // size cannot bypass the check via overflow.
-static inline int oapv_validate_payload_bounds(u64 remaining, u64 header, u64 payload)
+static force_inline int oapv_validate_payload_bounds(u64 remaining, u64 header, u64 payload)
 {
     if(remaining < header)
         return OAPV_ERR_MALFORMED_BITSTREAM;
@@ -105,7 +105,7 @@ static inline int oapv_validate_payload_bounds(u64 remaining, u64 header, u64 pa
     return OAPV_OK;
 }
 
-static inline int chroma_format_idc_to_color_format(int chroma_format_idc)
+static force_inline int chroma_format_idc_to_color_format(int chroma_format_idc)
 {
     return ((chroma_format_idc == 0)   ? OAPV_CF_YCBCR400
             : (chroma_format_idc == 1) ? OAPV_CF_YCBCR420
@@ -114,7 +114,7 @@ static inline int chroma_format_idc_to_color_format(int chroma_format_idc)
                                        : OAPV_CF_YCBCR4444);
 }
 
-static inline int color_format_to_chroma_format_idc(int color_format)
+static force_inline int color_format_to_chroma_format_idc(int color_format)
 {
     if(color_format == OAPV_CF_PLANAR2) {
         return 2;
@@ -128,7 +128,7 @@ static inline int color_format_to_chroma_format_idc(int color_format)
     }
 }
 
-static inline int get_chroma_sft_w(int chroma_format_idc)
+static force_inline int get_chroma_sft_w(int chroma_format_idc)
 {
     return ((chroma_format_idc == 0)   ? 1
             : (chroma_format_idc == 1) ? 1
@@ -136,13 +136,13 @@ static inline int get_chroma_sft_w(int chroma_format_idc)
                                        : 0);
 }
 
-static inline int get_chroma_sft_h(int chroma_format_idc)
+static force_inline int get_chroma_sft_h(int chroma_format_idc)
 {
     return ((chroma_format_idc == 0)   ? 1
             : (chroma_format_idc == 1) ? 1
                                        : 0);
 }
-static inline int get_num_comp(int chroma_format_idc)
+static force_inline int get_num_comp(int chroma_format_idc)
 {
 
     return (chroma_format_idc == 0)   ? 1
@@ -150,14 +150,14 @@ static inline int get_num_comp(int chroma_format_idc)
                                       : 3;
 }
 
-static inline void imgb_addref(oapv_imgb_t *imgb)
+static force_inline void imgb_addref(oapv_imgb_t *imgb)
 {
     if(imgb->addref) {
         imgb->addref(imgb);
     }
 }
 
-static inline void imgb_release(oapv_imgb_t *imgb)
+static force_inline void imgb_release(oapv_imgb_t *imgb)
 {
     if(imgb->release) {
         imgb->release(imgb);
