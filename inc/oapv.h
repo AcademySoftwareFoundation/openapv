@@ -73,10 +73,13 @@ extern "C" {
     #include <oapv/oapv_exports.h>
 #endif
 
-/*****************************************************************************
- * version and related macro
- * the version string follows the rule of API_SET.MAJOR.MINOR.PATCH
- *****************************************************************************/
+// version numbers (should be changed in case of new release)
+#define OAPV_VER_APISET                 (1)
+#define OAPV_VER_MAJOR                  (1)
+#define OAPV_VER_MINOR                  (2)
+#define OAPV_VER_PATCH                  (0)
+
+// version macros: the version string is API_SET.MAJOR.MINOR.PATCH
 #define OAPV_VER_SET(apiset, major, minor, patch) \
     (((apiset & 0xFF) << 24)|((major & 0xFF) << 16)|((minor & 0xFF) << 8)|\
     (patch & 0xFF))
@@ -84,12 +87,6 @@ extern "C" {
 #define OAPV_VER_GET_MAJOR(v)           (((v) >> 16) & 0xFF)
 #define OAPV_VER_GET_MINOR(v)           (((v) >>  8) & 0xFF)
 #define OAPV_VER_GET_PATCH(v)           (((v) >>  0) & 0xFF)
-
-// version numbers (should be changed in case of new release)
-#define OAPV_VER_APISET                 (1)
-#define OAPV_VER_MAJOR                  (1)
-#define OAPV_VER_MINOR                  (2)
-#define OAPV_VER_PATCH                  (0)
 
 // 4-bytes version number
 #define OAPV_VER_NUM \
@@ -537,43 +534,26 @@ typedef struct oapv_imgb oapv_imgb_t;
 struct oapv_imgb {
     int           cs; // color space
     int           np; // number of plane
-    // width (in unit of pixel)
-    int           w[OAPV_MAX_CC];
-    // height (in unit of pixel)
-    int           h[OAPV_MAX_CC];
-    // X position of left top (in unit of pixel)
-    int           x[OAPV_MAX_CC];
-    // Y position of left top (in unit of pixel)
-    int           y[OAPV_MAX_CC];
-    // buffer stride (in unit of byte)
-    int           s[OAPV_MAX_CC];
-    // buffer elevation (in unit of byte)
-    int           e[OAPV_MAX_CC];
-    // address of each plane
-    void         *a[OAPV_MAX_CC];
+    int           w[OAPV_MAX_CC]; // width (in unit of pixel)
+    int           h[OAPV_MAX_CC]; // height (in unit of pixel)
+    int           x[OAPV_MAX_CC]; // X position of left top (in unit of pixel)
+    int           y[OAPV_MAX_CC]; // Y position of left top (in unit of pixel)
+    int           s[OAPV_MAX_CC]; // buffer stride (in unit of byte)
+    int           e[OAPV_MAX_CC]; // buffer elevation (in unit of byte)
+    void         *a[OAPV_MAX_CC]; // address of each plane
     // MD5 hash of each plane, filled when the frame hash is used
     unsigned char hash[OAPV_MAX_CC][16];
-    // time-stamps
-    oapv_mtime_t  ts[4];
+    oapv_mtime_t  ts[4]; // time-stamps
     int           ndata[4]; // arbitrary data, if needed
     void         *pdata[4]; // arbitrary address if needed
-    // aligned width (in unit of pixel)
-    int           aw[OAPV_MAX_CC];
-    // aligned height (in unit of pixel)
-    int           ah[OAPV_MAX_CC];
-
-    // left padding size (in unit of pixel)
-    int           padl[OAPV_MAX_CC];
-    // right padding size (in unit of pixel)
-    int           padr[OAPV_MAX_CC];
-    // up padding size (in unit of pixel)
-    int           padu[OAPV_MAX_CC];
-    // bottom padding size (in unit of pixel)
-    int           padb[OAPV_MAX_CC];
-    // address of actual allocated buffer
-    void         *baddr[OAPV_MAX_CC];
-    // actual allocated buffer size
-    int           bsize[OAPV_MAX_CC];
+    int           aw[OAPV_MAX_CC]; // aligned width (in unit of pixel)
+    int           ah[OAPV_MAX_CC]; // aligned height (in unit of pixel)
+    int           padl[OAPV_MAX_CC]; // left padding size (in unit of pixel)
+    int           padr[OAPV_MAX_CC]; // right padding size (in unit of pixel)
+    int           padu[OAPV_MAX_CC]; // up padding size (in unit of pixel)
+    int           padb[OAPV_MAX_CC]; // bottom padding size (in unit of pixel)
+    void         *baddr[OAPV_MAX_CC]; // address of actual allocated buffer
+    int           bsize[OAPV_MAX_CC]; // actual allocated buffer size
     /* life cycle management: the library calls addref() while it uses the
        buffer and release() when it is done; either may be NULL */
     int           refcnt;
@@ -587,8 +567,8 @@ typedef struct oapv_frm oapv_frm_t;
 struct oapv_frm {
     oapv_imgb_t *imgb;     // image buffer of the frame
     int          pbu_type; // OAPV_PBU_TYPE_* of the frame
-    int          group_id; /* 0 ~ OAPV_MAX_GROUP_ID; ties the frame to its
-                              metadata */
+    // 0 ~ OAPV_MAX_GROUP_ID; ties the frame to its metadata
+    int          group_id;
 };
 
 // the frames of an AU, in the order they appear in the AU
@@ -599,7 +579,7 @@ struct oapv_frms {
 };
 
 /*
- * Bitstream buffer, allocated and owned by the application. The encoder
+ * bitstream buffer, allocated and owned by the application. The encoder
  * writes into it up to 'bsize' bytes; the decoder reads 'ssize' bytes of it.
  */
 typedef struct oapv_bitb oapv_bitb_t;
