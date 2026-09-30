@@ -467,6 +467,7 @@ static const oapv_dict_str_int_t oapv_param_opts_color_transfer[] = {
     {"arib-std-b67",   18},
     {"", 0} // termination
 };
+
 /* values of the "color-matrix" parameter of oapve_param_parse() */
 static const oapv_dict_str_int_t oapv_param_opts_color_matrix[] = {
     {"gbr",                 0},
@@ -795,8 +796,8 @@ OAPV_EXPORT int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int s
  *   - type    : payload type
  *   - data    : receives the address of the payload data
  *   - size    : receives the payload size in bytes
- *   - uuid    : 16-byte UUID for OAPV_METADATA_USER_DEFINED; otherwise
- *               ignored
+ *   - uuid    : 16-byte UUID; required for OAPV_METADATA_USER_DEFINED and
+ *               ignored for the other types
  * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
  *   - OAPV_ERR_NOT_FOUND: the container has no such payload
  * NOTE: '*data' points into the container; it stays valid until the payload
@@ -809,8 +810,8 @@ OAPV_EXPORT int oapvm_get(oapvm_t mid, int group_id, int type, void **data, int 
  *   - mid     : container handle
  *   - group_id: group ID of the payload
  *   - type    : payload type
- *   - uuid    : 16-byte UUID for OAPV_METADATA_USER_DEFINED; otherwise
- *               ignored
+ *   - uuid    : 16-byte UUID; required for OAPV_METADATA_USER_DEFINED and
+ *               ignored for the other types
  * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
  *   - OAPV_ERR_NOT_FOUND: the container has no such payload
  */
@@ -1052,7 +1053,8 @@ OAPV_EXPORT int oapve_param_parse(oapve_param_t* param, const char* name,  const
  * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
  *   - OAPV_ERR_OUT_OF_BS_BUF: 'bitb' is too small for the coded AU
  * NOTE: 'mid' must not be NULL when the frame hash is enabled with
- *       OAPV_CFG_SET_USE_FRM_HASH, because the hash is written as metadata.
+ *       OAPV_CFG_SET_USE_FRM_HASH for the slot of a primary or non-primary
+ *       frame, because the hash is written as metadata.
  */
 OAPV_EXPORT int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frms_t *rfrms);
 
