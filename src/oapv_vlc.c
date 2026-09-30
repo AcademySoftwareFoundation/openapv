@@ -998,7 +998,7 @@ int oapvd_vlc_frame_info(oapv_bs_t *bs, oapv_fi_t *fi)
     // check frame width in case of 422 format.
     if(fi->chroma_format_idc == 2) {
         // frame_width should be multiple of 2
-        oapv_assert_rv((fi->frame_width & 0x1) == 0, OAPV_ERR_INVALID_WIDTH);
+        oapv_assert_rv((fi->frame_width & 0x1) == 0, OAPV_ERR_MALFORMED_BITSTREAM);
     }
 
     oapv_assert_rv(!BSR_IS_UNEXPECTED_EOB(bs), OAPV_ERR_MALFORMED_BITSTREAM);
@@ -1210,8 +1210,14 @@ int oapvd_vlc_metadata(oapv_bs_t *bs, u32 pbu_size, oapvm_t mid, int group_id)
             payload_data = NULL;
         }
         BSR_MOVE_BYTE_ALIGN(bs, payload_size);
-        ret = oapvm_set(mid, group_id, payload_type, payload_data, payload_size);
-        oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+        if(mid != NULL) { // no container: parse the payload and discard it
+            ret = oapvm_set(mid, group_id, payload_type, payload_data, payload_size);
+            // a payload rejected by its type's format came from the bitstream
+            if(ret == OAPV_ERR_INVALID_ARGUMENT) {
+                ret = OAPV_ERR_MALFORMED_BITSTREAM;
+            }
+            oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+        }
         metadata_size -= payload_size;
     }
     const u32 target_read_size = (pbu_size - 8);

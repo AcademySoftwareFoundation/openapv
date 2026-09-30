@@ -651,7 +651,7 @@ static int enc_ready(oapve_ctx_t *ctx)
 
     // get the context synchronization handle
     ctx->sync_obj = oapv_tpool_sync_obj_create(&ctx->ops_mem);
-    oapv_assert_gv(ctx->sync_obj != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
+    oapv_assert_gv(ctx->sync_obj != NULL, ret, OAPV_ERR_FAILED_SYSCALL, ERR);
 
     if(ctx->threads >= 2) {
         ctx->tpool = oapv_ops_malloc(ctx, sizeof(oapv_tpool_t));
@@ -659,12 +659,12 @@ static int enc_ready(oapve_ctx_t *ctx)
         oapv_tpool_init(ctx->tpool, &ctx->ops_mem, ctx->threads - 1);
         for(int i = 0; i < ctx->threads - 1; i++) {
             ctx->thread_id[i] = ctx->tpool->create(ctx->tpool, i);
-            oapv_assert_gv(ctx->thread_id[i] != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
+            oapv_assert_gv(ctx->thread_id[i] != NULL, ret, OAPV_ERR_FAILED_SYSCALL, ERR);
         }
     }
 
     ctx->bs_buf = (u8 *)oapv_ops_malloc(ctx, ctx->cdesc.max_bs_buf_size);
-    oapv_assert_gv(ctx->bs_buf, ret, OAPV_ERR_UNKNOWN, ERR);
+    oapv_assert_gv(ctx->bs_buf, ret, OAPV_ERR_OUT_OF_MEMORY, ERR);
 
     ctx->rc_param.alpha = OAPV_RC_ALPHA;
     ctx->rc_param.beta = OAPV_RC_BETA;
@@ -919,6 +919,8 @@ static int enc_check_profile(int profile_idc, int cfi, int bit_depth)
                     return OAPV_OK;
                 }
             }
+            // a known profile that does not allow the input format
+            return OAPV_ERR_UNSUPPORTED_COLORSPACE;
         }
         idx++;
     }
@@ -1317,7 +1319,7 @@ oapve_t oapve_create(oapve_cdesc_t *cdesc, int *err)
         return (ctx->id);
     }
     else {
-        ret = OAPV_ERR;
+        ret = OAPV_ERR_OUT_OF_MEMORY;
     }
 ERR:
     if(ctx) {
@@ -1355,8 +1357,11 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
     oapv_assert_rv(ifrms != NULL && stat != NULL, OAPV_ERR_INVALID_ARGUMENT);
     // bound the frame count to the frm[]/param[] array sizes
     oapv_assert_rv(ifrms->num_frms >= 1 && ifrms->num_frms <= OAPV_MAX_NUM_FRAMES, OAPV_ERR_INVALID_ARGUMENT);
+    // only the frame slots given at creation have coding parameters
+    oapv_assert_rv(ifrms->num_frms <= ctx->cdesc.max_num_frms, OAPV_ERR_INVALID_ARGUMENT);
     for(i = 0; i < ifrms->num_frms; i++) {
         frm = &ifrms->frm[i];
+        oapv_assert_rv(frm->imgb != NULL, OAPV_ERR_INVALID_ARGUMENT);
         if(ctx->use_frm_hash[i] &&
            (frm->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME || frm->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME)) {
             oapv_assert_rv(mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
@@ -1488,19 +1493,19 @@ int oapve_config(oapve_t eid, int cfg, void *buf, int *size)
         // input bit depth is unknown here; the exact bound is checked when
         // encoding a frame
         oapv_assert_rv(t0 >= MIN_QUANT && t0 <= enc_profile_max_qp(param->profile_idc),
-                       OAPV_ERR_INVALID_ARGUMENT);
+                       OAPV_ERR_INVALID_QP);
         param->qp = t0;
         break;
     case OAPV_CFG_SET_FPS_NUM:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         t0 = *((int *)buf);
-        oapv_assert_rv(t0 > 0, OAPV_ERR_INVALID_ARGUMENT);
+        oapv_assert_rv(t0 > 0, OAPV_ERR_INVALID_FPS);
         param->fps_num = t0;
         break;
     case OAPV_CFG_SET_FPS_DEN:
         oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         t0 = *((int *)buf);
-        oapv_assert_rv(t0 > 0, OAPV_ERR_INVALID_ARGUMENT);
+        oapv_assert_rv(t0 > 0, OAPV_ERR_INVALID_FPS);
         param->fps_den = t0;
         break;
     case OAPV_CFG_SET_BPS:
@@ -1557,8 +1562,7 @@ int oapve_config(oapve_t eid, int cfg, void *buf, int *size)
         *((int *)buf) = ctx->tile_size_in_fh[frm_idx];
         break;
     default:
-        oapv_trace("unknown config value (%d)\n", cfg);
-        oapv_assert_rv(0, OAPV_ERR_UNSUPPORTED);
+        return OAPV_ERR_UNSUPPORTED;
     }
 
     return OAPV_OK;
@@ -1656,7 +1660,7 @@ static int dec_frm_setup(oapvd_ctx_t *ctx, int cs)
     // format (note: OAPV_CF_PLANAR2 maps to chroma_format_idc 2 so the
     // YCbCr422 -> P210 output path is accepted)
     if(color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(cs)) != ctx->fh.fi.chroma_format_idc) {
-        return OAPV_ERR_INVALID_ARGUMENT;
+        return OAPV_ERR_UNSUPPORTED_COLORSPACE;
     }
 
     ctx->cs = cs;
@@ -1751,7 +1755,7 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
 {
     int i, ret;
 
-    oapv_assert_rv(imgb != NULL, OAPV_ERR_MALFORMED_BITSTREAM);
+    oapv_assert_rv(imgb != NULL, OAPV_ERR_INVALID_ARGUMENT);
 
     // the input image buffer must match the frame format signaled in the
     // bitstream; a mismatch (e.g. caused by a resolution change without
@@ -2202,7 +2206,7 @@ static int dec_ready(oapvd_ctx_t *ctx)
 
     // get the context synchronization handle
     ctx->sync_obj = oapv_tpool_sync_obj_create(&ctx->ops_mem);
-    oapv_assert_gv(ctx->sync_obj != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
+    oapv_assert_gv(ctx->sync_obj != NULL, ret, OAPV_ERR_FAILED_SYSCALL, ERR);
 
     if(ctx->threads >= 2) {
         ctx->tpool = oapv_ops_malloc(ctx, sizeof(oapv_tpool_t));
@@ -2210,7 +2214,7 @@ static int dec_ready(oapvd_ctx_t *ctx)
         oapv_tpool_init(ctx->tpool, &ctx->ops_mem, ctx->threads - 1);
         for(i = 0; i < ctx->threads - 1; i++) {
             ctx->thread_id[i] = ctx->tpool->create(ctx->tpool, i);
-            oapv_assert_gv(ctx->thread_id[i] != NULL, ret, OAPV_ERR_UNKNOWN, ERR);
+            oapv_assert_gv(ctx->thread_id[i] != NULL, ret, OAPV_ERR_FAILED_SYSCALL, ERR);
         }
     }
     return OAPV_OK;
@@ -2364,6 +2368,8 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
            pbuh.pbu_type == OAPV_PBU_TYPE_ALPHA_FRAME) {
 
             oapv_assert_gv(nfrms < OAPV_MAX_NUM_FRAMES, ret, OAPV_ERR_REACHED_MAX, ERR);
+            // the application must provide an output frame for each frame
+            oapv_assert_gv(nfrms < ofrms->num_frms, ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
 
             ret = oapvd_vlc_frame_header(bs, &ctx->fh, NULL, 0);
             oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
@@ -2430,7 +2436,6 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
         stat->read += BSR_GET_READ_BYTE(bs);
     } while(cur_read_size < bitb->ssize);
     stat->aui.num_frms = nfrms;
-    oapv_assert_gv(ofrms->num_frms == nfrms, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
     return ret;
 
 ERR:
@@ -2455,7 +2460,7 @@ int oapvd_config(oapvd_t did, int cfg, void *buf, int *size)
         ctx->force_disable_companding = (*((int *)buf)) ? 1 : 0;
         break;
     default:
-        oapv_assert_rv(0, OAPV_ERR_UNSUPPORTED);
+        return OAPV_ERR_UNSUPPORTED;
     }
     return OAPV_OK;
 }
@@ -2468,6 +2473,8 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
     oapv_bs_t bs;
 
     DUMP_SET(0);
+
+    oapv_assert_rv(au != NULL && aui != NULL, OAPV_ERR_INVALID_ARGUMENT);
 
     // read signature ('aPv1')
     oapv_assert_rv(au_size > 4, OAPV_ERR_MALFORMED_BITSTREAM);
@@ -2486,7 +2493,7 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
         ret = oapvd_vlc_pbu_size(&bs, &pbu_size); // read pbu_size (4 byte)
         oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
         remain -= 4; // size of pbu_size syntax
-        oapv_assert_rv(pbu_size <= remain, OAPV_ERR_MALFORMED_BITSTREAM);
+        oapv_assert_rv(pbu_size >= 4 && pbu_size <= remain, OAPV_ERR_MALFORMED_BITSTREAM);
 
         /* pbu header */
         oapv_pbuh_t pbuh;
@@ -2529,7 +2536,7 @@ int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_info)
 {
     oapv_bs_t bs;
     oapv_assert_rv(pbu != NULL && pbu_info != NULL, OAPV_ERR_INVALID_ARGUMENT);
-    oapv_assert_rv(pbu_size >= 4, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(pbu_size >= 4, OAPV_ERR_MALFORMED_BITSTREAM);
 
     oapv_bsr_init(&bs, pbu, pbu_size, NULL);
 
@@ -2548,7 +2555,7 @@ int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info)
     int          ret = OAPV_OK;
 
     oapv_assert_rv(pbu != NULL && frm_info != NULL, OAPV_ERR_INVALID_ARGUMENT);
-    oapv_assert_rv(pbu_size >= (OAPV_PBU_HEADER_BYTE + OAPV_FRAME_INFO_BYTE), OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(pbu_size >= (OAPV_PBU_HEADER_BYTE + OAPV_FRAME_INFO_BYTE), OAPV_ERR_MALFORMED_BITSTREAM);
     oapv_bsr_init(&bs, pbu, pbu_size, NULL);
 
     DUMP_SET(0);
@@ -2580,7 +2587,7 @@ int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *nu
 
     oapv_assert_rv(pbu != NULL && num_tiles != NULL, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(pos_tiles == NULL || *num_tiles >= 0, OAPV_ERR_INVALID_ARGUMENT);
-    oapv_assert_rv(pbu_size >= (OAPV_PBU_HEADER_BYTE + OAPV_FRAME_INFO_BYTE), OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(pbu_size >= (OAPV_PBU_HEADER_BYTE + OAPV_FRAME_INFO_BYTE), OAPV_ERR_MALFORMED_BITSTREAM);
     oapv_bsr_init(&bs, pbu, pbu_size, NULL);
 
     DUMP_SET(0);
@@ -2829,19 +2836,27 @@ int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
     oapvd_ctx_t *ctx;
     int          ret;
     oapv_bs_t    bs;
+    oapv_pbuh_t  pbuh;
     oapv_aui_t   ai;
 
     ctx = dec_id_to_ctx(did);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv(bitb != NULL && bitb->addr != NULL && aui != NULL, OAPV_ERR_INVALID_ARGUMENT);
 
+    oapv_assert_rv(bitb->ssize >= 8, OAPV_ERR_MALFORMED_BITSTREAM);
     if(bitb->bsize > 0) {
         oapv_assert_rv(bitb->ssize <= bitb->bsize, OAPV_ERR_INVALID_ARGUMENT);
     }
     oapv_bsr_init(&bs, bitb->addr, bitb->ssize, NULL);
 
+    // 'bitb' holds a whole PBU, as for the other PBU-based functions
+    ret = oapvd_vlc_pbu_header(&bs, &pbuh);
+    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+    oapv_assert_rv(pbuh.pbu_type == OAPV_PBU_TYPE_AU_INFO, OAPV_ERR_INVALID_ARGUMENT);
+
     DUMP_SET(0);
     ret = oapvd_vlc_au_info(&bs, &ai);
+    DUMP_SET(1);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     oapv_mset(aui, 0, sizeof(oapv_au_info_t)); // clear
@@ -2850,7 +2865,6 @@ int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
     for(int i = 0; i < ai.num_frames; i++) {
         fi_to_finfo(&ai.frame_info[i], ai.pbu_type[i], ai.group_id[i], &aui->frm_info[i]);
     }
-    DUMP_SET(1);
     return OAPV_OK;
 }
 
@@ -2891,14 +2905,19 @@ ERR:
 #endif // ENABLE_DECODER
 ///////////////////////////////////////////////////////////////////////////////
 
+// OAPV_VER_* are parenthesized like (1); 'OAPV_VER_STR_S (1)' drops them
+#define OAPV_VER_STR_S(v) #v
+#define OAPV_VER_STR_I(v) OAPV_VER_STR_S v
+#define OAPV_VER_STR(v)   OAPV_VER_STR_I(v)
+
 const char *oapv_version(unsigned int *ver_num)
 {
-    static char oapv_version_string[16];
-    snprintf(oapv_version_string, sizeof(oapv_version_string), "%d.%d.%d.%d",
-        OAPV_VER_APISET, OAPV_VER_MAJOR, OAPV_VER_MINOR, OAPV_VER_PATCH);
+    static const char oapv_version_string[] =
+        OAPV_VER_STR(OAPV_VER_APISET) "." OAPV_VER_STR(OAPV_VER_MAJOR) "."
+        OAPV_VER_STR(OAPV_VER_MINOR) "." OAPV_VER_STR(OAPV_VER_PATCH);
 
     if(ver_num != NULL)
         *ver_num = OAPV_VER_NUM;
 
-    return (char*)oapv_version_string;
+    return oapv_version_string;
 }

@@ -1085,6 +1085,9 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
                 // other types of frame PBU
             }
             else if (pbu_info.pbu_type == OAPV_PBU_TYPE_AU_INFO) {
+                bitb.addr = pbu;
+                bitb.bsize = pbu_size;
+                bitb.ssize = pbu_size;
                 ret = oapvd_decode_auinfo(did, &bitb, &aui);
                 if(OAPV_FAILED(ret)) {
                     logerr("ERR: cannot get PBU information\n");
