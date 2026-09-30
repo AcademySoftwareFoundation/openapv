@@ -292,6 +292,9 @@ extern "C" {
 #define OAPV_PBU_TYPE_FILLER            (67)
 #define OAPV_PBU_TYPE_UNKNOWN           (-1)
 
+/* number of the frame PBU types; keep it in sync with
+   OAPV_PBU_TYPE_IS_FRAME() */
+#define OAPV_PBU_FRAME_TYPE_NUM         (5)
 /* true for the PBU types that carry a frame: primary, non-primary, preview,
    depth and alpha */
 #define OAPV_PBU_TYPE_IS_FRAME(pbu_type)   \
