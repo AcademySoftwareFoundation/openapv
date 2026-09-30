@@ -127,6 +127,7 @@ extern "C" {
 #define OAPV_MAX_NUM_FRAMES (16) // max number of frames in an access unit
 #define OAPV_MAX_NUM_METAS  (16) // max number of metadata in an access unit
 #define OAPV_MAX_NUM_META_PAYLOADS (128) // max number of metadata payloads per access unit
+#define OAPV_MAX_GROUP_ID   (0xFFFE) // max group ID; 0xFFFF is reserved
 
 /* value of 'threads' in oapve_cdesc_t and oapvd_cdesc_t that lets the
    library choose the number of threads */
@@ -590,7 +591,8 @@ typedef struct oapv_frm oapv_frm_t;
 struct oapv_frm {
     oapv_imgb_t *imgb;     /* image buffer of the frame */
     int          pbu_type; /* OAPV_PBU_TYPE_* of the frame */
-    int          group_id; /* ties the frame to its metadata */
+    int          group_id; /* 0 ~ OAPV_MAX_GROUP_ID; ties the frame to its
+                              metadata */
 };
 
 /* the frames of an AU, in the order they appear in the AU */
@@ -727,7 +729,7 @@ struct oapvm_cdesc {
 /* one metadata payload, for oapvm_set_all() and oapvm_get_all() */
 typedef struct oapvm_payload oapvm_payload_t;
 struct oapvm_payload {
-    int           group_id;  // group ID
+    int           group_id;  // group ID; 0 ~ OAPV_MAX_GROUP_ID
     int           type;      // payload type
     int           size;      // byte size of metadata payload
     void         *data;      // address of metadata payload
@@ -774,7 +776,7 @@ OAPV_EXPORT void oapvm_delete(oapvm_t mid);
  * Add a payload to the container, or replace the payload of the same type in
  * the same group.
  *   - mid     : container handle
- *   - group_id: group ID the payload belongs to
+ *   - group_id: group ID the payload belongs to; 0 ~ OAPV_MAX_GROUP_ID
  *   - type    : payload type, such as OAPV_METADATA_MDCV
  *   - data    : payload data; it is copied into the container
  *   - size    : payload size in bytes

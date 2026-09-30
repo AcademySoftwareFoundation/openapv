@@ -937,7 +937,7 @@ int oapvd_vlc_pbu_header(oapv_bs_t *bs, oapv_pbuh_t *pbuh)
 
     pbuh->group_id = oapv_bsr_read(bs, 16);
     DUMP_HLS(group_id, pbuh->group_id);
-    oapv_assert_rv(pbuh->group_id >= 0 && pbuh->group_id < 0xFFFF, OAPV_ERR_MALFORMED_BITSTREAM);
+    oapv_assert_rv(pbuh->group_id >= 0 && pbuh->group_id <= OAPV_MAX_GROUP_ID, OAPV_ERR_MALFORMED_BITSTREAM);
 
     reserved_zero = oapv_bsr_read(bs, 8);
     DUMP_HLS(reserved_zero, reserved_zero);
