@@ -34,6 +34,9 @@
 
 int oapve_param_default(oapve_param_t *param)
 {
+    if(param == NULL) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
     oapv_mset(param, 0, sizeof(oapve_param_t));
     param->preset = OAPV_PRESET_DEFAULT;
 
@@ -197,7 +200,7 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     int   ti0;
     float tf0;
 
-    if(param == NULL || name == NULL || value == NULL) {
+    if(param == NULL || name == NULL || value == NULL || value[0] == '\0') {
         return OAPV_ERR_INVALID_ARGUMENT;
     }
 
@@ -217,7 +220,7 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     if(0){;}
     NAME_CMP("profile") {
         if(get_ival_from_skey(oapv_param_opts_profile, value, &ti0)) {
-            return OAPV_ERR_INVALID_ARGUMENT;
+            return OAPV_ERR_INVALID_PROFILE;
         }
         param->profile_idc = ti0;
     }
@@ -226,7 +229,7 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
             param->level_idc = OAPVE_PARAM_LEVEL_IDC_AUTO;
         }
         else {
-            GET_FLOAT_OR_ERR(value, tf0, OAPV_ERR_INVALID_ARGUMENT);
+            GET_FLOAT_OR_ERR(value, tf0, OAPV_ERR_INVALID_LEVEL);
             // validation check
             // level == [1, 1.1, 2, 2.1, 3, 3.1, 4, 4.1, 5, 5.1, 6, 6.1, 7, 7.1]
             if(tf0 == 1.0f || tf0 == 1.1f || tf0 == 2.0f || tf0 == 2.1f || \
@@ -236,7 +239,7 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
                 param->level_idc = OAPV_LEVEL_TO_LEVEL_IDC(tf0);
             }
             else {
-                return OAPV_ERR_INVALID_ARGUMENT;
+                return OAPV_ERR_INVALID_LEVEL;
             }
         }
     }
@@ -245,7 +248,7 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
             param->band_idc = OAPVE_PARAM_BAND_IDC_AUTO;
         }
         else {
-            GET_INTEGER_MIN_MAX_OR_ERR(value, ti0, 0, 3, OAPV_ERR_INVALID_ARGUMENT);
+            GET_INTEGER_MIN_MAX_OR_ERR(value, ti0, 0, 3, OAPV_ERR_INVALID_BAND);
             param->band_idc = ti0;
         }
     }
@@ -257,12 +260,12 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     }
     NAME_CMP("width") {
         GET_INTEGER_OR_ERR(value, ti0, OAPV_ERR_INVALID_WIDTH);
-        oapv_assert_rv(ti0 > 0, OAPV_ERR_INVALID_WIDTH);
+        if(ti0 <= 0) return OAPV_ERR_INVALID_WIDTH;
         param->w = ti0;
     }
     NAME_CMP("height") {
         GET_INTEGER_OR_ERR(value, ti0, OAPV_ERR_INVALID_HEIGHT);
-        oapv_assert_rv(ti0 > 0, OAPV_ERR_INVALID_HEIGHT);
+        if(ti0 <= 0) return OAPV_ERR_INVALID_HEIGHT;
         param->h = ti0;
     }
     NAME_CMP("fps") {
@@ -365,13 +368,13 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
     NAME_CMP("tile-w") {
         // profile-dependent minimum is checked in enc_update_param_tile()
         GET_INTEGER_MIN_OR_ERR(value, ti0, OAPV_MB_W, OAPV_ERR_INVALID_ARGUMENT);
-        oapv_assert_rv((ti0 & (OAPV_MB_W - 1)) == 0, OAPV_ERR_INVALID_ARGUMENT);
+        if(ti0 & (OAPV_MB_W - 1)) return OAPV_ERR_INVALID_ARGUMENT;
         param->tile_w = ti0;
     }
     NAME_CMP("tile-h") {
         // profile-dependent minimum is checked in enc_update_param_tile()
         GET_INTEGER_MIN_OR_ERR(value, ti0, OAPV_MB_H, OAPV_ERR_INVALID_ARGUMENT);
-        oapv_assert_rv((ti0 & (OAPV_MB_H - 1)) == 0, OAPV_ERR_INVALID_ARGUMENT);
+        if(ti0 & (OAPV_MB_H - 1)) return OAPV_ERR_INVALID_ARGUMENT;
         param->tile_h = ti0;
     }
     NAME_CMP("color-primaries") {
@@ -403,7 +406,7 @@ int oapve_param_parse(oapve_param_t *param, const char *name,  const char *value
         param->color_description_present_flag = 1;
     }
     else {
-        return OAPV_ERR_INVALID_ARGUMENT;
+        return OAPV_ERR_UNSUPPORTED; // unknown parameter name
     }
     return OAPV_OK;
 }
@@ -423,7 +426,7 @@ static int level_idc_to_level_idx(int level_idc)
         }
     }
 
-    return OAPV_ERR;
+    return OAPV_ERR_INVALID_LEVEL;
 }
 
 static int max_coded_data_rate[MAX_LEVEL_NUM][MAX_BAND_NUM] = {
@@ -489,7 +492,10 @@ static int enc_update_param_level_band(oapve_param_t* param)
                     break;
                 }
             }
-            oapv_assert_rv(is_found == 1, OAPV_ERR);
+            // no level and band allow this bitrate
+            if(!is_found) {
+                return OAPV_ERR_INVALID_LEVEL;
+            }
         }
         else {
             for (int i = min_level_idx; i < MAX_LEVEL_NUM; i++) {
@@ -659,8 +665,20 @@ int oapve_family_bitrate(int family, int w, int h, int fps_num, int fps_den, int
 {
     float key, ratio;
 
+    if(kbps == NULL) {
+        return OAPV_ERR_INVALID_ARGUMENT;
+    }
+    // the bitrate table is indexed by w * h; reject non-positive sizes
+    if(w <= 0) {
+        return OAPV_ERR_INVALID_WIDTH;
+    }
+    if(h <= 0) {
+        return OAPV_ERR_INVALID_HEIGHT;
+    }
     // frame rate is a divisor below; reject non-positive values
-    oapv_assert_rv(fps_num > 0 && fps_den > 0, OAPV_ERR_INVALID_FPS);
+    if(fps_num <= 0 || fps_den <= 0) {
+        return OAPV_ERR_INVALID_FPS;
+    }
 
     switch(family) {
     case OAPV_FAMILY_422_LQ:
