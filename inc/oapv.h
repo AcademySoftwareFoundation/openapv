@@ -111,12 +111,13 @@ extern "C" {
 #define OAPV_BLK_H                      (1 << OAPV_LOG2_BLK)
 #define OAPV_BLK_D                      (OAPV_BLK_W * OAPV_BLK_H)
 
-/* size of tile; these limits apply to the profiles other than UNCONST */
+/* size of tile; the limits below apply only to the profiles other than the
+   UNCONST ones */
 #define OAPV_MAX_TILE_ROWS              (20) // max number of tile rows
 #define OAPV_MAX_TILE_COLS              (20) // max number of tile columns
 #define OAPV_MAX_TILES                  (OAPV_MAX_TILE_ROWS * OAPV_MAX_TILE_COLS)
-#define OAPV_MIN_TILE_W_MB              (16)
-#define OAPV_MIN_TILE_H_MB              (8)
+#define OAPV_MIN_TILE_W_MB              (16) // min tile width in MBs
+#define OAPV_MIN_TILE_H_MB              (8)  // min tile height in MBs
 #define OAPV_MIN_TILE_W                 (OAPV_MIN_TILE_W_MB << OAPV_LOG2_MB_W)
 #define OAPV_MIN_TILE_H                 (OAPV_MIN_TILE_H_MB << OAPV_LOG2_MB_H)
 
@@ -262,18 +263,11 @@ extern "C" {
  * callers pass the plain id (index 0). */
 #define OAPV_CFG_FRM(cfg, frm_idx)      ((((frm_idx) & 0xFFFF) << 16) | ((cfg) & 0xFFFF))
 
-/*****************************************************************************
- * config values
- *****************************************************************************/
+/* values of OAPV_CFG_SET_AU_BS_FMT */
 /* The output from the encoder is compliant with raw_bitstream_access_unit */
 #define OAPV_CFG_VAL_AU_BS_FMT_RBAU     (0)
 /* The output from the encoder is the only AU without bitstream format */
 #define OAPV_CFG_VAL_AU_BS_FMT_NONE     (1)
-
-/*****************************************************************************
- * HLS configs
- *****************************************************************************/
-#define OAPV_MAX_GRP_SIZE               ((1 << 16) - 1) // 0xFFFF reserved
 
 /*****************************************************************************
  * PBU types
@@ -288,9 +282,9 @@ extern "C" {
 #define OAPV_PBU_TYPE_METADATA          (66)
 #define OAPV_PBU_TYPE_FILLER            (67)
 #define OAPV_PBU_TYPE_UNKNOWN           (-1)
-#define OAPV_PBU_NUMS                   (10)
 
-#define OAPV_PBU_FRAME_TYPE_NUM         (5)
+/* true for the PBU types that carry a frame: primary, non-primary, preview,
+   depth and alpha */
 #define OAPV_PBU_TYPE_IS_FRAME(pbu_type)   \
     ((pbu_type)==1 || (pbu_type)==2 || ((pbu_type)>=25 && (pbu_type)<=27))
 
@@ -331,21 +325,15 @@ extern "C" {
 #define OAPV_PROFILE_400_10_UNCONST     (109)
 
 
-/*****************************************************************************
- * family
- *
- * Bitrate classes for oapve_family_bitrate(); see readme/apv_family.md.
- *****************************************************************************/
+/* APV families: bitrate classes for oapve_family_bitrate(); see
+   readme/apv_family.md */
 #define OAPV_FAMILY_422_LQ              (1) /* 4:2:2, low data rate editing */
 #define OAPV_FAMILY_422_SQ              (2) /* 4:2:2, standard quality */
 #define OAPV_FAMILY_422_HQ              (3) /* 4:2:2, high quality */
 #define OAPV_FAMILY_444_UQ              (4) /* 4:4:4, finishing */
 
-/*****************************************************************************
- * optimization level control
- *
- * Values of oapve_param_t.preset, from the fastest to the best coding gain.
- *****************************************************************************/
+/* presets: values of oapve_param_t.preset, from the fastest to the best
+   coding gain */
 #define OAPV_PRESET_FASTEST             (0)
 #define OAPV_PRESET_FAST                (1)
 #define OAPV_PRESET_MEDIUM              (2)
@@ -353,15 +341,10 @@ extern "C" {
 #define OAPV_PRESET_PLACEBO             (4)
 #define OAPV_PRESET_DEFAULT             OAPV_PRESET_MEDIUM
 
-/*****************************************************************************
- * rate-control types
- *****************************************************************************/
+/* rate control types: values of oapve_param_t.rc_type */
 #define OAPV_RC_CQP                     (0) /* constant QP */
 #define OAPV_RC_ABR                     (1) /* average bitrate */
 
-/*****************************************************************************
- * type and macro for media time
- *****************************************************************************/
 typedef long long        oapv_mtime_t; /* in 100-nanosec unit */
 
 /*****************************************************************************
@@ -477,9 +460,6 @@ struct oapv_frms {
     oapv_frm_t frm[OAPV_MAX_NUM_FRAMES]; // container of frames
 };
 
-/*****************************************************************************
- * Bitstream buffer
- *****************************************************************************/
 /*
  * Bitstream buffer, allocated and owned by the application. The encoder
  * writes into it up to 'bsize' bytes; the decoder reads 'ssize' bytes of it.
@@ -505,9 +485,6 @@ struct oapv_bitb {
     oapv_mtime_t ts[4];
 };
 
-/*****************************************************************************
- * brief information of frame
- *****************************************************************************/
 /* information of a frame, filled by the library */
 typedef struct oapv_frm_info oapv_frm_info_t;
 struct oapv_frm_info {
@@ -567,13 +544,15 @@ struct oapv_tile_pos {
 /*****************************************************************************
  * constant string and value pairs
  *****************************************************************************/
-/* pair of a name and a value, for the tables below */
+/* pair of a name and a value, for the tables below; each table ends with an
+   entry whose name is empty */
 typedef struct oapv_dict_str_int oapv_dict_str_int_t; // dictionary type
 struct oapv_dict_str_int {
     const char * key;
     const int    val;
 };
 
+/* printable names of the PBU types */
 static const oapv_dict_str_int_t oapv_dict_pbu_type[] = {
     {"primary frame",           OAPV_PBU_TYPE_PRIMARY_FRAME},
     {"non-primary frame",       OAPV_PBU_TYPE_NON_PRIMARY_FRAME},
@@ -586,6 +565,7 @@ static const oapv_dict_str_int_t oapv_dict_pbu_type[] = {
     {"", 0} // termination
 };
 
+/* printable names of the metadata types */
 static const oapv_dict_str_int_t oapv_dict_metadata_type[] = {
     {"itu_t_t35",       OAPV_METADATA_ITU_T_T35},
     {"mdcv",            OAPV_METADATA_MDCV},
@@ -595,6 +575,7 @@ static const oapv_dict_str_int_t oapv_dict_metadata_type[] = {
     {"", 0} // termination
 };
 
+/* values of the "profile" parameter of oapve_param_parse() */
 static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
     {"422-10",      OAPV_PROFILE_422_10},
     {"422-12",      OAPV_PROFILE_422_12},
@@ -615,6 +596,7 @@ static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
     {"", 0} // termination
 };
 
+/* values of the "preset" parameter of oapve_param_parse() */
 static const oapv_dict_str_int_t oapv_param_opts_preset[] = {
     {"fastest", OAPV_PRESET_FASTEST},
     {"fast",    OAPV_PRESET_FAST},
@@ -624,6 +606,7 @@ static const oapv_dict_str_int_t oapv_param_opts_preset[] = {
     {"", 0} // termination
 };
 
+/* values of the "color-range" parameter of oapve_param_parse() */
 static const oapv_dict_str_int_t oapv_param_opts_color_range[] = {
     {"limited", 0},
     {"tv",      0}, // alternative value of "limited"
@@ -632,6 +615,7 @@ static const oapv_dict_str_int_t oapv_param_opts_color_range[] = {
     {"", 0} // termination
 };
 
+/* values of the "color-primaries" parameter of oapve_param_parse() */
 static const oapv_dict_str_int_t oapv_param_opts_color_primaries[] = {
     {"reserved",     0},
     {"bt709",        1},
@@ -649,6 +633,7 @@ static const oapv_dict_str_int_t oapv_param_opts_color_primaries[] = {
     {"", 0} // termination
 };
 
+/* values of the "color-transfer" parameter of oapve_param_parse() */
 static const oapv_dict_str_int_t oapv_param_opts_color_transfer[] = {
     {"reserved",        0},
     {"bt709",           1},
@@ -671,6 +656,7 @@ static const oapv_dict_str_int_t oapv_param_opts_color_transfer[] = {
     {"arib-std-b67",   18},
     {"", 0} // termination
 };
+/* values of the "color-matrix" parameter of oapve_param_parse() */
 static const oapv_dict_str_int_t oapv_param_opts_color_matrix[] = {
     {"gbr",                 0},
     {"bt709",               1},
@@ -693,7 +679,10 @@ static const oapv_dict_str_int_t oapv_param_opts_color_matrix[] = {
 /*****************************************************************************
  * coding parameters
  *****************************************************************************/
+/* level_idc of a level, such as 123 for level 4.1 */
 #define OAPV_LEVEL_TO_LEVEL_IDC(level)   (int)(((level) * 30.0) + 0.5)
+/* values that let the encoder choose the level, the band or the QP from the
+   resolution, the frame rate and the bitrate */
 #define OAPVE_PARAM_LEVEL_IDC_AUTO       (0)
 #define OAPVE_PARAM_BAND_IDC_AUTO        (4)
 #define OAPVE_PARAM_QP_AUTO              (255)
@@ -756,9 +745,8 @@ struct oapve_param {
     int           full_range_flag;
 };
 
-/*****************************************************************************
- * automatic assignment of number of threads in creation of encoder & decoder
- *****************************************************************************/
+/* value of 'threads' in oapve_cdesc_t and oapvd_cdesc_t that lets the
+   library choose the number of threads */
 #define OAPV_CDESC_THREADS_AUTO          0
 
 /*****************************************************************************
@@ -784,9 +772,6 @@ struct oapv_ops_mem {
     void *udata;
 };
 
-/*****************************************************************************
- * description for encoder creation
- *****************************************************************************/
 /* creation descriptor of an encoder, copied by oapve_create() */
 typedef struct oapve_cdesc oapve_cdesc_t;
 struct oapve_cdesc {
@@ -803,9 +788,6 @@ struct oapve_cdesc {
     const oapv_ops_mem_t *ops_mem;
 };
 
-/*****************************************************************************
- * encoding status
- *****************************************************************************/
 /* result of oapve_encode() */
 typedef struct oapve_stat oapve_stat_t;
 struct oapve_stat {
@@ -817,9 +799,6 @@ struct oapve_stat {
     int            frm_size[OAPV_MAX_NUM_FRAMES];
 };
 
-/*****************************************************************************
- * description for decoder creation
- *****************************************************************************/
 /* creation descriptor of a decoder, copied by oapvd_create() */
 typedef struct oapvd_cdesc oapvd_cdesc_t;
 struct oapvd_cdesc {
@@ -829,9 +808,6 @@ struct oapvd_cdesc {
     const oapv_ops_mem_t *ops_mem;
 };
 
-/*****************************************************************************
- * decoding status
- *****************************************************************************/
 /* result of oapvd_decode() or oapvd_decode_frame() */
 typedef struct oapvd_stat oapvd_stat_t;
 struct oapvd_stat {
@@ -843,9 +819,6 @@ struct oapvd_stat {
     int            frm_size[OAPV_MAX_NUM_FRAMES];
 };
 
-/*****************************************************************************
- * metadata payload
- *****************************************************************************/
 /* one metadata payload, for oapvm_set_all() and oapvm_get_all() */
 typedef struct oapvm_payload oapvm_payload_t;
 struct oapvm_payload {
@@ -858,9 +831,6 @@ struct oapvm_payload {
     unsigned char uuid[16];
 };
 
-/*****************************************************************************
- * description for metadata container creation
- *****************************************************************************/
 /* creation descriptor of a metadata container, copied by oapvm_create() */
 typedef struct oapvm_cdesc oapvm_cdesc_t;
 struct oapvm_cdesc {
