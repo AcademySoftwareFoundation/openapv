@@ -111,9 +111,9 @@ extern "C" {
 #define OAPV_BLK_H                      (1 << OAPV_LOG2_BLK)
 #define OAPV_BLK_D                      (OAPV_BLK_W * OAPV_BLK_H)
 
-/* size of tile */
-#define OAPV_MAX_TILE_ROWS              (20) // max number of tiles in row
-#define OAPV_MAX_TILE_COLS              (20) // max number of tiles in column
+/* size of tile; these limits apply to the profiles other than UNCONST */
+#define OAPV_MAX_TILE_ROWS              (20) // max number of tile rows
+#define OAPV_MAX_TILE_COLS              (20) // max number of tile columns
 #define OAPV_MAX_TILES                  (OAPV_MAX_TILE_ROWS * OAPV_MAX_TILE_COLS)
 #define OAPV_MIN_TILE_W_MB              (16)
 #define OAPV_MIN_TILE_H_MB              (8)
@@ -231,28 +231,31 @@ extern "C" {
 
 /*****************************************************************************
  * config types
+ *
+ * Config ids for oapve_config() and oapvd_config(); each value is an int.
+ * The comment tells which of the two takes the id.
  *****************************************************************************/
-#define OAPV_CFG_SET_QP                 (201)
-#define OAPV_CFG_SET_BPS                (202)
-#define OAPV_CFG_SET_FPS_NUM            (204)
-#define OAPV_CFG_SET_FPS_DEN            (205)
-#define OAPV_CFG_SET_QP_MIN             (208)
-#define OAPV_CFG_SET_QP_MAX             (209)
-#define OAPV_CFG_SET_USE_FRM_HASH       (301)
-#define OAPV_CFG_SET_AU_BS_FMT          (302)
-#define OAPV_CFG_SET_TILE_SIZE_IN_FH    (303)
-#define OAPV_CFG_SET_DISABLE_COMPANDING (400)
-#define OAPV_CFG_GET_QP_MIN             (600)
-#define OAPV_CFG_GET_QP_MAX             (601)
-#define OAPV_CFG_GET_QP                 (602)
-#define OAPV_CFG_GET_RCT                (603)
-#define OAPV_CFG_GET_BPS                (604)
-#define OAPV_CFG_GET_FPS_NUM            (605)
-#define OAPV_CFG_GET_FPS_DEN            (606)
-#define OAPV_CFG_GET_WIDTH              (701)
-#define OAPV_CFG_GET_HEIGHT             (702)
-#define OAPV_CFG_GET_AU_BS_FMT          (802)
-#define OAPV_CFG_GET_TILE_SIZE_IN_FH    (803)
+#define OAPV_CFG_SET_QP                 (201) /* encoder: QP */
+#define OAPV_CFG_SET_BPS                (202) /* encoder: bitrate in kbps */
+#define OAPV_CFG_SET_FPS_NUM            (204) /* encoder: frame rate num. */
+#define OAPV_CFG_SET_FPS_DEN            (205) /* encoder: frame rate den. */
+#define OAPV_CFG_SET_QP_MIN             (208) /* not supported yet */
+#define OAPV_CFG_SET_QP_MAX             (209) /* not supported yet */
+#define OAPV_CFG_SET_USE_FRM_HASH       (301) /* both: use the frame hash */
+#define OAPV_CFG_SET_AU_BS_FMT          (302) /* encoder: AU format */
+#define OAPV_CFG_SET_TILE_SIZE_IN_FH    (303) /* encoder: tile sizes in FH */
+#define OAPV_CFG_SET_DISABLE_COMPANDING (400) /* decoder: keep companded */
+#define OAPV_CFG_GET_QP_MIN             (600) /* not supported yet */
+#define OAPV_CFG_GET_QP_MAX             (601) /* not supported yet */
+#define OAPV_CFG_GET_QP                 (602) /* encoder */
+#define OAPV_CFG_GET_RCT                (603) /* not supported yet */
+#define OAPV_CFG_GET_BPS                (604) /* encoder */
+#define OAPV_CFG_GET_FPS_NUM            (605) /* encoder */
+#define OAPV_CFG_GET_FPS_DEN            (606) /* encoder */
+#define OAPV_CFG_GET_WIDTH              (701) /* encoder */
+#define OAPV_CFG_GET_HEIGHT             (702) /* encoder */
+#define OAPV_CFG_GET_AU_BS_FMT          (802) /* encoder */
+#define OAPV_CFG_GET_TILE_SIZE_IN_FH    (803) /* encoder */
 
 /* Target a specific frame's parameters in oapve_config(): the upper 16 bits of
  * 'cfg' carry the frame index, the lower 16 bits the config id above. Legacy
@@ -295,14 +298,17 @@ extern "C" {
 /*****************************************************************************
  * metadata types
  *****************************************************************************/
-#define OAPV_METADATA_ITU_T_T35         (4)
-#define OAPV_METADATA_MDCV              (5)
-#define OAPV_METADATA_CLL               (6)
-#define OAPV_METADATA_FILLER            (10)
-#define OAPV_METADATA_USER_DEFINED      (170)
+#define OAPV_METADATA_ITU_T_T35         (4)   /* ITU-T T.35 */
+#define OAPV_METADATA_MDCV              (5)   /* mastering display, 24 bytes */
+#define OAPV_METADATA_CLL               (6)   /* content light level, 4 bytes */
+#define OAPV_METADATA_FILLER            (10)  /* filler, all 0xFF */
+#define OAPV_METADATA_USER_DEFINED      (170) /* starts with a 16-byte UUID */
 
 /*****************************************************************************
  * profiles
+ *
+ * profile_idc values. The 16C12 profiles code 16-bit samples companded to
+ * 12 bits.
  *****************************************************************************/
 #define OAPV_PROFILE_422_10             (33)
 #define OAPV_PROFILE_422_12             (44)
@@ -314,7 +320,8 @@ extern "C" {
 #define OAPV_PROFILE_444_16C12          (140)
 #define OAPV_PROFILE_4444_16C12         (144)
 
-/* OpenAPV profile extensions */
+/* OpenAPV profile extensions: the profiles above without the tile
+   constraints; see readme/apv_ext.md */
 #define OAPV_PROFILE_422_10_UNCONST     (43)
 #define OAPV_PROFILE_422_12_UNCONST     (54)
 #define OAPV_PROFILE_444_10_UNCONST     (65)
@@ -326,14 +333,18 @@ extern "C" {
 
 /*****************************************************************************
  * family
+ *
+ * Bitrate classes for oapve_family_bitrate(); see readme/apv_family.md.
  *****************************************************************************/
-#define OAPV_FAMILY_422_LQ              (1)
-#define OAPV_FAMILY_422_SQ              (2)
-#define OAPV_FAMILY_422_HQ              (3)
-#define OAPV_FAMILY_444_UQ              (4)
+#define OAPV_FAMILY_422_LQ              (1) /* 4:2:2, low data rate editing */
+#define OAPV_FAMILY_422_SQ              (2) /* 4:2:2, standard quality */
+#define OAPV_FAMILY_422_HQ              (3) /* 4:2:2, high quality */
+#define OAPV_FAMILY_444_UQ              (4) /* 4:4:4, finishing */
 
 /*****************************************************************************
  * optimization level control
+ *
+ * Values of oapve_param_t.preset, from the fastest to the best coding gain.
  *****************************************************************************/
 #define OAPV_PRESET_FASTEST             (0)
 #define OAPV_PRESET_FAST                (1)
@@ -345,8 +356,8 @@ extern "C" {
 /*****************************************************************************
  * rate-control types
  *****************************************************************************/
-#define OAPV_RC_CQP                     (0)
-#define OAPV_RC_ABR                     (1)
+#define OAPV_RC_CQP                     (0) /* constant QP */
+#define OAPV_RC_ABR                     (1) /* average bitrate */
 
 /*****************************************************************************
  * type and macro for media time
