@@ -296,6 +296,8 @@ int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size)
     oapvm_ctx_t *ctx = oapvm_id_to_ctx(mid);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
     oapv_assert_rv((data != NULL && size > 0) || (data == NULL && size == 0), OAPV_ERR_INVALID_ARGUMENT);
+    // the group ID is written into the metadata PBU header
+    oapv_assert_rv(group_id >= 0 && group_id <= OAPV_MAX_GROUP_ID, OAPV_ERR_INVALID_ARGUMENT);
 
     ret = meta_verify_mdp_data(type, size, (u8 *)data);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
