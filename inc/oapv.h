@@ -85,17 +85,17 @@ extern "C" {
 #define OAPV_VER_GET_MINOR(v)           (((v) >>  8) & 0xFF)
 #define OAPV_VER_GET_PATCH(v)           (((v) >>  0) & 0xFF)
 
-/* version numbers (should be changed in case of new release) */
+// version numbers (should be changed in case of new release)
 #define OAPV_VER_APISET                 (1)
 #define OAPV_VER_MAJOR                  (1)
 #define OAPV_VER_MINOR                  (2)
 #define OAPV_VER_PATCH                  (0)
 
-/* 4-bytes version number */
+// 4-bytes version number
 #define OAPV_VER_NUM \
     OAPV_VER_SET(OAPV_VER_APISET,OAPV_VER_MAJOR,OAPV_VER_MINOR,OAPV_VER_PATCH)
 
-/* size of macroblock */
+// size of macroblock
 #define OAPV_LOG2_MB                    (4)
 #define OAPV_LOG2_MB_W                  (4)
 #define OAPV_LOG2_MB_H                  (4)
@@ -103,7 +103,7 @@ extern "C" {
 #define OAPV_MB_H                       (1 << OAPV_LOG2_MB_H)
 #define OAPV_MB_D                       (OAPV_MB_W * OAPV_MB_H)
 
-/* size of block */
+// size of block
 #define OAPV_LOG2_BLK                   (3)
 #define OAPV_LOG2_BLK_W                 (3)
 #define OAPV_LOG2_BLK_H                 (3)
@@ -121,17 +121,21 @@ extern "C" {
 #define OAPV_MIN_TILE_W                 (OAPV_MIN_TILE_W_MB << OAPV_LOG2_MB_W)
 #define OAPV_MIN_TILE_H                 (OAPV_MIN_TILE_H_MB << OAPV_LOG2_MB_H)
 
-/* maximum number of thread */
+// maximum number of thread
 #define OAPV_MAX_THREADS                (32)
-
-#define OAPV_MAX_NUM_FRAMES (16) // max number of frames in an access unit
-#define OAPV_MAX_NUM_METAS  (16) // max number of metadata in an access unit
-#define OAPV_MAX_NUM_META_PAYLOADS (128) // max number of metadata payloads per access unit
-#define OAPV_MAX_GROUP_ID   (0xFFFE) // max group ID; 0xFFFF is reserved
 
 /* value of 'threads' in oapve_cdesc_t and oapvd_cdesc_t that lets the
    library choose the number of threads */
-#define OAPV_CDESC_THREADS_AUTO          0
+#define OAPV_CDESC_THREADS_AUTO         (0)
+
+// max number of frames in an access unit
+#define OAPV_MAX_NUM_FRAMES             (16)
+// max number of metadata in an access unit
+#define OAPV_MAX_NUM_METAS              (16)
+// max number of metadata payloads per access unit
+#define OAPV_MAX_NUM_META_PAYLOADS      (128)
+// max group ID; 0xFFFF is reserved
+#define OAPV_MAX_GROUP_ID               (0xFFFE)
 
 /*****************************************************************************
  * return values and error code
@@ -140,17 +144,17 @@ extern "C" {
  * OAPV_ERR_* codes below on failure. The comment of a function lists a code
  * only when it has a meaning specific to that function.
  *****************************************************************************/
-#define OAPV_OK                         (0)  /* success */
-#define OAPV_ERR                        (-1) /* generic error */
-/* invalid argument, or an argument that holds an invalid value */
+#define OAPV_OK                         (0)  // success
+#define OAPV_ERR                        (-1) // generic error
+// invalid argument, or an argument that holds an invalid value
 #define OAPV_ERR_INVALID_ARGUMENT       (-101)
-/* memory allocation failed */
+// memory allocation failed
 #define OAPV_ERR_OUT_OF_MEMORY          (-102)
-/* a limit of the library or the capacity of an array was reached */
+// a limit of the library or the capacity of an array was reached
 #define OAPV_ERR_REACHED_MAX            (-103)
-/* the requested config id or parameter name is not supported */
+// the requested config id or parameter name is not supported
 #define OAPV_ERR_UNSUPPORTED            (-104)
-/* unexpected internal error */
+// unexpected internal error
 #define OAPV_ERR_UNEXPECTED             (-105)
 /* the color format or bit depth is not allowed by the profile or the
    bitstream */
@@ -158,33 +162,33 @@ extern "C" {
 /* the bitstream is corrupted, truncated or does not conform to the APV
    specification */
 #define OAPV_ERR_MALFORMED_BITSTREAM    (-202)
-/* the bitstream buffer is too small for the coded data */
+// the bitstream buffer is too small for the coded data
 #define OAPV_ERR_OUT_OF_BS_BUF          (-203)
-/* the requested item, such as a metadata payload, does not exist */
+// the requested item, such as a metadata payload, does not exist
 #define OAPV_ERR_NOT_FOUND              (-204)
-/* a system call, such as creating a thread or a mutex, failed */
+// a system call, such as creating a thread or a mutex, failed
 #define OAPV_ERR_FAILED_SYSCALL         (-301)
-/* invalid profile, or the profile is not known */
+// invalid profile, or the profile is not known
 #define OAPV_ERR_INVALID_PROFILE        (-400)
-/* invalid level, or a level that does not allow the bitrate */
+// invalid level, or a level that does not allow the bitrate
 #define OAPV_ERR_INVALID_LEVEL          (-401)
-/* invalid band */
+// invalid band
 #define OAPV_ERR_INVALID_BAND           (-402)
 /* invalid width, such as a width that does not match the image or an odd
    width for 4:2:2 */
 #define OAPV_ERR_INVALID_WIDTH          (-405)
-/* invalid height, such as a height that does not match the image */
+// invalid height, such as a height that does not match the image
 #define OAPV_ERR_INVALID_HEIGHT         (-406)
-/* invalid or missing frame rate */
+// invalid or missing frame rate
 #define OAPV_ERR_INVALID_FPS            (-407)
-/* invalid QP or QP offset */
+// invalid QP or QP offset
 #define OAPV_ERR_INVALID_QP             (-410)
-/* invalid APV family */
+// invalid APV family
 #define OAPV_ERR_INVALID_FAMILY         (-501)
-/* unknown error */
+// unknown error
 #define OAPV_ERR_UNKNOWN                (-32767)
 
-/* return value checking */
+// return value checking
 #define OAPV_SUCCEEDED(ret)             ((ret) >= OAPV_OK)
 #define OAPV_FAILED(ret)                ((ret) < OAPV_OK)
 
@@ -195,18 +199,18 @@ extern "C" {
  * - bit-depth (6bit): 0~63
  * - color format (8bit): 0~255
  *****************************************************************************/
-/* color formats */
-#define OAPV_CF_UNKNOWN                 (0)  /* unknown color format */
-#define OAPV_CF_YCBCR400                (10) /* Y only */
-#define OAPV_CF_YCBCR420                (11) /* YCbCr 420 */
-#define OAPV_CF_YCBCR422                (12) /* YCBCR 422 narrow chroma*/
-#define OAPV_CF_YCBCR444                (13) /* YCBCR 444*/
-#define OAPV_CF_YCBCR4444               (14) /* YCBCR 4444*/
+// color formats
+#define OAPV_CF_UNKNOWN                 (0)  // unknown color format
+#define OAPV_CF_YCBCR400                (10) // Y only
+#define OAPV_CF_YCBCR420                (11) // YCbCr 420
+#define OAPV_CF_YCBCR422                (12) // YCBCR 422 narrow chroma
+#define OAPV_CF_YCBCR444                (13) // YCBCR 444
+#define OAPV_CF_YCBCR4444               (14) // YCBCR 4444
 #define OAPV_CF_YCBCR422N               OAPV_CF_YCBCR422
-#define OAPV_CF_YCBCR422W               (18) /* YCBCR422 wide chroma */
-#define OAPV_CF_PLANAR2                 (20) /* Planar Y, Combined CB-CR, 422 */
+#define OAPV_CF_YCBCR422W               (18) // YCBCR422 wide chroma
+#define OAPV_CF_PLANAR2                 (20) // Planar Y, Combined CB-CR, 422
 
-/* macro for color space */
+// macro for color space
 #define OAPV_CS_GET_FORMAT(cs)          (((cs) >> 0) & 0xFF)
 #define OAPV_CS_GET_BIT_DEPTH(cs)       (((cs) >> 8) & 0x3F)
 #define OAPV_CS_GET_BYTE_DEPTH(cs)      ((OAPV_CS_GET_BIT_DEPTH(cs) + 7) >> 3)
@@ -216,7 +220,7 @@ extern "C" {
 #define OAPV_CS_SET_BIT_DEPTH(cs, v)    (((cs) & ~(0x3F << 8)) | ((v) << 8))
 #define OAPV_CS_SET_ENDIAN(cs, v)       (((cs) & ~(0x1 << 14)) | ((v) << 14))
 
-/* pre-defined color spaces */
+// pre-defined color spaces
 #define OAPV_CS_UNKNOWN                 OAPV_CS_SET(0, 0, 0)
 #define OAPV_CS_YCBCR400                OAPV_CS_SET(OAPV_CF_YCBCR400, 8, 0)
 #define OAPV_CS_YCBCR420                OAPV_CS_SET(OAPV_CF_YCBCR420, 8, 0)
@@ -236,46 +240,46 @@ extern "C" {
 #define OAPV_CS_YCBCR4444_16LE          OAPV_CS_SET(OAPV_CF_YCBCR4444, 16, 0)
 #define OAPV_CS_P210                    OAPV_CS_SET(OAPV_CF_PLANAR2, 10, 0)
 
-/* max number of color channel: ex) YCbCr4444 -> 4 channels */
+// max number of color channel: ex) YCbCr4444 -> 4 channels
 #define OAPV_MAX_CC                     (4)
 
 /*****************************************************************************
  * config types
  *
  * Config ids for oapve_config() and oapvd_config(); each value is an int.
- * The comment tells which of the two takes the id.
  *****************************************************************************/
-#define OAPV_CFG_SET_QP                 (201) /* encoder: QP */
-#define OAPV_CFG_SET_BPS                (202) /* encoder: bitrate in kbps */
-#define OAPV_CFG_SET_FPS_NUM            (204) /* encoder: frame rate num. */
-#define OAPV_CFG_SET_FPS_DEN            (205) /* encoder: frame rate den. */
-#define OAPV_CFG_SET_QP_MIN             (208) /* not supported yet */
-#define OAPV_CFG_SET_QP_MAX             (209) /* not supported yet */
-#define OAPV_CFG_SET_USE_FRM_HASH       (301) /* both: use the frame hash */
-#define OAPV_CFG_SET_AU_BS_FMT          (302) /* encoder: AU format */
-#define OAPV_CFG_SET_TILE_SIZE_IN_FH    (303) /* encoder: tile sizes in FH */
-#define OAPV_CFG_SET_DISABLE_COMPANDING (400) /* decoder: keep companded */
-#define OAPV_CFG_GET_QP_MIN             (600) /* not supported yet */
-#define OAPV_CFG_GET_QP_MAX             (601) /* not supported yet */
-#define OAPV_CFG_GET_QP                 (602) /* encoder */
-#define OAPV_CFG_GET_RCT                (603) /* not supported yet */
-#define OAPV_CFG_GET_BPS                (604) /* encoder */
-#define OAPV_CFG_GET_FPS_NUM            (605) /* encoder */
-#define OAPV_CFG_GET_FPS_DEN            (606) /* encoder */
-#define OAPV_CFG_GET_WIDTH              (701) /* encoder */
-#define OAPV_CFG_GET_HEIGHT             (702) /* encoder */
-#define OAPV_CFG_GET_AU_BS_FMT          (802) /* encoder */
-#define OAPV_CFG_GET_TILE_SIZE_IN_FH    (803) /* encoder */
+#define OAPV_CFG_SET_QP                 (201) // set QP
+#define OAPV_CFG_SET_BPS                (202) // set bitrate in kbps
+#define OAPV_CFG_SET_FPS_NUM            (204) // set frame rate numerator
+#define OAPV_CFG_SET_FPS_DEN            (205) // set frame rate denominator
+#define OAPV_CFG_SET_QP_MIN             (208) // set minimum QP
+#define OAPV_CFG_SET_QP_MAX             (209) // set maximum QP
+#define OAPV_CFG_SET_USE_FRM_HASH       (301) // write frame hash as metadata
+#define OAPV_CFG_SET_AU_BS_FMT          (302) // set AU bitstream format
+#define OAPV_CFG_SET_TILE_SIZE_IN_FH    (303) // write tile sizes into the FH
+#define OAPV_CFG_SET_DISABLE_COMPANDING (400) // disable de-companding (16C12)
+#define OAPV_CFG_GET_QP_MIN             (600) // get minimum QP
+#define OAPV_CFG_GET_QP_MAX             (601) // get maximum QP
+#define OAPV_CFG_GET_QP                 (602) // get QP
+#define OAPV_CFG_GET_RCT                (603) // get rate control type
+#define OAPV_CFG_GET_BPS                (604) // get bitrate in kbps
+#define OAPV_CFG_GET_FPS_NUM            (605) // get frame rate numerator
+#define OAPV_CFG_GET_FPS_DEN            (606) // get frame rate denominator
+#define OAPV_CFG_GET_WIDTH              (701) // get frame width
+#define OAPV_CFG_GET_HEIGHT             (702) // get frame height
+#define OAPV_CFG_GET_AU_BS_FMT          (802) // get AU bitstream format
+#define OAPV_CFG_GET_TILE_SIZE_IN_FH    (803) // whether the FH has tile sizes
 
 /* Target a specific frame's parameters in oapve_config(): the upper 16 bits of
  * 'cfg' carry the frame index, the lower 16 bits the config id above. Legacy
  * callers pass the plain id (index 0). */
-#define OAPV_CFG_FRM(cfg, frm_idx)      ((((frm_idx) & 0xFFFF) << 16) | ((cfg) & 0xFFFF))
+#define OAPV_CFG_FRM(cfg, frm_idx) \
+    ((((frm_idx) & 0xFFFF) << 16) | ((cfg) & 0xFFFF))
 
-/* values of OAPV_CFG_SET_AU_BS_FMT */
-/* The output from the encoder is compliant with raw_bitstream_access_unit */
+// values of OAPV_CFG_SET_AU_BS_FMT
+// The output from the encoder is compliant with raw_bitstream_access_unit
 #define OAPV_CFG_VAL_AU_BS_FMT_RBAU     (0)
-/* The output from the encoder is the only AU without bitstream format */
+// The output from the encoder is the only AU without bitstream format
 #define OAPV_CFG_VAL_AU_BS_FMT_NONE     (1)
 
 /*****************************************************************************
@@ -303,18 +307,14 @@ extern "C" {
 /*****************************************************************************
  * metadata types
  *****************************************************************************/
-#define OAPV_METADATA_ITU_T_T35         (4)   /* ITU-T T.35 */
-#define OAPV_METADATA_MDCV              (5)   /* mastering display, 24 bytes */
-#define OAPV_METADATA_CLL               (6)   /* content light level, 4 bytes */
-#define OAPV_METADATA_FILLER            (10)  /* filler, all 0xFF */
-#define OAPV_METADATA_USER_DEFINED      (170) /* starts with a 16-byte UUID */
+#define OAPV_METADATA_ITU_T_T35         (4)   // ITU-T T.35
+#define OAPV_METADATA_MDCV              (5)   // mastering display, 24 bytes
+#define OAPV_METADATA_CLL               (6)   // content light level, 4 bytes
+#define OAPV_METADATA_FILLER            (10)  // filler, all 0xFF
+#define OAPV_METADATA_USER_DEFINED      (170) // starts with a 16-byte UUID
 
-/*****************************************************************************
- * profiles
- *
- * profile_idc values. The 16C12 profiles code 16-bit samples companded to
- * 12 bits.
- *****************************************************************************/
+/* profile_idc values: the 16C12 profiles code 16-bit samples companded to
+   12 bits */
 #define OAPV_PROFILE_422_10             (33)
 #define OAPV_PROFILE_422_12             (44)
 #define OAPV_PROFILE_444_10             (55)
@@ -325,8 +325,7 @@ extern "C" {
 #define OAPV_PROFILE_444_16C12          (140)
 #define OAPV_PROFILE_4444_16C12         (144)
 
-/* OpenAPV profile extensions: the profiles above without the tile
-   constraints; see readme/apv_ext.md */
+// profile extensions: the profiles above without the tile constraint
 #define OAPV_PROFILE_422_10_UNCONST     (43)
 #define OAPV_PROFILE_422_12_UNCONST     (54)
 #define OAPV_PROFILE_444_10_UNCONST     (65)
@@ -335,12 +334,11 @@ extern "C" {
 #define OAPV_PROFILE_4444_12_UNCONST    (98)
 #define OAPV_PROFILE_400_10_UNCONST     (109)
 
-/* APV families: bitrate classes for oapve_family_bitrate(); see
-   readme/apv_family.md */
-#define OAPV_FAMILY_422_LQ              (1) /* 4:2:2, low data rate editing */
-#define OAPV_FAMILY_422_SQ              (2) /* 4:2:2, standard quality */
-#define OAPV_FAMILY_422_HQ              (3) /* 4:2:2, high quality */
-#define OAPV_FAMILY_444_UQ              (4) /* 4:4:4, finishing */
+// APV families: bitrate classes
+#define OAPV_FAMILY_422_LQ              (1) // 4:2:2, low data rate editing
+#define OAPV_FAMILY_422_SQ              (2) // 4:2:2, standard quality
+#define OAPV_FAMILY_422_HQ              (3) // 4:2:2, high quality
+#define OAPV_FAMILY_444_UQ              (4) // 4:4:4, finishing
 
 /* presets: values of oapve_param_t.preset, from the fastest to the best
    coding gain */
@@ -351,9 +349,9 @@ extern "C" {
 #define OAPV_PRESET_PLACEBO             (4)
 #define OAPV_PRESET_DEFAULT             OAPV_PRESET_MEDIUM
 
-/* rate control types: values of oapve_param_t.rc_type */
-#define OAPV_RC_CQP                     (0) /* constant QP */
-#define OAPV_RC_ABR                     (1) /* average bitrate */
+// rate control types: values of oapve_param_t.rc_type
+#define OAPV_RC_CQP                     (0) // constant QP
+#define OAPV_RC_ABR                     (1) // average bitrate
 
 /*****************************************************************************
  * constant string and value pairs
@@ -366,7 +364,7 @@ struct oapv_dict_str_int {
     const int    val;
 };
 
-/* printable names of the PBU types */
+// printable names of the PBU types
 static const oapv_dict_str_int_t oapv_dict_pbu_type[] = {
     {"primary frame",           OAPV_PBU_TYPE_PRIMARY_FRAME},
     {"non-primary frame",       OAPV_PBU_TYPE_NON_PRIMARY_FRAME},
@@ -379,7 +377,7 @@ static const oapv_dict_str_int_t oapv_dict_pbu_type[] = {
     {"", 0} // termination
 };
 
-/* printable names of the metadata types */
+// printable names of the metadata types
 static const oapv_dict_str_int_t oapv_dict_metadata_type[] = {
     {"itu_t_t35",       OAPV_METADATA_ITU_T_T35},
     {"mdcv",            OAPV_METADATA_MDCV},
@@ -389,7 +387,7 @@ static const oapv_dict_str_int_t oapv_dict_metadata_type[] = {
     {"", 0} // termination
 };
 
-/* values of the "profile" parameter of oapve_param_parse() */
+// values of the "profile" parameter of oapve_param_parse()
 static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
     {"422-10",      OAPV_PROFILE_422_10},
     {"422-12",      OAPV_PROFILE_422_12},
@@ -410,7 +408,7 @@ static const oapv_dict_str_int_t oapv_param_opts_profile[] = {
     {"", 0} // termination
 };
 
-/* values of the "preset" parameter of oapve_param_parse() */
+// values of the "preset" parameter of oapve_param_parse()
 static const oapv_dict_str_int_t oapv_param_opts_preset[] = {
     {"fastest", OAPV_PRESET_FASTEST},
     {"fast",    OAPV_PRESET_FAST},
@@ -420,7 +418,7 @@ static const oapv_dict_str_int_t oapv_param_opts_preset[] = {
     {"", 0} // termination
 };
 
-/* values of the "color-range" parameter of oapve_param_parse() */
+// values of the "color-range" parameter of oapve_param_parse()
 static const oapv_dict_str_int_t oapv_param_opts_color_range[] = {
     {"limited", 0},
     {"tv",      0}, // alternative value of "limited"
@@ -429,7 +427,7 @@ static const oapv_dict_str_int_t oapv_param_opts_color_range[] = {
     {"", 0} // termination
 };
 
-/* values of the "color-primaries" parameter of oapve_param_parse() */
+// values of the "color-primaries" parameter of oapve_param_parse()
 static const oapv_dict_str_int_t oapv_param_opts_color_primaries[] = {
     {"reserved",     0},
     {"bt709",        1},
@@ -447,7 +445,7 @@ static const oapv_dict_str_int_t oapv_param_opts_color_primaries[] = {
     {"", 0} // termination
 };
 
-/* values of the "color-transfer" parameter of oapve_param_parse() */
+// values of the "color-transfer" parameter of oapve_param_parse()
 static const oapv_dict_str_int_t oapv_param_opts_color_transfer[] = {
     {"reserved",        0},
     {"bt709",           1},
@@ -471,7 +469,7 @@ static const oapv_dict_str_int_t oapv_param_opts_color_transfer[] = {
     {"", 0} // termination
 };
 
-/* values of the "color-matrix" parameter of oapve_param_parse() */
+// values of the "color-matrix" parameter of oapve_param_parse()
 static const oapv_dict_str_int_t oapv_param_opts_color_matrix[] = {
     {"gbr",                 0},
     {"bt709",               1},
@@ -494,7 +492,7 @@ static const oapv_dict_str_int_t oapv_param_opts_color_matrix[] = {
 /*****************************************************************************
  * common types
  *****************************************************************************/
-typedef long long        oapv_mtime_t; /* in 100-nanosec unit */
+typedef long long        oapv_mtime_t; // in 100-nanosec unit
 
 /*****************************************************************************
  * image buffer format
@@ -537,51 +535,45 @@ typedef long long        oapv_mtime_t; /* in 100-nanosec unit */
  */
 typedef struct oapv_imgb oapv_imgb_t;
 struct oapv_imgb {
-    int           cs; /* color space */
-    int           np; /* number of plane */
-    /* width (in unit of pixel) */
+    int           cs; // color space
+    int           np; // number of plane
+    // width (in unit of pixel)
     int           w[OAPV_MAX_CC];
-    /* height (in unit of pixel) */
+    // height (in unit of pixel)
     int           h[OAPV_MAX_CC];
-    /* X position of left top (in unit of pixel) */
+    // X position of left top (in unit of pixel)
     int           x[OAPV_MAX_CC];
-    /* Y position of left top (in unit of pixel) */
+    // Y position of left top (in unit of pixel)
     int           y[OAPV_MAX_CC];
-    /* buffer stride (in unit of byte) */
+    // buffer stride (in unit of byte)
     int           s[OAPV_MAX_CC];
-    /* buffer elevation (in unit of byte) */
+    // buffer elevation (in unit of byte)
     int           e[OAPV_MAX_CC];
-    /* address of each plane */
+    // address of each plane
     void         *a[OAPV_MAX_CC];
-
-    /* MD5 hash of each plane, filled when the frame hash is used */
+    // MD5 hash of each plane, filled when the frame hash is used
     unsigned char hash[OAPV_MAX_CC][16];
-
-    /* time-stamps */
+    // time-stamps
     oapv_mtime_t  ts[4];
-
-    int           ndata[4]; /* arbitrary data, if needed */
-    void         *pdata[4]; /* arbitrary address if needed */
-
-    /* aligned width (in unit of pixel) */
+    int           ndata[4]; // arbitrary data, if needed
+    void         *pdata[4]; // arbitrary address if needed
+    // aligned width (in unit of pixel)
     int           aw[OAPV_MAX_CC];
-    /* aligned height (in unit of pixel) */
+    // aligned height (in unit of pixel)
     int           ah[OAPV_MAX_CC];
 
-    /* left padding size (in unit of pixel) */
+    // left padding size (in unit of pixel)
     int           padl[OAPV_MAX_CC];
-    /* right padding size (in unit of pixel) */
+    // right padding size (in unit of pixel)
     int           padr[OAPV_MAX_CC];
-    /* up padding size (in unit of pixel) */
+    // up padding size (in unit of pixel)
     int           padu[OAPV_MAX_CC];
-    /* bottom padding size (in unit of pixel) */
+    // bottom padding size (in unit of pixel)
     int           padb[OAPV_MAX_CC];
-
-    /* address of actual allocated buffer */
+    // address of actual allocated buffer
     void         *baddr[OAPV_MAX_CC];
-    /* actual allocated buffer size */
+    // actual allocated buffer size
     int           bsize[OAPV_MAX_CC];
-
     /* life cycle management: the library calls addref() while it uses the
        buffer and release() when it is done; either may be NULL */
     int           refcnt;
@@ -590,16 +582,16 @@ struct oapv_imgb {
     int (*release)(oapv_imgb_t *imgb);
 };
 
-/* one frame of an AU */
+// one frame of an AU
 typedef struct oapv_frm oapv_frm_t;
 struct oapv_frm {
-    oapv_imgb_t *imgb;     /* image buffer of the frame */
-    int          pbu_type; /* OAPV_PBU_TYPE_* of the frame */
+    oapv_imgb_t *imgb;     // image buffer of the frame
+    int          pbu_type; // OAPV_PBU_TYPE_* of the frame
     int          group_id; /* 0 ~ OAPV_MAX_GROUP_ID; ties the frame to its
                               metadata */
 };
 
-/* the frames of an AU, in the order they appear in the AU */
+// the frames of an AU, in the order they appear in the AU
 typedef struct oapv_frms oapv_frms_t;
 struct oapv_frms {
     int        num_frms;                 // number of frames
@@ -612,22 +604,22 @@ struct oapv_frms {
  */
 typedef struct oapv_bitb oapv_bitb_t;
 struct oapv_bitb {
-    /* user space address indicating buffer */
+    // user space address indicating buffer
     void        *addr;
-    /* physical address indicating buffer, if any */
+    // physical address indicating buffer, if any
     void        *pddr;
     /* byte size of buffer memory; for decoding, 0 skips the check against
        'ssize' */
     int          bsize;
-    /* byte size of bitstream in buffer */
+    // byte size of bitstream in buffer
     int          ssize;
-    /* bitstream has an error? */
+    // bitstream has an error?
     int          err;
-    /* arbitrary data, if needs */
+    // arbitrary data, if needs
     int          ndata[4];
-    /* arbitrary address, if needs */
+    // arbitrary address, if needs
     void        *pdata[4];
-    /* time-stamps */
+    // time-stamps
     oapv_mtime_t ts[4];
 };
 
@@ -641,7 +633,7 @@ struct oapv_bitb {
  * opaque, caller-owned pointer passed back to every callback (e.g. the host
  * allocator/arena object); it must stay valid for the codec's lifetime.
  *****************************************************************************/
-#define OAPV_OPS_MAGIC_CODE_MEM 0x30504D4D /* 0PMM */
+#define OAPV_OPS_MAGIC_CODE_MEM (0x30504D4D) // 0PMM
 
 typedef struct oapv_ops_mem oapv_ops_mem_t;
 struct oapv_ops_mem {
@@ -654,13 +646,13 @@ struct oapv_ops_mem {
     void *udata;
 };
 
-/* information of a frame, filled by the library */
+// information of a frame, filled by the library
 typedef struct oapv_frm_info oapv_frm_info_t;
 struct oapv_frm_info {
     int           w; // frame width in pixels
     int           h; // frame height in pixels
-    // output frame's color space
-    // 16bit color space will be set if the profile is 444/4444-16C12
+    /* output frame's color space
+       16bit color space will be set if the profile is 444/4444-16C12 */
     int           cs;
     int           pbu_type;
     int           group_id;
@@ -675,10 +667,10 @@ struct oapv_frm_info {
     int           use_q_matrix;
     // q_matrix is meaningful if use_q_matrix is true
     unsigned char q_matrix[OAPV_MAX_CC][OAPV_BLK_D];
-    // flag for color_description_present_flag */
+    // flag for color_description_present_flag
     int           color_description_present_flag;
-    // color_primaries, transfer_characteristics, matrix_coefficients, and
-    // full_range_flag are meaningful if color_description_present_flag is true
+    /* color_primaries, transfer_characteristics, matrix_coefficients, and
+       full_range_flag are meaningful if color_description_present_flag */
     unsigned char color_primaries;
     unsigned char transfer_characteristics;
     unsigned char matrix_coefficients;
@@ -691,73 +683,74 @@ struct oapv_frm_info {
     int           num_tiles;
 };
 
-/* information of the frames of an AU, filled by the library */
+// information of the frames of an AU, filled by the library
 typedef struct oapv_au_info oapv_au_info_t;
 struct oapv_au_info {
     int             num_frms; // number of frames
     oapv_frm_info_t frm_info[OAPV_MAX_NUM_FRAMES];
 };
 
-/* PBU information, filled by oapvd_info_pbu() */
+// PBU information, filled by oapvd_info_pbu()
 typedef struct oapv_pbu_info oapv_pbu_info_t;
 struct oapv_pbu_info {
     int  pbu_type; // OAPV_PBU_TYPE_*
     int  group_id;
 };
 
-/* position and size of a tile, filled by oapvd_info_tile() */
+// position and size of a tile, filled by oapvd_info_tile()
 typedef struct oapv_tile_pos oapv_tile_pos_t;
 struct oapv_tile_pos {
-    int idx; /* tile index in raster scan order */
-    int x_mb; /* x-position in MB unit */
-    int y_mb; /* y-position in MB unit */
-    int w_mb; /* width in MB unit */
-    int h_mb; /* height in MB unit */
-    int offset; /* byte offset of the tile from the start of the PBU */
-    int size;   /* byte size of the tile data; 0 if the frame header does not carry the tile sizes */
+    int idx; // tile index in raster scan order
+    int x_mb; // x-position in MB unit
+    int y_mb; // y-position in MB unit
+    int w_mb; // width in MB unit
+    int h_mb; // height in MB unit
+    int offset; // byte offset of the tile from the start of the PBU
+    // byte size of the tile data; 0 if the frame header has no tile sizes
+    int size;
 };
 
 /*****************************************************************************
  * metadata container
  *****************************************************************************/
-/* instance identifier for OAPV metadata container*/
+// instance identifier for OAPV metadata container
 typedef void       *oapvm_t;
 
-/* creation descriptor of a metadata container, copied by oapvm_create() */
+// creation descriptor of a metadata container, copied by oapvm_create()
 typedef struct oapvm_cdesc oapvm_cdesc_t;
 struct oapvm_cdesc {
     // custom memory allocator interface, or NULL for standard C library
     const oapv_ops_mem_t *ops_mem;
 };
 
-/* one metadata payload, for oapvm_set_all() and oapvm_get_all() */
+// one metadata payload, for oapvm_set_all() and oapvm_get_all()
 typedef struct oapvm_payload oapvm_payload_t;
 struct oapvm_payload {
     int           group_id;  // group ID; 0 ~ OAPV_MAX_GROUP_ID
     int           type;      // payload type
     int           size;      // byte size of metadata payload
     void         *data;      // address of metadata payload
-    // UUID for user-defined metadata payload; filled by oapvm_get_all(),
-    // while oapvm_set_all() takes it from the first 16 bytes of 'data'
+    /* UUID for user-defined metadata payload; filled by oapvm_get_all(),
+       while oapvm_set_all() takes it from the first 16 bytes of 'data' */
     unsigned char uuid[16];
 };
 
-/* Mastering display colour volume metadata payload */
+// Mastering display colour volume metadata payload
 typedef struct oapvm_payload_mdcv oapvm_payload_mdcv_t;
 struct oapvm_payload_mdcv {
-    int           primary_chromaticity_x[3];  /* range: 0 ~ 0xFFFF */
-    int           primary_chromaticity_y[3];  /* range: 0 ~ 0xFFFF */
-    int           white_point_chromaticity_x; /* range: 0 ~ 0xFFFF */
-    int           white_point_chromaticity_y; /* range: 0 ~ 0xFFFF */
-    unsigned long max_mastering_luminance;    /* range: 0 ~ 0xFFFFFFFF */
-    unsigned long min_mastering_luminance;    /* range: 0 ~ 0xFFFFFFFF */
+    int           primary_chromaticity_x[3];  // range: 0 ~ 0xFFFF
+    int           primary_chromaticity_y[3];  // range: 0 ~ 0xFFFF
+    int           white_point_chromaticity_x; // range: 0 ~ 0xFFFF
+    int           white_point_chromaticity_y; // range: 0 ~ 0xFFFF
+    unsigned long max_mastering_luminance;    // range: 0 ~ 0xFFFFFFFF
+    unsigned long min_mastering_luminance;    // range: 0 ~ 0xFFFFFFFF
 };
 
-/* Content light level information metadata payload */
+// Content light level information metadata payload
 typedef struct oapvm_payload_cll oapvm_payload_cll_t;
 struct oapvm_payload_cll {
-    int max_cll;  /* range: 0 ~ 0xFFFF */
-    int max_fall; /* range: 0 ~ 0xFFFF */
+    int max_cll;  // range: 0 ~ 0xFFFF
+    int max_fall; // range: 0 ~ 0xFFFF
 };
 
 /*
@@ -894,10 +887,10 @@ OAPV_EXPORT int oapvm_read_cll(void *data, int size, oapvm_payload_cll_t *cll);
 /*****************************************************************************
  * encoder
  *****************************************************************************/
-/* instance identifier for OAPV encoder */
+// instance identifier for OAPV encoder
 typedef void       *oapve_t;
 
-/* level_idc of a level, such as 123 for level 4.1 */
+// level_idc of a level, such as 123 for level 4.1
 #define OAPV_LEVEL_TO_LEVEL_IDC(level)   (int)(((level) * 30.0) + 0.5)
 /* values that let the encoder choose the level, the band or the QP from the
    resolution, the frame rate and the bitrate */
@@ -911,21 +904,21 @@ typedef void       *oapve_t;
  */
 typedef struct oapve_param oapve_param_t;
 struct oapve_param {
-    /* profile_idc defined in spec.; one of OAPV_PROFILE_* */
+    // profile_idc defined in spec.; one of OAPV_PROFILE_*
     int           profile_idc;
     /* level_idc defined in spec.; OAPV_LEVEL_TO_LEVEL_IDC() of the level, or
        OAPVE_PARAM_LEVEL_IDC_AUTO */
     int           level_idc;
-    /* band_idc defined in spec.; 0 ~ 3, or OAPVE_PARAM_BAND_IDC_AUTO */
+    // band_idc defined in spec.; 0 ~ 3, or OAPVE_PARAM_BAND_IDC_AUTO
     int           band_idc;
-    /* width of input frame */
+    // width of input frame
     int           w;
-    /* height of input frame */
+    // height of input frame
     int           h;
-    /* frame rate (Hz) numerator, denominator */
+    // frame rate (Hz) numerator, denominator
     int           fps_num;
     int           fps_den;
-    /* rate control type; OAPV_RC_CQP or OAPV_RC_ABR */
+    // rate control type; OAPV_RC_CQP or OAPV_RC_ABR
     int           rc_type;
     /* quantization parameters : 0 ~ (63 + (bitdepth - 10)*6)
        - 10bit input: 0 ~ 63
@@ -933,17 +926,17 @@ struct oapve_param {
        or OAPVE_PARAM_QP_AUTO
     */
     unsigned char qp;
-    /* quantization parameter offset of component 1 */
+    // quantization parameter offset of component 1
     signed char   qp_offset_c1;
-    /* quantization parameter offset of component 2 */
+    // quantization parameter offset of component 2
     signed char   qp_offset_c2;
-    /* quantization parameter offset of component 3 */
+    // quantization parameter offset of component 3
     signed char   qp_offset_c3;
-    /* bitrate (unit: kbps); the target of OAPV_RC_ABR */
+    // bitrate (unit: kbps); the target of OAPV_RC_ABR
     int           bitrate;
-    /* use filler data for tight constant bitrate */
+    // use filler data for tight constant bitrate
     int           use_filler;
-    /* use quantization matrix */
+    // use quantization matrix
     int           use_q_matrix;
     unsigned char q_matrix[OAPV_MAX_CC][OAPV_BLK_D]; // raster-scan order
     /* NOTE: tile_w and tile_h value can be changed internally,
@@ -955,7 +948,7 @@ struct oapve_param {
     /* preset for setting trade-off between complexity and coding gain;
        one of OAPV_PRESET_* */
     int           preset;
-    /* color description values */
+    // color description values
     int           color_description_present_flag;
     unsigned char color_primaries;
     unsigned char transfer_characteristics;
@@ -963,7 +956,7 @@ struct oapve_param {
     int           full_range_flag;
 };
 
-/* creation descriptor of an encoder, copied by oapve_create() */
+// creation descriptor of an encoder, copied by oapve_create()
 typedef struct oapve_cdesc oapve_cdesc_t;
 struct oapve_cdesc {
     // max bitstream buffer size; large enough for one coded AU
@@ -972,14 +965,14 @@ struct oapve_cdesc {
     int           max_num_frms;
     // max number of threads (or OAPV_CDESC_THREADS_AUTO for auto-assignment)
     int           threads;
-    // encoding parameters of each frame slot; the first 'max_num_frms' are
-    // used
+    /* encoding parameters of each frame slot; the first 'max_num_frms' are
+       used */
     oapve_param_t param[OAPV_MAX_NUM_FRAMES];
     // custom memory allocator interface, or NULL for standard C library
     const oapv_ops_mem_t *ops_mem;
 };
 
-/* result of oapve_encode() */
+// result of oapve_encode()
 typedef struct oapve_stat oapve_stat_t;
 struct oapve_stat {
     // byte size of encoded bitstream
@@ -1064,10 +1057,10 @@ OAPV_EXPORT int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_
 /*****************************************************************************
  * decoder
  *****************************************************************************/
-/* instance identifier for OAPV decoder */
+// instance identifier for OAPV decoder
 typedef void       *oapvd_t;
 
-/* creation descriptor of a decoder, copied by oapvd_create() */
+// creation descriptor of a decoder, copied by oapvd_create()
 typedef struct oapvd_cdesc oapvd_cdesc_t;
 struct oapvd_cdesc {
     // max number of threads (or OAPV_CDESC_THREADS_AUTO for auto-assignment)
@@ -1076,7 +1069,7 @@ struct oapvd_cdesc {
     const oapv_ops_mem_t *ops_mem;
 };
 
-/* result of oapvd_decode() or oapvd_decode_frame() */
+// result of oapvd_decode() or oapvd_decode_frame()
 typedef struct oapvd_stat oapvd_stat_t;
 struct oapvd_stat {
     // byte size of decoded bitstream (read size)
@@ -1087,7 +1080,7 @@ struct oapvd_stat {
     int            frm_size[OAPV_MAX_NUM_FRAMES];
 };
 
-/* API set 0: access unit decoding */
+// API set 0: access unit decoding
 
 /*
  * Create a decoder instance.
@@ -1134,7 +1127,7 @@ OAPV_EXPORT int oapvd_config(oapvd_t did, int cfg, void *buf, int *size);
  */
 OAPV_EXPORT int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat);
 
-/* API set 1: PBU-based decoding */
+// API set 1: PBU-based decoding
 
 /*
  * Decode an AU information PBU.
@@ -1190,15 +1183,15 @@ OAPV_EXPORT int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_t mi
    address and the row stride of each component are the caller's to state. */
 typedef struct oapv_imgb_tile oapv_imgb_tile_t;
 struct oapv_imgb_tile {
-    int   cs;                 /* color space */
-    void *a[OAPV_MAX_CC];     /* address of each component */
-    int   s[OAPV_MAX_CC];     /* buffer stride (in unit of byte) */
-    int   bsize[OAPV_MAX_CC]; /* buffer size behind a[c], or 0 to skip the check */
+    int   cs;                 // color space
+    void *a[OAPV_MAX_CC];     // address of each component
+    int   s[OAPV_MAX_CC];     // buffer stride (in unit of byte)
+    int   bsize[OAPV_MAX_CC]; // buffer size behind a[c], or 0 to skip the check
 };
 
 typedef struct oapv_tile_req oapv_tile_req_t;
 struct oapv_tile_req {
-    int              idx; /* tile index in raster scan order */
+    int              idx; // tile index in raster scan order
     oapv_imgb_tile_t imgb;
 };
 
@@ -1295,7 +1288,7 @@ OAPV_EXPORT int oapve_family_bitrate(int family, int w, int h, int fps_num, int 
 OAPV_EXPORT const char *oapv_version(unsigned int *ver_num);
 
 #ifdef __cplusplus
-} /* extern "C" */
+} // extern "C"
 #endif
 
-#endif /* OPENAPV_OAPV_H_ */
+#endif // OPENAPV_OAPV_H_
