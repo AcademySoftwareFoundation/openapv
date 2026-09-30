@@ -1293,6 +1293,11 @@ oapve_t oapve_create(oapve_cdesc_t *cdesc, int *err)
         if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
         return NULL;
     }
+    // the per-frame arrays hold OAPV_MAX_NUM_FRAMES slots
+    if(cdesc->max_num_frms < 1 || cdesc->max_num_frms > OAPV_MAX_NUM_FRAMES || cdesc->max_bs_buf_size <= 0) {
+        if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
+        return NULL;
+    }
 
     ret = oapv_ops_mem_set(&ops, cdesc->ops_mem);
     if(ret != OAPV_OK) {
