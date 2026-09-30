@@ -32,6 +32,37 @@
 #ifndef OPENAPV_OAPV_H_
 #define OPENAPV_OAPV_H_
 
+/*****************************************************************************
+ * OpenAPV: encoder and decoder library for the APV codec
+ *
+ * Instances
+ *   oapve_t  encoder; oapve_create() / oapve_delete()
+ *   oapvd_t  decoder; oapvd_create() / oapvd_delete()
+ *   oapvm_t  metadata container of one access unit (AU);
+ *            oapvm_create() / oapvm_delete()
+ *   An instance is not thread-safe; use one instance per thread.
+ *
+ * Encoding
+ *   oapve_param_default() and set oapve_cdesc_t.param[] for each frame
+ *   -> oapve_create() -> oapve_encode() for each AU -> oapve_delete()
+ *
+ * Decoding
+ *   API set 0 decodes a whole AU in one call:
+ *     oapvd_create() -> for each AU: oapvd_info() to size the output images,
+ *     then oapvd_decode() -> oapvd_delete()
+ *   API set 1 decodes one PBU at a time: oapvd_info_pbu() tells the PBU type,
+ *   then oapvd_decode_frame(), oapvd_decode_tiles() or oapvd_decode_metadata()
+ *
+ * Image (oapv_imgb_t) and bitstream (oapv_bitb_t) buffers are allocated and
+ * owned by the application.
+ *
+ * Functions returning int return OAPV_OK on success and a negative
+ * OAPV_ERR_* code on failure; test them with OAPV_SUCCEEDED() and
+ * OAPV_FAILED().
+ *
+ * See readme/programmers_guide.md for complete examples.
+ *****************************************************************************/
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -94,28 +125,54 @@ extern "C" {
 
 /*****************************************************************************
  * return values and error code
+ *
+ * Functions returning int return OAPV_OK on success and one of the negative
+ * OAPV_ERR_* codes below on failure. The comment of a function lists a code
+ * only when it has a meaning specific to that function.
  *****************************************************************************/
-#define OAPV_OK                         (0)
+#define OAPV_OK                         (0)  /* success */
 #define OAPV_ERR                        (-1) /* generic error */
+/* invalid argument, or an argument that holds an invalid value */
 #define OAPV_ERR_INVALID_ARGUMENT       (-101)
+/* memory allocation failed */
 #define OAPV_ERR_OUT_OF_MEMORY          (-102)
+/* a limit of the library or the capacity of an array was reached */
 #define OAPV_ERR_REACHED_MAX            (-103)
+/* the requested config id or parameter name is not supported */
 #define OAPV_ERR_UNSUPPORTED            (-104)
+/* unexpected internal error */
 #define OAPV_ERR_UNEXPECTED             (-105)
+/* the color format or bit depth is not allowed by the profile or the
+   bitstream */
 #define OAPV_ERR_UNSUPPORTED_COLORSPACE (-201)
+/* the bitstream is corrupted, truncated or does not conform to the APV
+   specification */
 #define OAPV_ERR_MALFORMED_BITSTREAM    (-202)
-#define OAPV_ERR_OUT_OF_BS_BUF          (-203) /* too small bitstream buffer */
+/* the bitstream buffer is too small for the coded data */
+#define OAPV_ERR_OUT_OF_BS_BUF          (-203)
+/* the requested item, such as a metadata payload, does not exist */
 #define OAPV_ERR_NOT_FOUND              (-204)
-#define OAPV_ERR_FAILED_SYSCALL         (-301) /* failed system call */
-#define OAPV_ERR_INVALID_PROFILE        (-400) /* invalid profile_idc */
-#define OAPV_ERR_INVALID_LEVEL          (-401) /* invalid level_idc */
-#define OAPV_ERR_INVALID_BAND           (-402) /* invalid band_idc */
-#define OAPV_ERR_INVALID_WIDTH          (-405) /* invalid width (like odd) */
+/* a system call, such as creating a thread or a mutex, failed */
+#define OAPV_ERR_FAILED_SYSCALL         (-301)
+/* invalid profile, or the profile is not known */
+#define OAPV_ERR_INVALID_PROFILE        (-400)
+/* invalid level, or a level that does not allow the bitrate */
+#define OAPV_ERR_INVALID_LEVEL          (-401)
+/* invalid band */
+#define OAPV_ERR_INVALID_BAND           (-402)
+/* invalid width, such as a width that does not match the image or an odd
+   width for 4:2:2 */
+#define OAPV_ERR_INVALID_WIDTH          (-405)
+/* invalid height, such as a height that does not match the image */
 #define OAPV_ERR_INVALID_HEIGHT         (-406)
-#define OAPV_ERR_INVALID_FPS            (-407) /* invalid or missing frame rate */
+/* invalid or missing frame rate */
+#define OAPV_ERR_INVALID_FPS            (-407)
+/* invalid QP or QP offset */
 #define OAPV_ERR_INVALID_QP             (-410)
-#define OAPV_ERR_INVALID_FAMILY         (-501) /* invalid family number */
-#define OAPV_ERR_UNKNOWN                (-32767) /* unknown error */
+/* invalid APV family */
+#define OAPV_ERR_INVALID_FAMILY         (-501)
+/* unknown error */
+#define OAPV_ERR_UNKNOWN                (-32767)
 
 /* return value checking */
 #define OAPV_SUCCEEDED(ret)             ((ret) >= OAPV_OK)
@@ -331,6 +388,10 @@ typedef long long        oapv_mtime_t; /* in 100-nanosec unit */
  * - s, e : unit of byte
  *****************************************************************************/
 
+/*
+ * Image buffer of one frame, allocated and owned by the application. The
+ * arrays are indexed by plane; the layout of a plane is shown above.
+ */
 typedef struct oapv_imgb oapv_imgb_t;
 struct oapv_imgb {
     int           cs; /* color space */
@@ -350,7 +411,7 @@ struct oapv_imgb {
     /* address of each plane */
     void         *a[OAPV_MAX_CC];
 
-    /* hash data for signature */
+    /* MD5 hash of each plane, filled when the frame hash is used */
     unsigned char hash[OAPV_MAX_CC][16];
 
     /* time-stamps */
@@ -378,24 +439,27 @@ struct oapv_imgb {
     /* actual allocated buffer size */
     int           bsize[OAPV_MAX_CC];
 
-    /* life cycle management */
+    /* life cycle management: the library calls addref() while it uses the
+       buffer and release() when it is done; either may be NULL */
     int           refcnt;
     int (*addref)(oapv_imgb_t *imgb);
     int (*getref)(oapv_imgb_t *imgb);
     int (*release)(oapv_imgb_t *imgb);
 };
 
+/* one frame of an AU */
 typedef struct oapv_frm oapv_frm_t;
 struct oapv_frm {
-    oapv_imgb_t *imgb;
-    int          pbu_type;
-    int          group_id;
+    oapv_imgb_t *imgb;     /* image buffer of the frame */
+    int          pbu_type; /* OAPV_PBU_TYPE_* of the frame */
+    int          group_id; /* ties the frame to its metadata */
 };
 
 #define OAPV_MAX_NUM_FRAMES (16) // max number of frames in an access unit
 #define OAPV_MAX_NUM_METAS  (16) // max number of metadata in an access unit
 #define OAPV_MAX_NUM_META_PAYLOADS (128) // max number of metadata payloads per access unit
 
+/* the frames of an AU, in the order they appear in the AU */
 typedef struct oapv_frms oapv_frms_t;
 struct oapv_frms {
     int        num_frms;                 // number of frames
@@ -405,13 +469,18 @@ struct oapv_frms {
 /*****************************************************************************
  * Bitstream buffer
  *****************************************************************************/
+/*
+ * Bitstream buffer, allocated and owned by the application. The encoder
+ * writes into it up to 'bsize' bytes; the decoder reads 'ssize' bytes of it.
+ */
 typedef struct oapv_bitb oapv_bitb_t;
 struct oapv_bitb {
     /* user space address indicating buffer */
     void        *addr;
     /* physical address indicating buffer, if any */
     void        *pddr;
-    /* byte size of buffer memory */
+    /* byte size of buffer memory; for decoding, 0 skips the check against
+       'ssize' */
     int          bsize;
     /* byte size of bitstream in buffer */
     int          ssize;
@@ -428,10 +497,11 @@ struct oapv_bitb {
 /*****************************************************************************
  * brief information of frame
  *****************************************************************************/
+/* information of a frame, filled by the library */
 typedef struct oapv_frm_info oapv_frm_info_t;
 struct oapv_frm_info {
-    int           w;
-    int           h;
+    int           w; // frame width in pixels
+    int           h; // frame height in pixels
     // output frame's color space
     // 16bit color space will be set if the profile is 444/4444-16C12
     int           cs;
@@ -441,9 +511,9 @@ struct oapv_frm_info {
     int           level_idc;
     int           band_idc;
     int           chroma_format_idc;
-    int           bit_depth;
+    int           bit_depth; // coded bit depth
     int           capture_time_distance;
-    int           use_companding;
+    int           use_companding; // 16C12 profiles: samples are companded
     // flag for custom quantization matrix
     int           use_q_matrix;
     // q_matrix is meaningful if use_q_matrix is true
@@ -464,12 +534,14 @@ struct oapv_frm_info {
     int           num_tiles;
 };
 
+/* information of the frames of an AU, filled by the library */
 typedef struct oapv_au_info oapv_au_info_t;
 struct oapv_au_info {
     int             num_frms; // number of frames
     oapv_frm_info_t frm_info[OAPV_MAX_NUM_FRAMES];
 };
 
+/* position and size of a tile, filled by oapvd_info_tile() */
 typedef struct oapv_tile_pos oapv_tile_pos_t;
 struct oapv_tile_pos {
     int idx; /* tile index in raster scan order */
@@ -484,6 +556,7 @@ struct oapv_tile_pos {
 /*****************************************************************************
  * constant string and value pairs
  *****************************************************************************/
+/* pair of a name and a value, for the tables below */
 typedef struct oapv_dict_str_int oapv_dict_str_int_t; // dictionary type
 struct oapv_dict_str_int {
     const char * key;
@@ -614,13 +687,18 @@ static const oapv_dict_str_int_t oapv_param_opts_color_matrix[] = {
 #define OAPVE_PARAM_BAND_IDC_AUTO        (4)
 #define OAPVE_PARAM_QP_AUTO              (255)
 
+/*
+ * Coding parameters of one frame slot of an AU. Fill them with
+ * oapve_param_default() before setting any member.
+ */
 typedef struct oapve_param oapve_param_t;
 struct oapve_param {
-    /* profile_idc defined in spec. */
+    /* profile_idc defined in spec.; one of OAPV_PROFILE_* */
     int           profile_idc;
-    /* level_idc defined in spec. */
+    /* level_idc defined in spec.; OAPV_LEVEL_TO_LEVEL_IDC() of the level, or
+       OAPVE_PARAM_LEVEL_IDC_AUTO */
     int           level_idc;
-    /* band_idc defined in spec. */
+    /* band_idc defined in spec.; 0 ~ 3, or OAPVE_PARAM_BAND_IDC_AUTO */
     int           band_idc;
     /* width of input frame */
     int           w;
@@ -629,20 +707,21 @@ struct oapve_param {
     /* frame rate (Hz) numerator, denominator */
     int           fps_num;
     int           fps_den;
-    /* rate control type */
+    /* rate control type; OAPV_RC_CQP or OAPV_RC_ABR */
     int           rc_type;
     /* quantization parameters : 0 ~ (63 + (bitdepth - 10)*6)
        - 10bit input: 0 ~ 63
        - 12bit input: 0 ~ 75
+       or OAPVE_PARAM_QP_AUTO
     */
     unsigned char qp;
-    /* quantization parameter offsets */
+    /* quantization parameter offset of component 1 */
     signed char   qp_offset_c1;
-    /* quantization parameter offsets */
+    /* quantization parameter offset of component 2 */
     signed char   qp_offset_c2;
-    /* quantization parameter offsets */
+    /* quantization parameter offset of component 3 */
     signed char   qp_offset_c3;
-    /* bitrate (unit: kbps) */
+    /* bitrate (unit: kbps); the target of OAPV_RC_ABR */
     int           bitrate;
     /* use filler data for tight constant bitrate */
     int           use_filler;
@@ -655,7 +734,8 @@ struct oapve_param {
     int           tile_w; // width of tile MUST be N * MB width
     int           tile_h; // height of tile MUST be N * MB height
 
-    /* preset for setting trade-off between complexity and coding gain */
+    /* preset for setting trade-off between complexity and coding gain;
+       one of OAPV_PRESET_* */
     int           preset;
     /* color description values */
     int           color_description_present_flag;
@@ -696,15 +776,17 @@ struct oapv_ops_mem {
 /*****************************************************************************
  * description for encoder creation
  *****************************************************************************/
+/* creation descriptor of an encoder, copied by oapve_create() */
 typedef struct oapve_cdesc oapve_cdesc_t;
 struct oapve_cdesc {
-    // max bitstream buffer size
+    // max bitstream buffer size; large enough for one coded AU
     int           max_bs_buf_size;
-    // max number of frames to be encoded
+    // max number of frames to be encoded in one AU; 1 ~ OAPV_MAX_NUM_FRAMES
     int           max_num_frms;
     // max number of threads (or OAPV_CDESC_THREADS_AUTO for auto-assignment)
     int           threads;
-    // encoding parameters
+    // encoding parameters of each frame slot; the first 'max_num_frms' are
+    // used
     oapve_param_t param[OAPV_MAX_NUM_FRAMES];
     // custom memory allocator interface, or NULL for standard C library
     const oapv_ops_mem_t *ops_mem;
@@ -713,6 +795,7 @@ struct oapve_cdesc {
 /*****************************************************************************
  * encoding status
  *****************************************************************************/
+/* result of oapve_encode() */
 typedef struct oapve_stat oapve_stat_t;
 struct oapve_stat {
     // byte size of encoded bitstream
@@ -726,6 +809,7 @@ struct oapve_stat {
 /*****************************************************************************
  * description for decoder creation
  *****************************************************************************/
+/* creation descriptor of a decoder, copied by oapvd_create() */
 typedef struct oapvd_cdesc oapvd_cdesc_t;
 struct oapvd_cdesc {
     // max number of threads (or OAPV_CDESC_THREADS_AUTO for auto-assignment)
@@ -737,6 +821,7 @@ struct oapvd_cdesc {
 /*****************************************************************************
  * decoding status
  *****************************************************************************/
+/* result of oapvd_decode() or oapvd_decode_frame() */
 typedef struct oapvd_stat oapvd_stat_t;
 struct oapvd_stat {
     // byte size of decoded bitstream (read size)
@@ -750,18 +835,22 @@ struct oapvd_stat {
 /*****************************************************************************
  * metadata payload
  *****************************************************************************/
+/* one metadata payload, for oapvm_set_all() and oapvm_get_all() */
 typedef struct oapvm_payload oapvm_payload_t;
 struct oapvm_payload {
     int           group_id;  // group ID
     int           type;      // payload type
     int           size;      // byte size of metadata payload
     void         *data;      // address of metadata payload
-    unsigned char uuid[16];  // UUID for user-defined metadata payload
+    // UUID for user-defined metadata payload; filled by oapvm_get_all(),
+    // while oapvm_set_all() takes it from the first 16 bytes of 'data'
+    unsigned char uuid[16];
 };
 
 /*****************************************************************************
  * description for metadata container creation
  *****************************************************************************/
+/* creation descriptor of a metadata container, copied by oapvm_create() */
 typedef struct oapvm_cdesc oapvm_cdesc_t;
 struct oapvm_cdesc {
     // custom memory allocator interface, or NULL for standard C library
@@ -775,13 +864,97 @@ struct oapvm_cdesc {
 typedef void       *oapvm_t;
 
 /* main APIs *****************************************************************/
+/*
+ * Create a metadata container. A container holds the metadata payloads of
+ * one AU, grouped by group ID.
+ *   - cdesc: creation descriptor. It sets an optional memory allocator. It is
+ *            copied into the container.
+ *   - err  : if not NULL, receives OAPV_OK or the error code.
+ * Returns the container handle, or NULL on failure.
+ */
 OAPV_EXPORT oapvm_t oapvm_create(oapvm_cdesc_t *cdesc, int *err);
+
+/*
+ * Release a metadata container and all the payloads in it.
+ *   - mid: container handle from oapvm_create()
+ */
 OAPV_EXPORT void oapvm_delete(oapvm_t mid);
+
+/*
+ * Add a payload to the container, or replace the payload of the same type in
+ * the same group.
+ *   - mid     : container handle
+ *   - group_id: group ID the payload belongs to
+ *   - type    : payload type, such as OAPV_METADATA_MDCV
+ *   - data    : payload data; it is copied into the container
+ *   - size    : payload size in bytes
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_REACHED_MAX: the container already holds the maximum number of
+ *     groups or payloads
+ * NOTE: For OAPV_METADATA_USER_DEFINED, the first 16 bytes of 'data' are the
+ *       UUID, and payloads with different UUIDs are kept apart.
+ */
 OAPV_EXPORT int oapvm_set(oapvm_t mid, int group_id, int type, void *data, int size);
+
+/*
+ * Get a payload from the container.
+ *   - mid     : container handle
+ *   - group_id: group ID of the payload
+ *   - type    : payload type
+ *   - data    : receives the address of the payload data
+ *   - size    : receives the payload size in bytes
+ *   - uuid    : 16-byte UUID for OAPV_METADATA_USER_DEFINED; otherwise
+ *               ignored
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_NOT_FOUND: the container has no such payload
+ * NOTE: '*data' points into the container; it stays valid until the payload
+ *       is removed or replaced, or the container is cleared or released.
+ */
 OAPV_EXPORT int oapvm_get(oapvm_t mid, int group_id, int type, void **data, int *size, unsigned char *uuid);
+
+/*
+ * Remove a payload from the container.
+ *   - mid     : container handle
+ *   - group_id: group ID of the payload
+ *   - type    : payload type
+ *   - uuid    : 16-byte UUID for OAPV_METADATA_USER_DEFINED; otherwise
+ *               ignored
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_NOT_FOUND: the container has no such payload
+ */
 OAPV_EXPORT int oapvm_rem(oapvm_t mid, int group_id, int type, unsigned char *uuid);
+
+/*
+ * Add or replace several payloads, as oapvm_set() does for each.
+ *   - mid     : container handle
+ *   - pld     : array of payloads
+ *   - num_plds: number of entries of 'pld'
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ * NOTE: On failure, the payloads before the failing entry stay in the
+ *       container.
+ */
 OAPV_EXPORT int oapvm_set_all(oapvm_t mid, oapvm_payload_t *pld, int num_plds);
+
+/*
+ * Get all the payloads in the container.
+ *   - mid     : container handle
+ *   - pld     : array that receives the payloads, or NULL to get only the
+ *               number of payloads
+ *   - num_plds: on input, the number of entries of 'pld'; on output, the
+ *               number of payloads
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_REACHED_MAX: 'pld' is too small
+ * NOTE: Call it with 'pld' set to NULL first to find the number of entries
+ *       needed. The data address of each payload points into the container,
+ *       as for oapvm_get().
+ */
 OAPV_EXPORT int oapvm_get_all(oapvm_t mid, oapvm_payload_t *pld, int *num_plds);
+
+/*
+ * Remove all the payloads from the container.
+ *   - mid: container handle
+ * NOTE: Call it between AUs when the container is reused.
+ */
 OAPV_EXPORT void oapvm_rem_all(oapvm_t mid);
 
 /* utility APIs **************************************************************/
@@ -803,20 +976,42 @@ struct oapvm_payload_cll {
     int max_fall; /* range: 0 ~ 0xFFFF */
 };
 
-/* write to metadata_mdcv() payload syntax
- * note: the size of 'data' buffer should be 24 bytes or larger.
+/*
+ * Write MDCV (mastering display colour volume) values in the payload format.
+ *   - mdcv: MDCV values
+ *   - data: receives the payload; it must hold at least 24 bytes
+ *   - size: receives the payload size in bytes, which is 24
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ * NOTE: Pass the result to oapvm_set() with OAPV_METADATA_MDCV.
  */
 OAPV_EXPORT int oapvm_write_mdcv(oapvm_payload_mdcv_t *mdcv, void *data, int *size);
 
-/* read from metadata_mdcv() payload syntax */
+/*
+ * Read MDCV values from a payload.
+ *   - data: payload data, such as the one from oapvm_get()
+ *   - size: payload size in bytes; at least 24
+ *   - mdcv: receives the MDCV values
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ */
 OAPV_EXPORT int oapvm_read_mdcv(void *data, int size, oapvm_payload_mdcv_t *mdcv);
 
-/* write to metadata_cll() payload syntax
- * note: the size of 'data' buffer should be 4 bytes or larger.
+/*
+ * Write CLL (content light level) values in the payload format.
+ *   - cll : CLL values
+ *   - data: receives the payload; it must hold at least 4 bytes
+ *   - size: receives the payload size in bytes, which is 4
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ * NOTE: Pass the result to oapvm_set() with OAPV_METADATA_CLL.
  */
 OAPV_EXPORT int oapvm_write_cll(oapvm_payload_cll_t *cll, void *data, int *size);
 
-/* read from metadata_cll() payload syntax */
+/*
+ * Read CLL values from a payload.
+ *   - data: payload data, such as the one from oapvm_get()
+ *   - size: payload size in bytes; at least 4
+ *   - cll : receives the CLL values
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ */
 OAPV_EXPORT int oapvm_read_cll(void *data, int size, oapvm_payload_cll_t *cll);
 
 /*****************************************************************************
@@ -826,14 +1021,89 @@ OAPV_EXPORT int oapvm_read_cll(void *data, int size, oapvm_payload_cll_t *cll);
 typedef void       *oapve_t;
 
 /* main APIs *****************************************************************/
+/*
+ * Create an encoder instance.
+ *   - cdesc: creation descriptor. It sets the capacity of the bitstream
+ *            buffer, the number of frames in one AU, the worker threads,
+ *            the coding parameters of each frame slot (param[]) and an
+ *            optional memory allocator. It is copied into the instance.
+ *   - err  : if not NULL, receives OAPV_OK or the error code.
+ * Returns the encoder handle, or NULL on failure.
+ * NOTE: Fill each cdesc->param[] with oapve_param_default() first.
+ */
 OAPV_EXPORT oapve_t oapve_create(oapve_cdesc_t *cdesc, int *err);
+
+/*
+ * Release an encoder instance and everything it allocated.
+ *   - eid: encoder handle from oapve_create()
+ */
 OAPV_EXPORT void oapve_delete(oapve_t eid);
+
+/*
+ * Get or set an encoding option of an existing encoder.
+ *   - eid : encoder handle
+ *   - cfg : an OAPV_CFG_SET_* or OAPV_CFG_GET_* config id. Most options
+ *           belong to one frame slot; use OAPV_CFG_FRM(cfg, frm_idx) to
+ *           select a slot other than 0. AU-level options ignore the frame
+ *           index.
+ *   - buf : the value to set, or where the value is returned
+ *   - size: in bytes; sizeof(int) for most config ids
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_UNSUPPORTED: unsupported config id
+ * NOTE: An option set here applies from the next oapve_encode() call.
+ */
 OAPV_EXPORT int oapve_config(oapve_t eid, int cfg, void *buf, int *size);
+
+/*
+ * Fill coding parameters with the default values.
+ *   - param: parameters of one frame slot
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ * NOTE: Call it before setting any member of oapve_param_t, so that members
+ *       the application does not set keep valid values.
+ */
 OAPV_EXPORT int oapve_param_default(oapve_param_t *param);
+
+/*
+ * Set one coding parameter from a name and a value string.
+ *   - param: parameters to update
+ *   - name : parameter name, the same as the long option of the sample
+ *            encoder, such as "profile", "qp", "bitrate" or "tile-w"
+ *   - value: value in the same format as the sample encoder takes
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_UNSUPPORTED: unknown parameter name
+ */
 OAPV_EXPORT int oapve_param_parse(oapve_param_t* param, const char* name,  const char* value);
+
+/*
+ * Encode one access unit (AU).
+ *   - eid  : encoder handle
+ *   - ifrms: input frames of the AU. Each oapv_frm_t gives the image buffer,
+ *            the PBU type and the group ID of one frame.
+ *   - mid  : metadata to write into the AU, or NULL for none
+ *   - bitb : output buffer allocated by the application
+ *   - stat : receives the result of encoding
+ *   - rfrms: if not NULL, the reconstructed frames are written into its
+ *            image buffers
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_OUT_OF_BS_BUF: 'bitb' is too small for the coded AU
+ * NOTE: 'mid' must not be NULL when the frame hash is enabled with
+ *       OAPV_CFG_SET_USE_FRM_HASH, because the hash is written as metadata.
+ */
 OAPV_EXPORT int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frms_t *rfrms);
 
+
 /* utility APIs **************************************************************/
+/*
+ * Get the target bitrate of an APV family for a resolution and frame rate.
+ *   - family : OAPV_FAMILY_422_LQ, _422_SQ, _422_HQ or _444_UQ
+ *   - w      : frame width in pixels
+ *   - h      : frame height in pixels
+ *   - fps_num: frame rate numerator
+ *   - fps_den: frame rate denominator
+ *   - kbps   : receives the bitrate in kbps
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ * NOTE: See readme/apv_family.md for the families.
+ */
 OAPV_EXPORT int oapve_family_bitrate(int family, int w, int h, int fps_num, int fps_den, int * kbps);
 
 /*****************************************************************************
@@ -843,35 +1113,156 @@ OAPV_EXPORT int oapve_family_bitrate(int family, int w, int h, int fps_num, int 
 typedef void       *oapvd_t;
 
 /* main APIs *****************************************************************/
+/*
+ * Create a decoder instance.
+ *   - cdesc: creation descriptor. It sets the worker threads and an optional
+ *            memory allocator. It is copied into the instance.
+ *   - err  : if not NULL, receives OAPV_OK or the error code.
+ * Returns the decoder handle, or NULL on failure.
+ */
 OAPV_EXPORT oapvd_t oapvd_create(oapvd_cdesc_t *cdesc, int *err);
+
+/*
+ * Release a decoder instance and everything it allocated.
+ *   - did: decoder handle from oapvd_create()
+ */
 OAPV_EXPORT void oapvd_delete(oapvd_t did);
+
+/*
+ * Set a decoding option.
+ *   - did : decoder handle
+ *   - cfg : an OAPV_CFG_SET_* config id
+ *   - buf : the value to set
+ *   - size: in bytes; sizeof(int) for most config ids
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_UNSUPPORTED: unsupported config id
+ */
 OAPV_EXPORT int oapvd_config(oapvd_t did, int cfg, void *buf, int *size);
+
+/*
+ * Decode one access unit (AU) into image buffers (API set 0).
+ *   - did  : decoder handle
+ *   - bitb : the AU to decode, from its 'aPv1' signature
+ *   - ofrms: output frames. The application sets up an image buffer for
+ *            each frame of the AU; the PBU type and group ID of each frame
+ *            are filled by the decoder.
+ *   - mid  : receives the metadata of the AU, or NULL to ignore it
+ *   - stat : receives the result of decoding, including the number of
+ *            decoded frames
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_INVALID_ARGUMENT: also returned when 'ofrms' has fewer
+ *     frames than the AU
+ * NOTE: In the raw bitstream format, each AU is preceded by a 4-byte size;
+ *       pass the AU after it. Use oapvd_info() to find the number of frames
+ *       and the format of each before allocating the image buffers.
+ */
 OAPV_EXPORT int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat);
 
+
 /* utility APIs **************************************************************/
+/*
+ * Get the information of an AU without decoding it.
+ *   - au     : the AU, from its 'aPv1' signature
+ *   - au_size: size of the AU in bytes
+ *   - aui    : receives the number of frames and the size, color space and
+ *              coding parameters of each frame
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ * NOTE: Use it to allocate the output image buffers for oapvd_decode().
+ */
 OAPV_EXPORT int oapvd_info(void *au, int au_size, oapv_au_info_t *aui);
 
-/*****************************************************************************
- * openapv version
- *****************************************************************************/
+/*
+ * Get the version of the library.
+ *   - ver_num: if not NULL, receives the version as a number made with
+ *              OAPV_VER_SET(); use OAPV_VER_GET_APISET() and the other
+ *              OAPV_VER_GET_* macros to read its parts
+ * Returns the version string in the form "APISET.MAJOR.MINOR.PATCH".
+ * NOTE: The string is a constant of the library; do not modify or free it.
+ */
 OAPV_EXPORT const char *oapv_version(unsigned int *ver_num);
 
 /*****************************************************************************
- * OpenAPV version 2 APIs
- ****************************************************************************/
-/* PDU information */
+ * decoder API set 1: PBU-based decoding
+ *****************************************************************************/
+/* PBU information, filled by oapvd_info_pbu() */
 typedef struct oapv_pbu_info oapv_pbu_info_t;
 struct oapv_pbu_info {
-    int  pbu_type;
+    int  pbu_type; // OAPV_PBU_TYPE_*
     int  group_id;
 };
 
+/*
+ * Get the type and group ID of a PBU without decoding it (API set 1).
+ *   - pbu     : the PBU, from its PBU header
+ *   - pbu_size: size of the PBU in bytes, not counting the 4-byte pbu_size
+ *               field that precedes it in the bitstream
+ *   - pbu_info: receives the PBU type and group ID
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ * NOTE: Use the PBU type to choose which function decodes the PBU.
+ */
 OAPV_EXPORT int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_info);
+
+/*
+ * Get the information of a frame PBU without decoding it.
+ *   - pbu     : the frame PBU, from its PBU header
+ *   - pbu_size: size of the PBU in bytes
+ *   - frm_info: receives the size, color space and coding parameters of the
+ *               frame
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ * NOTE: Use it to allocate the output image buffer for oapvd_decode_frame().
+ */
 OAPV_EXPORT int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info);
+
+/*
+ * Get the position and size of each tile of a frame PBU without decoding it.
+ *   - pbu      : the frame PBU, from its PBU header
+ *   - pbu_size : size of the PBU in bytes
+ *   - pos_tiles: receives the tiles in raster scan order, or NULL to get only
+ *                the number of tiles
+ *   - num_tiles: on input, the number of entries of 'pos_tiles'; on output,
+ *                the number of tiles of the frame
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_REACHED_MAX: 'pos_tiles' is too small; '*num_tiles' is set to
+ *     the number of entries needed
+ * NOTE: The byte offset and size of each tile are known only when the frame
+ *       header carries the tile sizes; otherwise they are set to 0.
+ */
 OAPV_EXPORT int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *num_tiles);
 
+/*
+ * Decode an AU information PBU.
+ *   - did : decoder handle
+ *   - bitb: the AU information PBU, from its PBU header
+ *   - aui : receives the number of frames and the information of each frame
+ *           of the AU
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ * NOTE: An AU information PBU is optional. When present, it describes the
+ *       frames of the AU before they are read.
+ */
 OAPV_EXPORT int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui);
+
+/*
+ * Decode a frame PBU into an image buffer.
+ *   - did : decoder handle
+ *   - bitb: the frame PBU, from its PBU header
+ *   - imgb: output image buffer allocated by the application to match the
+ *           frame
+ *   - stat: receives the result of decoding
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ * NOTE: Use oapvd_info_frame() to find the size and color space of the
+ *       frame before allocating the image buffer.
+ */
 OAPV_EXPORT int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat);
+
+/*
+ * Decode a metadata PBU into a metadata container.
+ *   - did : decoder handle
+ *   - bitb: the metadata PBU, from its PBU header
+ *   - mid : container that receives the payloads under the group ID of the
+ *           PBU
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_REACHED_MAX: the container is full
+ */
 OAPV_EXPORT int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_t mid);
 
 /*****************************************************************************
@@ -904,9 +1295,19 @@ struct oapv_tile_req {
     oapv_imgb_tile_t imgb;
 };
 
-/* Every destination must carry the same color space, and it must correspond to
-   the bitstream's chroma format as it must for oapvd_decode_frame(). A tile
-   index appearing twice is rejected rather than decoded twice. */
+/*
+ * Decode chosen tiles of a frame PBU, each into its own buffer.
+ *   - did      : decoder handle
+ *   - bitb     : the frame PBU, from its PBU header
+ *   - num_tiles: number of entries of 'tile_reqs'
+ *   - tile_reqs: the tiles to decode; each entry gives a tile index and the
+ *                destination of that tile
+ * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_INVALID_ARGUMENT: also returned for a tile index out of range
+ *     or given twice, and for destinations with different color spaces
+ * NOTE: All destinations must have the same color space. Use
+ *       oapvd_info_tile() to find the tile indices and sizes.
+ */
 OAPV_EXPORT int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_req_t *tile_reqs);
 
 
