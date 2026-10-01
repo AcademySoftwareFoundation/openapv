@@ -5,7 +5,7 @@ ISOBMFF binding for APV
 
 This document specifies methods to store data encoded with Advanced Professional Video (APV) codec in ISO Base Media File Format (ISOBMFF) files. APV is a mezzanine video codec for storage, exchange and editing of professional quality video. To support extensive, repeated editing including multiple rounds of decompression and compression all the necessary information for decoding, frame header and metadata for processing of decoded video and presentation are put together for fast and simple access. For example, frame header data are repeated in each frame even if the information in frame header are exactly identical for series of frames. When APV bitstream is stored in a file, to avoid such inefficiency codec configuration box indicates whether header information is identical to entire frames stored in a track. In this file format, for efficient access of portions of a frame, a method to identify the location of tiles are supported.
 
-# ISOBMFF binding for APV
+# ISOBMFF binding for APV video
 
 ## APV Sample Entry
 
@@ -207,6 +207,122 @@ The keys are defined as 4CC values and the value used for each keys are defined 
 |'apvb'| band | the largest value of the band_idc in APVDecoderConfigurationRecord |
 
 For example, codecs="apv1.apvf44.apvl210.apvb3" indicates the track is compliant to 'apv1' sample entry type and the largest value of the profile in APVDecoderConfigurationRecord of the track is 422-12 profile, the level is 7 and the band is 3.
+
+
+# ISOBMFF and HEIF binding for APV image items
+
+## APV image items - general
+
+This section describes how to encapsulate APV encoded images and image collections into the Image File Format
+specified in ISO/IEC 23008-12 (also known as "HEIF").
+
+This format allows multiple images to be included in a single file, allowing stereo or multi-view images, and 
+panoramas. Not all of the images need to be in the same format, such that an APV image could have an embedded
+thumbnail in JPEG or HEIC (H.265) format. The format also allows image sequences (essentially video with
+advisory timing), which are further specified [below](#isobmff-and-heif-binding-for-apv-image-sequences).
+
+ISO/IEC 23008-12 is an extension to ISO/IEC 14496-12 (ISOBMFF), and it is valid to include combinations of
+video, image and image sequences plus associated metadata in a single file. The nature of APV allows the
+bitstream data for a frame to be common between the video track and image (or image sequence frame) if desired.
+
+## APV image item data
+
+### APV image item data definition
+
+An item of type `apvi` consists of an APV bitstream corresponding to one and only one access unit of APV coded data.
+The item content does not start with the `au_size` since this can be determined from the sum of the extents given in the
+`iloc` for the item.
+
+### APV image item data syntax
+
+TODO
+
+### APV image item data semantics
+
+TODO
+
+## APV configuration item property
+
++ Box type: `apvC`
+
++ Property type: Descriptive item property
+
++ Container: `ItemPropertyContainerBox`
+
++ Mandatory (per item): Yes, for an image item of type `apvi`
+
++ Quantity (per item): One for an image item of type `apvi`
+
+Each APV image item shall have an associated property that is exactly identical to the `APVConfigurationBox` defined [above](#definition-1).
+
+`essential` shall be equal to 1 for an `apvC` item property associated with an image item of type `apvi`.
+
+## APV auxiliary images
+
+EDITOR NOTE: We could consider prohibiting this, since they could just be in the AU.
+
+Auxiliary images may be used to provide supplemental frame data such as depth images or alpha images. The URNs specified for HEVC in
+ISO/IEC 23008-12:2025 Section B.2.4 may also be used with APV.
+
+An APV coded auxiliary image uses an `item_type` value of `apvi`. An APV coded auxiliary image does not use the `aux_subtype` byte array in
+`AuxiliaryTypeProperty`.
+
+# ISOBMFF and HEIF binding for APV image sequences
+
+TODO: To be specified.
+
+# APV-specific brands
+
+## APV video brand
+
+The brand `apv1` shall be used to indicate that the file is conformant with the [APV video](#isobmff-binding-for-apv-video) section of this document.
+
+EDITOR NOTE: We could relax this requirement and specify the parts we actually need (e.g. not requiring `stss` since its all sync samples).
+
+The `apv1` brand requires support for the `isom` brand as defined in ISO/IEC 14496-12.
+
+## APV image and image collection brand
+
+### APV image brand
+
+The brand `apvi` ("APV image") is specified in the following subclauses.
+
+A coded image item is specified to conform to the `apvi` brand when all of the following constraints are true:
+
+ - the item has type `avp1` and conforms to the specification for [APV image items described above](#isobmff-and-heif-binding-for-apv-image-items).
+ - the item is not associated with any essential item properties other than `apvC`, `colr`, `irot`, `clap`, and `imir`.
+
+### Requirements on files
+
+Files shall include `mif1` among the compatible brands and hence conform to the associated requirements in ISO/IEC 23008-12:2025
+Section 10.
+
+Files including `apvi` as a compatible brand shall include an image item that is present in the file, as either the primary item
+or any item from the alternate group containing the primary item, and that meets one of the following constraints:
+
+ - the item is a coded image item conforming to the `apvi` brand specified [above](#apv-image-brand)
+ - the item is a crop-rotate-mirror derived image item, and the source image item of the item is either a crop-rotate-mirror
+    derived image item or a coded image item conforming to the `apvi` brand specified [above](#apv-image-brand).
+
+### Requirements on readers
+
+The requirements in ISO/IEC 23008-12:2025 Section 10 for `mif1` readers shall be supported.
+
+Readers conforming to the `apvi` brand shall support displaying an item that is either the primary item or any item from the alternate group
+containing the primary item, where that item meets one of the following constraints:
+
+ - the item is a coded image item conforming to the `apvi` brand specified [above](#apv-image-brand)
+ - the item is a crop-rotate-mirror derived image item, and the source image item of the item is either a crop-rotate-mirror
+    derived image item or a coded image item conforming to the `apvi` brand specified [above](#apv-image-brand).
+
+Readers conforming to the `apvi` brand are recommended to decode all profiles and levels of the APV codec, but are not required to do so.
+
+File readers should support displaying an image with opacity information specified by an associated auxiliary image with `aux_type` equal
+to `urn:mpeg:hevc:2015:auxid:1`.
+
+## AVP image sequence brand
+
+TODO: To be specified
 
 # References
 
