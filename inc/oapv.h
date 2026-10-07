@@ -127,7 +127,7 @@ extern "C" {
 
 // max number of frames in an access unit
 #define OAPV_MAX_NUM_FRAMES             (16)
-// max number of metadata in an access unit
+// max number of metadata PBUs in an access unit
 #define OAPV_MAX_NUM_METAS              (16)
 // max number of metadata payloads per access unit
 #define OAPV_MAX_NUM_META_PAYLOADS      (128)
@@ -251,7 +251,7 @@ extern "C" {
 #define OAPV_CFG_SET_FPS_DEN            (205) // set frame rate denominator
 #define OAPV_CFG_SET_QP_MIN             (208) // set minimum QP
 #define OAPV_CFG_SET_QP_MAX             (209) // set maximum QP
-#define OAPV_CFG_SET_USE_FRM_HASH       (301) // write frame hash as metadata
+#define OAPV_CFG_SET_USE_FRM_HASH       (301) // use frame hash metadata
 #define OAPV_CFG_SET_AU_BS_FMT          (302) // set AU bitstream format
 #define OAPV_CFG_SET_TILE_SIZE_IN_FH    (303) // write tile sizes into the FH
 #define OAPV_CFG_SET_DISABLE_COMPANDING (400) // disable de-companding (16C12)
@@ -608,8 +608,9 @@ struct oapv_bitb {
  *
  * Custom allocator for a single codec instance, supplied through the codec
  * descriptor (cdesc) at creation time and copied into the codec context;
- * there is no process-global allocator state. When a function pointer is
- * NULL the library uses the corresponding standard C routine. 'udata' is an
+ * there is no process-global allocator state. All four function pointers
+ * must be set, with 'magic' equal to OAPV_OPS_MAGIC_CODE_MEM; pass NULL as
+ * the allocator interface to use the standard C routines. 'udata' is an
  * opaque, caller-owned pointer passed back to every callback (e.g. the host
  * allocator/arena object); it must stay valid for the codec's lifetime.
  *****************************************************************************/
@@ -617,7 +618,7 @@ struct oapv_bitb {
 
 typedef struct oapv_ops_mem oapv_ops_mem_t;
 struct oapv_ops_mem {
-    // set to OAPV_OPS_MAGIC_CODE_MEM for custom allocators; 0 => libc
+    // must be OAPV_OPS_MAGIC_CODE_MEM
     unsigned int magic;
     void *(*malloc)(void *udata, unsigned int size);
     void *(*calloc)(void *udata, unsigned int count, unsigned int size);
@@ -1027,7 +1028,8 @@ OAPV_EXPORT int oapve_param_parse(oapve_param_t* param, const char* name,  const
  *   - rfrms: if not NULL, the reconstructed frames are written into its
  *            image buffers
  * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
- *   - OAPV_ERR_OUT_OF_BS_BUF: 'bitb' is too small for the coded AU
+ *   - OAPV_ERR_OUT_OF_BS_BUF: 'bitb' or cdesc.max_bs_buf_size is too small
+ *     for the coded AU
  * NOTE: 'mid' must not be NULL when the frame hash is enabled with
  *       OAPV_CFG_SET_USE_FRM_HASH for the slot of a primary or non-primary
  *       frame, because the hash is written as metadata.
