@@ -67,12 +67,12 @@ static int enc_max_bs_buf_size(int w, int h, int cf, int *size)
         return -1;
     }
 
-    // w * h * spp2 is the raw sample size in bytes (two bytes per sample),
+    mbs = (long long)((w + 15) >> 4) * ((h + 15) >> 4);
+    // mbs * OAPV_MB_D * spp2 is the raw sample size in bytes (two bytes per sample),
     // doubled as the worst-case entropy coding margin
-    sz = (long long)w * h * spp2 * 2;
+    sz = mbs * OAPV_MB_D * spp2 * 2;
     // per-tile overhead at the smallest possible tile size (one macroblock),
     // plus slack for the AU/frame headers and metadata
-    mbs = (long long)((w + 15) >> 4) * ((h + 15) >> 4);
     sz += mbs * 40 + 16 * 1024;
     if(sz > INT_MAX) return -1;
 
