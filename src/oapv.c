@@ -1372,6 +1372,7 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         if(ctx->use_frm_hash[i] &&
            (frm->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME || frm->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME)) {
             oapv_assert_rv(mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
+            oapv_assert_rv(rfrms != NULL && rfrms->frm[i].imgb != NULL, OAPV_ERR_INVALID_ARGUMENT);
         }
     }
 
