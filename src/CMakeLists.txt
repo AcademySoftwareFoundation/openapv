@@ -49,6 +49,45 @@ else()
   set(SOURCE_FILES ${LIB_API_SRC} ${LIB_INC} ${LIB_BASE_SRC} ${LIB_BASE_INC})
 endif()
 
+set(OAPV_USE_RUST "auto" CACHE STRING "Use Rust modules (src/oapv_*.rs) where available: auto | on | off (auto = use when cargo is found)")
+set_property(CACHE OAPV_USE_RUST PROPERTY STRINGS auto on off)
+
+find_program(CARGO_EXECUTABLE cargo)
+set(OAPV_RUST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../rust")
+set(OAPV_RUST_LIB "${OAPV_RUST_DIR}/target/release/liboapv_rust.a")
+
+set(OAPV_RUST OFF)
+if(OAPV_USE_RUST STREQUAL "on")
+  if(NOT CARGO_EXECUTABLE)
+    message(FATAL_ERROR "OAPV_USE_RUST=on, but cargo was not found in PATH")
+  endif()
+  set(OAPV_RUST ON)
+elseif(OAPV_USE_RUST STREQUAL "auto" AND CARGO_EXECUTABLE)
+  set(OAPV_RUST ON)
+endif()
+
+if(OAPV_RUST)
+  message("  Rust modules (vlc, bs, dec): ${OAPV_RUST_DIR}")
+  add_custom_command(
+    OUTPUT "${OAPV_RUST_LIB}"
+    COMMAND ${CARGO_EXECUTABLE} build --release
+    WORKING_DIRECTORY "${OAPV_RUST_DIR}"
+    DEPENDS "${OAPV_RUST_DIR}/Cargo.toml"
+            "${OAPV_RUST_DIR}/build.rs"
+            "${OAPV_RUST_DIR}/src/lib.rs"
+            "${OAPV_RUST_DIR}/src/oapv_vlc.rs"
+            "${OAPV_RUST_DIR}/src/oapv_bs.rs"
+            "${OAPV_RUST_DIR}/src/oapv.rs"
+  )
+  add_custom_target(oapv_rust_build DEPENDS "${OAPV_RUST_LIB}")
+  add_library(oapv_rust STATIC IMPORTED GLOBAL)
+  set_target_properties(oapv_rust PROPERTIES IMPORTED_LOCATION "${OAPV_RUST_LIB}")
+  list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/oapv_vlc.c")
+  list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/oapv_bs.c")
+else()
+  message("  Rust modules: not used (C implementation)")
+endif()
+
 if(OAPV_BUILD_STATIC_LIB)
   add_library(${LIB_NAME_BASE} STATIC ${SOURCE_FILES})
 
@@ -78,6 +117,19 @@ if(OAPV_BUILD_SHARED_LIB)
   generate_export_header(${LIB_NAME_BASE}_dynamic
                          BASE_NAME OAPV
                          EXPORT_FILE_NAME ${CMAKE_BINARY_DIR}/include/oapv/oapv_exports.h)
+endif()
+
+if(OAPV_RUST)
+  if(OAPV_BUILD_STATIC_LIB)
+    add_dependencies(${LIB_NAME_BASE} oapv_rust_build)
+    target_compile_definitions(${LIB_NAME_BASE} PRIVATE OAPV_RUST_DEC)
+    target_link_libraries(${LIB_NAME_BASE} oapv_rust)
+  endif()
+  if(OAPV_BUILD_SHARED_LIB)
+    add_dependencies(${LIB_NAME_BASE}_dynamic oapv_rust_build)
+    target_compile_definitions(${LIB_NAME_BASE}_dynamic PRIVATE OAPV_RUST_DEC)
+    target_link_libraries(${LIB_NAME_BASE}_dynamic oapv_rust -lpthread -ldl -lrt -lm)
+  endif()
 endif()
 
 source_group("base\\header" FILES ${LIB_BASE_INC} ${LIB_INC})

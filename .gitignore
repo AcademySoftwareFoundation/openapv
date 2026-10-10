@@ -52,3 +52,6 @@ Mkfile.old
 dkms.conf
 .vscode/
 build/
+
+# Rust build output (cargo)
+rust/target/

@@ -1637,7 +1637,15 @@ static int dec_block(oapvd_ctx_t *ctx, oapvd_core_t *core, int log2_w, int log2_
     return OAPV_OK;
 }
 
-static int dec_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles)
+#if defined(OAPV_RUST_DEC)
+/* provided by src/oapv.rs when OAPV_RUST_DEC is defined */
+int oapvd_frm_setup(oapvd_ctx_t *ctx, int cs);
+int oapvd_set_tile_info(oapvd_tile_t *tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles);
+int oapvd_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb);
+#endif
+
+#if !defined(OAPV_RUST_DEC)
+int oapvd_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles)
 {
 
     for (int i = 0; i < num_tiles; i++)
@@ -1651,8 +1659,10 @@ static int dec_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_
     }
     return OAPV_OK;
 }
+#endif
 
-static int dec_frm_setup(oapvd_ctx_t *ctx, int cs)
+#if !defined(OAPV_RUST_DEC)
+int oapvd_frm_setup(oapvd_ctx_t *ctx, int cs)
 {
     int i, ret;
 
@@ -1739,7 +1749,7 @@ static int dec_frm_setup(oapvd_ctx_t *ctx, int cs)
         ctx->tile_cap = ctx->num_tiles;
     }
 
-    dec_set_tile_info(ctx->tile, ctx->w, ctx->h, tile_w, tile_h, ctx->num_tile_cols, ctx->num_tiles);
+    oapvd_set_tile_info(ctx->tile, ctx->w, ctx->h, tile_w, tile_h, ctx->num_tile_cols, ctx->num_tiles);
 
     for(i = 0; i < ctx->num_tiles; i++) {
         ctx->tile[i].bs_beg = NULL;
@@ -1751,7 +1761,10 @@ static int dec_frm_setup(oapvd_ctx_t *ctx, int cs)
     return OAPV_OK;
 }
 
-static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
+#endif
+
+#if !defined(OAPV_RUST_DEC)
+int oapvd_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
 {
     int i, ret;
 
@@ -1764,7 +1777,7 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
         return OAPV_ERR_INVALID_ARGUMENT;
     }
 
-    ret = dec_frm_setup(ctx, imgb->cs);
+    ret = oapvd_frm_setup(ctx, imgb->cs);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     // validate buffer capacity for each plane the write path touches
@@ -1797,6 +1810,7 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
 
     return OAPV_OK;
 }
+#endif
 
 static void dec_frm_finish(oapvd_ctx_t *ctx)
 {
@@ -2034,7 +2048,7 @@ static int dec_tiles_prepare(oapvd_ctx_t *ctx, int num_tiles, oapv_tile_req_t *t
 {
     int i, ret;
 
-    ret = dec_frm_setup(ctx, tile_reqs[0].imgb.cs);
+    ret = oapvd_frm_setup(ctx, tile_reqs[0].imgb.cs);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     // the tile sizes of the frame header land here, so the buffer follows the
@@ -2374,7 +2388,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
             ret = oapvd_vlc_frame_header(bs, &ctx->fh, NULL, 0);
             oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
-            ret = dec_frm_prepare(ctx, ofrms->frm[nfrms].imgb);
+            ret = oapvd_frm_prepare(ctx, ofrms->frm[nfrms].imgb);
             oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
             int           thread_ret;
@@ -2701,7 +2715,7 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
     oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
     // be ready to decode start
-    ret = dec_frm_prepare(ctx, imgb);
+    ret = oapvd_frm_prepare(ctx, imgb);
     oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
     int           thread_ret;

@@ -708,7 +708,7 @@ int oapve_vlc_get_coef_rate(oapve_core_t* core, s16* coef, int c)
         }                                                                    \
     }
 
-static int dec_vlc_read(oapv_bs_t *bs, int k)
+static force_inline int dec_vlc_read(oapv_bs_t *bs, int k)
 {
     u32 symbol;
     int flag;
