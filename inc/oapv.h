@@ -149,7 +149,7 @@ extern "C" {
 #define OAPV_ERR_OUT_OF_MEMORY          (-102)
 // a limit of the library or the capacity of an array was reached
 #define OAPV_ERR_REACHED_MAX            (-103)
-// the requested config id or parameter name is not supported
+// the requested config id, parameter name or feature is not supported
 #define OAPV_ERR_UNSUPPORTED            (-104)
 // unexpected internal error
 #define OAPV_ERR_UNEXPECTED             (-105)
@@ -1030,9 +1030,12 @@ OAPV_EXPORT int oapve_param_parse(oapve_param_t* param, const char* name,  const
  * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
  *   - OAPV_ERR_OUT_OF_BS_BUF: 'bitb' or cdesc.max_bs_buf_size is too small
  *     for the coded AU
- * NOTE: 'mid' must not be NULL when the frame hash is enabled with
- *       OAPV_CFG_SET_USE_FRM_HASH for the slot of a primary or non-primary
- *       frame, because the hash is written as metadata.
+ *   - OAPV_ERR_UNSUPPORTED: the frame hash is enabled, but it is not
+ *     supported for PLANAR2 frames
+ * NOTE: When the frame hash is enabled with OAPV_CFG_SET_USE_FRM_HASH for the
+ *       slot of a primary or non-primary frame, 'mid' and the image buffer of
+ *       that frame in 'rfrms' must be given, because the hash of the
+ *       reconstructed frame is written as metadata.
  */
 OAPV_EXPORT int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frms_t *rfrms);
 
@@ -1103,6 +1106,8 @@ OAPV_EXPORT int oapvd_config(oapvd_t did, int cfg, void *buf, int *size);
  * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
  *   - OAPV_ERR_INVALID_ARGUMENT: also returned when 'ofrms' has fewer
  *     frames than the AU
+ *   - OAPV_ERR_UNSUPPORTED: the frame hash is enabled, but it is not
+ *     supported for PLANAR2 image buffers
  * NOTE: In the raw bitstream format, each AU is preceded by a 4-byte size;
  *       pass the AU after it. Use oapvd_info() to find the number of frames
  *       and the format of each before allocating the image buffers.
@@ -1131,6 +1136,8 @@ OAPV_EXPORT int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info
  *           frame
  *   - stat: receives the result of decoding
  * Returns OAPV_OK on success, or a negative OAPV_ERR_* code on failure.
+ *   - OAPV_ERR_UNSUPPORTED: the frame hash is enabled, but it is not
+ *     supported for a PLANAR2 'imgb'
  * NOTE: Use oapvd_info_frame() to find the size and color space of the
  *       frame before allocating the image buffer.
  */

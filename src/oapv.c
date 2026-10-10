@@ -1372,6 +1372,9 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         if(ctx->use_frm_hash[i] &&
            (frm->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME || frm->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME)) {
             oapv_assert_rv(mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
+            oapv_assert_rv(rfrms != NULL && rfrms->frm[i].imgb != NULL, OAPV_ERR_INVALID_ARGUMENT);
+            // the frame hash is not defined for the PLANAR2 layout
+            oapv_assert_rv(OAPV_CS_GET_FORMAT(frm->imgb->cs) != OAPV_CF_PLANAR2, OAPV_ERR_UNSUPPORTED);
         }
     }
 
@@ -1773,6 +1776,8 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
 
     ret = dec_frm_setup(ctx, imgb->cs);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+    // the frame hash is not defined for the PLANAR2 layout
+    oapv_assert_rv(!ctx->use_frm_hash || OAPV_CS_GET_FORMAT(imgb->cs) != OAPV_CF_PLANAR2, OAPV_ERR_UNSUPPORTED);
 
     // validate buffer capacity for each plane the write path touches
     int byte_depth = (ctx->fh.fi.bit_depth + 7) / 8; // bytes per pixel
