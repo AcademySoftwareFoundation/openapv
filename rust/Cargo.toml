@@ -1,0 +1,16 @@
+[package]
+name = "oapv_rust"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "oapv_rust"
+crate-type = ["staticlib"]
+
+[build-dependencies]
+bindgen = "0.71"
+
+[profile.release]
+panic = "unwind"
+codegen-units = 1
+debug = 1
