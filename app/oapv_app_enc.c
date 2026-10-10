@@ -528,6 +528,10 @@ static int check_conf(oapve_cdesc_t *cdesc, args_var_t *vars)
             logerr("ERR: cannot use frame hash without reconstructed picture option!\n");
             return -1;
         }
+        if(vars->hash && vars->input_csp == 5) {
+            logerr("ERR: cannot use frame hash with '--input-csp 5' (P2)\n");
+            return -1;
+        }
     }
     if(strlen(vars->family) > 0) {
         int f = get_val_from_key(opts_family, vars->family);
