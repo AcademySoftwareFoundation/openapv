@@ -61,7 +61,13 @@ endif()
 
 if(OAPV_BUILD_SHARED_LIB)
   add_library(${LIB_NAME_BASE}_dynamic SHARED ${SOURCE_FILES})
-  set_target_properties(${LIB_NAME_BASE}_dynamic PROPERTIES VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH} SOVERSION ${VERSION_MAJOR})
+  # SOVERSION must keep increasing across releases, so it carries both
+  # OAPV_VER_APISET and OAPV_VER_MAJOR
+  if(VERSION_MAJOR GREATER_EQUAL 10)
+    message(FATAL_ERROR "OAPV_VER_MAJOR >= 10 needs a new SOVERSION rule")
+  endif()
+  math(EXPR LIB_SOVERSION "${VERSION_APISET} * 10 + ${VERSION_MAJOR}")
+  set_target_properties(${LIB_NAME_BASE}_dynamic PROPERTIES VERSION ${LIB_SOVERSION}.${VERSION_MINOR}.${VERSION_PATCH} SOVERSION ${LIB_SOVERSION})
   set_target_properties(${LIB_NAME_BASE}_dynamic PROPERTIES OUTPUT_NAME ${LIB_NAME_BASE})
 
   # @todo Consider using WINDOWS_EXPORT_ALL_SYMBOLS instead of generate_export_header
