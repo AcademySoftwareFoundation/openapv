@@ -1293,6 +1293,11 @@ oapve_t oapve_create(oapve_cdesc_t *cdesc, int *err)
         if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
         return NULL;
     }
+    // the per-frame arrays hold OAPV_MAX_NUM_FRAMES slots
+    if(cdesc->max_num_frms < 1 || cdesc->max_num_frms > OAPV_MAX_NUM_FRAMES || cdesc->max_bs_buf_size <= 0) {
+        if(err) *err = OAPV_ERR_INVALID_ARGUMENT;
+        return NULL;
+    }
 
     ret = oapv_ops_mem_set(&ops, cdesc->ops_mem);
     if(ret != OAPV_OK) {
@@ -1362,6 +1367,8 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
     for(i = 0; i < ifrms->num_frms; i++) {
         frm = &ifrms->frm[i];
         oapv_assert_rv(frm->imgb != NULL, OAPV_ERR_INVALID_ARGUMENT);
+        // group_id is written in 16 bits and 0xFFFF is reserved
+        oapv_assert_rv(frm->group_id >= 0 && frm->group_id <= OAPV_MAX_GROUP_ID, OAPV_ERR_INVALID_ARGUMENT);
         if(ctx->use_frm_hash[i] &&
            (frm->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME || frm->pbu_type == OAPV_PBU_TYPE_NON_PRIMARY_FRAME)) {
             oapv_assert_rv(mid != NULL, OAPV_ERR_INVALID_ARGUMENT);
