@@ -291,6 +291,10 @@ int oapv_imgb_set_md5(oapv_imgb_t *imgb)
     oapv_md5_t md5[N_C];
     int        i, j, ret;
     int        b_depth = OAPV_CS_GET_BYTE_DEPTH(imgb->cs);
+    int        cfi = color_format_to_chroma_format_idc(OAPV_CS_GET_FORMAT(imgb->cs));
+    // the hash covers the frame padded to the MB boundary
+    int        aw = oapv_align_value(imgb->w[0], OAPV_MB_W);
+    int        ah = oapv_align_value(imgb->h[0], OAPV_MB_H);
 
     ret = oapv_imgb_is_valid(imgb);
     if(OAPV_FAILED(ret)) {
@@ -299,14 +303,17 @@ int oapv_imgb_set_md5(oapv_imgb_t *imgb)
     memset(imgb->hash, 0, sizeof(imgb->hash));
 
     for(i = 0; i < imgb->np; i++) {
+        int w = aw >> (i > 0 ? get_chroma_sft_w(cfi) : 0);
+        int h = ah >> (i > 0 ? get_chroma_sft_h(cfi) : 0);
+
         md5_init(&md5[i]);
 
-        for(j = 0; j < imgb->ah[i]; j++) {
+        for(j = 0; j < h; j++) {
             if(b_depth >= 2) {
-                md5_update_16(&md5[i], ((u8 *)imgb->a[i]) + j * imgb->s[i], imgb->aw[i]);
+                md5_update_16(&md5[i], ((u8 *)imgb->a[i]) + j * imgb->s[i], w);
             }
             else {
-                md5_update(&md5[i], ((u8 *)imgb->a[i]) + j * imgb->s[i], imgb->aw[i]);
+                md5_update(&md5[i], ((u8 *)imgb->a[i]) + j * imgb->s[i], w);
             }
         }
 
