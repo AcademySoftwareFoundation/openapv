@@ -49,12 +49,20 @@ else()
   set(SOURCE_FILES ${LIB_API_SRC} ${LIB_INC} ${LIB_BASE_SRC} ${LIB_BASE_INC})
 endif()
 
-set(OAPV_USE_RUST "auto" CACHE STRING "Use Rust modules (src/oapv_*.rs) where available: auto | on | off (auto = use when cargo is found)")
+set(OAPV_USE_RUST "off" CACHE STRING "Use the Rust modules in rust/src instead of their C sources: off | on | auto (auto = on when cargo is found)")
 set_property(CACHE OAPV_USE_RUST PROPERTY STRINGS auto on off)
+set(OAPV_RUST_TRIPLE "" CACHE STRING "Rust target triple for cross builds; empty for the host")
 
 find_program(CARGO_EXECUTABLE cargo)
 set(OAPV_RUST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../rust")
-set(OAPV_RUST_LIB "${OAPV_RUST_DIR}/target/release/liboapv_rust.a")
+set(OAPV_RUST_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/rust")
+set(OAPV_RUST_ARGS build --release --target-dir "${OAPV_RUST_TARGET_DIR}")
+set(OAPV_RUST_OUT_DIR "${OAPV_RUST_TARGET_DIR}/release")
+if(OAPV_RUST_TRIPLE)
+  list(APPEND OAPV_RUST_ARGS --target ${OAPV_RUST_TRIPLE})
+  set(OAPV_RUST_OUT_DIR "${OAPV_RUST_TARGET_DIR}/${OAPV_RUST_TRIPLE}/release")
+endif()
+set(OAPV_RUST_LIB "${OAPV_RUST_OUT_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}oapv_rust${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 set(OAPV_RUST OFF)
 if(OAPV_USE_RUST STREQUAL "on")
@@ -70,7 +78,7 @@ if(OAPV_RUST)
   message("  Rust modules (vlc, bs, dec, metadata): ${OAPV_RUST_DIR}")
   add_custom_command(
     OUTPUT "${OAPV_RUST_LIB}"
-    COMMAND ${CARGO_EXECUTABLE} build --release
+    COMMAND ${CARGO_EXECUTABLE} ${OAPV_RUST_ARGS}
     WORKING_DIRECTORY "${OAPV_RUST_DIR}"
     DEPENDS "${OAPV_RUST_DIR}/Cargo.toml"
             "${OAPV_RUST_DIR}/build.rs"
@@ -79,6 +87,8 @@ if(OAPV_RUST)
             "${OAPV_RUST_DIR}/src/oapv_bs.rs"
             "${OAPV_RUST_DIR}/src/oapv.rs"
             "${OAPV_RUST_DIR}/src/oapv_metadata.rs"
+            # bindgen reads the C headers, so a struct change must rebuild the crate
+            ${LIB_INC} ${LIB_BASE_INC} ${LIB_SSE_INC} ${LIB_AVX_INC} ${LIB_NEON_INC}
   )
   add_custom_target(oapv_rust_build DEPENDS "${OAPV_RUST_LIB}")
   add_library(oapv_rust STATIC IMPORTED GLOBAL)

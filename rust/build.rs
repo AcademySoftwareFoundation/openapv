@@ -53,9 +53,6 @@ fn main() {
         .map(|h| format!("#include \"{}\"\n", root.join(h).display()))
         .collect::<String>();
     fs::write(&wrapper, content).unwrap();
-    for f in ["src/lib.rs", "src/oapv.rs", "src/oapv_bs.rs", "src/oapv_vlc.rs"] {
-        println!("cargo:rerun-if-changed={}", manifest.join(f).display());
-    }
 
     let bindings = bindgen::Builder::default()
         .header(wrapper.to_str().unwrap())
