@@ -241,8 +241,6 @@ int oapvm_read_mdcv(void *data, int size, oapvm_payload_mdcv_t *mdcv)
 
     for(i = 0; i < 3; i++) {
         mdcv->primary_chromaticity_x[i] = oapv_bsr_read(&bs, 16);
-    }
-    for(i = 0; i < 3; i++) {
         mdcv->primary_chromaticity_y[i] = oapv_bsr_read(&bs, 16);
     }
     mdcv->white_point_chromaticity_x = oapv_bsr_read(&bs, 16);
