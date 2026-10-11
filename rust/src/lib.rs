@@ -34,6 +34,22 @@
 
 #![allow(non_snake_case, non_camel_case_types, non_upper_case_globals)]
 
+// catches a panic at the C ABI boundary and returns $on_err instead
+macro_rules! ffi_try {
+    ($body:expr, $on_err:expr) => {{
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { unsafe { $body } }));
+        match r {
+            Ok(v) => v,
+            Err(_) => $on_err,
+        }
+    }};
+}
+
+mod ffi {
+    #![allow(dead_code)]
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+}
+
 mod oapv;
 mod oapv_bs;
 mod oapv_metadata;

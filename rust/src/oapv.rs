@@ -34,25 +34,9 @@
  * Crate manifest and bindgen config live in rust/.
  */
 
-#![allow(non_snake_case, non_camel_case_types, non_upper_case_globals)]
-
 use core::ffi::c_int;
 use core::ffi::c_void;
-
-macro_rules! ffi_try {
-    ($body:expr, $on_err:expr) => {{
-        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { unsafe { $body } }));
-        match r {
-            Ok(v) => v,
-            Err(_) => $on_err,
-        }
-    }};
-}
-
-mod ffi {
-    #![allow(dead_code)]
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-}
+use crate::ffi;
 
 const Y_C: usize = 0;
 const U_C: usize = 1;
