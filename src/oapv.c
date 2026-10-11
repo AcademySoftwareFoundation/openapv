@@ -1415,10 +1415,13 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         ctx->rc_param_frm[i] = ctx->rc_param;
 
         // rewrite pbu_size
-        int pbu_size = ((u8 *)oapv_bsw_sink(bs)) - bs_pos_pbu_beg - 4;
+        u8 *bs_pos_pbu_end = oapv_bsw_sink(bs);
+        oapv_assert_gv(bs_pos_pbu_end != NULL, ret, OAPV_ERR_OUT_OF_BS_BUF, ERR);
+        int pbu_size = (int)(bs_pos_pbu_end - bs_pos_pbu_beg) - 4;
         DUMP_SAVE(1);
         DUMP_LOAD(0);
-        oapv_bsw_write_direct(bs_pos_pbu_beg, pbu_size, 32);
+        ret = oapv_bsw_write_direct(bs, bs_pos_pbu_beg, pbu_size, 32);
+        oapv_assert_gv(ret == 0, ret, OAPV_ERR_OUT_OF_BS_BUF, ERR);
         DUMP_HLS(pbu_size, pbu_size);
         DUMP_LOAD(1);
 
@@ -1460,15 +1463,19 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
             int pbu_size = (bs_pos_pbu_end - bs_pos_pbu_beg) - 4;
             DUMP_SAVE(1);
             DUMP_LOAD(0);
-            oapv_bsw_write_direct(bs_pos_pbu_beg, pbu_size, 32);
+            ret = oapv_bsw_write_direct(bs, bs_pos_pbu_beg, pbu_size, 32);
+            oapv_assert_rv(ret == 0, OAPV_ERR_OUT_OF_BS_BUF);
             DUMP_HLS(pbu_size, pbu_size);
             DUMP_LOAD(1);
         }
     }
 
     if(ctx->au_bs_fmt == OAPV_CFG_VAL_AU_BS_FMT_RBAU) {
-        u32 au_size = (u32)((u8 *)oapv_bsw_sink(bs) - bs_pos_au_beg) - 4;
-        oapv_bsw_write_direct(bs_pos_au_beg, au_size, 32);
+        u8 *bs_pos_au_end = oapv_bsw_sink(bs);
+        oapv_assert_rv(bs_pos_au_end != NULL, OAPV_ERR_OUT_OF_BS_BUF);
+        u32 au_size = (u32)(bs_pos_au_end - bs_pos_au_beg) - 4;
+        ret = oapv_bsw_write_direct(bs, bs_pos_au_beg, au_size, 32);
+        oapv_assert_rv(ret == 0, OAPV_ERR_OUT_OF_BS_BUF);
     }
 
     oapv_bsw_deinit(bs); /* de-init BSW */
@@ -2351,8 +2358,8 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
     if(bitb->bsize > 0) {
         oapv_assert_rv(bitb->ssize <= bitb->bsize, OAPV_ERR_INVALID_ARGUMENT);
     }
-    ret = oapv_bsr_read_direct(bitb->addr, 32, &signature);
-    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+    oapv_bsr_init(&ctx->bs, (u8 *)bitb->addr, bitb->ssize, NULL);
+    signature = oapv_bsr_read(&ctx->bs, 32);
     oapv_assert_rv(signature == 0x61507631, OAPV_ERR_MALFORMED_BITSTREAM);
     cur_read_size += 4;
     stat->read += 4;
@@ -2460,15 +2467,17 @@ int oapvd_config(oapvd_t did, int cfg, void *buf, int *size)
 
     ctx = dec_id_to_ctx(did);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
-    oapv_assert_rv(buf != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(buf != NULL && size != NULL, OAPV_ERR_INVALID_ARGUMENT);
 
     switch(cfg) {
     /* set config ************************************************************/
     case OAPV_CFG_SET_USE_FRM_HASH:
+        oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         ctx->use_frm_hash = (*((int *)buf)) ? 1 : 0;
         break;
 
     case OAPV_CFG_SET_DISABLE_COMPANDING:
+        oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         ctx->force_disable_companding = (*((int *)buf)) ? 1 : 0;
         break;
     default:
@@ -2490,8 +2499,8 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
 
     // read signature ('aPv1')
     oapv_assert_rv(au_size > 4, OAPV_ERR_MALFORMED_BITSTREAM);
-    ret = oapv_bsr_read_direct(au, 32, &signature);
-    oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
+    oapv_bsr_init(&bs, (u8 *)au, au_size, NULL);
+    signature = oapv_bsr_read(&bs, 32);
     oapv_assert_rv(signature == 0x61507631, OAPV_ERR_MALFORMED_BITSTREAM);
     cur_read_size += 4;
 

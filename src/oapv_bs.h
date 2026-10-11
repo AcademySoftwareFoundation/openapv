@@ -79,7 +79,7 @@ static force_inline int bsw_get_write_byte(oapv_bs_t *bs)
 void oapv_bsw_init(oapv_bs_t *bs, u8 *buf, int size, oapv_bs_fn_flush_t fn_flush);
 void oapv_bsw_deinit(oapv_bs_t *bs);
 void *oapv_bsw_sink(oapv_bs_t *bs);
-int oapv_bsw_write_direct(void *addr, u32 val, int len);
+int oapv_bsw_write_direct(oapv_bs_t *bs, void *addr, u32 val, int len);
 int oapv_bsw_write1(oapv_bs_t *bs, int val);
 int oapv_bsw_write(oapv_bs_t *bs, u32 val, int len);
 ///////////////////////////////////////////////////////////////////////////////
@@ -146,7 +146,6 @@ void *oapv_bsr_sink(oapv_bs_t *bs);
 void oapv_bsr_move(oapv_bs_t *bs, u8 *pos);
 u32 oapv_bsr_read(oapv_bs_t *bs, int size);
 int oapv_bsr_read1(oapv_bs_t *bs);
-int oapv_bsr_read_direct(const void *addr, int len, u32 *out);
 
 ///////////////////////////////////////////////////////////////////////////////
 // end of decoder code

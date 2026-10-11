@@ -516,7 +516,7 @@ int oapve_vlc_metadata(oapv_md_t *md, oapv_bs_t *bs)
     bs_pos_end = oapv_bsw_sink(bs);
     oapv_assert_rv(bs_pos_end != NULL, OAPV_ERR_OUT_OF_BS_BUF);
     u32 md_size = (u32)(bs_pos_end - bs_pos_md) - 4;
-    oapv_bsw_write_direct(bs_pos_md, md_size, 32);
+    oapv_assert_rv(oapv_bsw_write_direct(bs, bs_pos_md, md_size, 32) == 0, OAPV_ERR_OUT_OF_BS_BUF);
     DUMP_SAVE(1);
     DUMP_LOAD(0);
     DUMP_HLS(metadata_size, md_size);
@@ -1018,6 +1018,7 @@ int oapvd_vlc_au_info(oapv_bs_t *bs, oapv_aui_t *aui)
         DUMP_HLS(pbu_type, aui->pbu_type[fidx]);
         aui->group_id[fidx] = oapv_bsr_read(bs, 16);
         DUMP_HLS(group_id, aui->group_id[fidx]);
+        oapv_assert_rv(aui->group_id[fidx] >= 0 && aui->group_id[fidx] <= OAPV_MAX_GROUP_ID, OAPV_ERR_MALFORMED_BITSTREAM);
         reserved_zero_8bits = oapv_bsr_read(bs, 8);
         DUMP_HLS(reserved_zero_8bits, reserved_zero_8bits);
         oapv_assert_rv(reserved_zero_8bits == 0, OAPV_ERR_MALFORMED_BITSTREAM);
