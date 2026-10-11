@@ -37,6 +37,7 @@
 #![allow(non_snake_case, non_camel_case_types, non_upper_case_globals)]
 
 use core::ffi::c_int;
+use core::ffi::c_void;
 
 macro_rules! ffi_try {
     ($body:expr, $on_err:expr) => {{
@@ -333,4 +334,339 @@ pub extern "C" fn oapvd_frm_prepare(ctx: *mut ffi::oapvd_ctx_t, imgb: *mut ffi::
 
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
+}
+
+// ---------------------------------------------------------------------------
+// frame-info conversion helpers and stateless info() entry points
+// ---------------------------------------------------------------------------
+
+fn chroma_format_idc_to_color_format(cfi: i32) -> i32 {
+    match cfi {
+        0 => ffi::OAPV_CF_YCBCR400 as i32,
+        1 => ffi::OAPV_CF_YCBCR420 as i32,
+        2 => ffi::OAPV_CF_YCBCR422 as i32,
+        3 => ffi::OAPV_CF_YCBCR444 as i32,
+        _ => ffi::OAPV_CF_YCBCR4444 as i32,
+    }
+}
+
+fn cs_set(f: i32, bit: i32, e: i32) -> i32 {
+    (e << 14) | (bit << 8) | f
+}
+
+fn div_round_up(n: i32, d: i32) -> i32 {
+    (n + d - 1) / d
+}
+
+fn pbu_type_is_frame(pbu_type: i32) -> bool {
+    pbu_type == 1 || pbu_type == 2 || (pbu_type >= 25 && pbu_type <= 27)
+}
+
+#[no_mangle]
+pub extern "C" fn oapvd_fi_to_finfo(fi: *mut ffi::oapv_fi_t, pbu_type: c_int, group_id: c_int, finfo: *mut ffi::oapv_frm_info_t) {
+    ffi_try!({
+        let fi = &*fi;
+        let finfo = &mut *finfo;
+        finfo.w = fi.frame_width as c_int;
+        finfo.h = fi.frame_height as c_int;
+        if fi.profile_idc == ffi::OAPV_PROFILE_444_16C12 as i32 || fi.profile_idc == ffi::OAPV_PROFILE_4444_16C12 as i32 {
+            finfo.cs = cs_set(chroma_format_idc_to_color_format(fi.chroma_format_idc), 16, 0);
+        } else {
+            finfo.cs = cs_set(chroma_format_idc_to_color_format(fi.chroma_format_idc), fi.bit_depth, 0);
+        }
+        finfo.pbu_type = pbu_type;
+        finfo.group_id = group_id;
+        finfo.profile_idc = fi.profile_idc;
+        finfo.level_idc = fi.level_idc;
+        finfo.band_idc = fi.band_idc;
+        finfo.chroma_format_idc = fi.chroma_format_idc;
+        finfo.bit_depth = fi.bit_depth;
+        finfo.capture_time_distance = fi.capture_time_distance;
+        finfo.use_companding = fi.use_companding;
+        // not derivable from frame_info() syntax
+        finfo.tile_width_in_mbs = 0;
+        finfo.tile_height_in_mbs = 0;
+        finfo.tile_cols = 0;
+        finfo.tile_rows = 0;
+        finfo.num_tiles = 0;
+
+        // frame_info() does not carry the fields below, so set the defaults that
+        // apply when they are not signalled in the frame header
+        finfo.color_description_present_flag = 0;
+        finfo.color_primaries = 2; // unspecified
+        finfo.transfer_characteristics = 2; // unspecified
+        finfo.matrix_coefficients = 2; // unspecified
+        finfo.full_range_flag = 0; // limited range
+        finfo.use_q_matrix = 0;
+        core::ptr::write_bytes(core::ptr::addr_of_mut!(finfo.q_matrix) as *mut u8, 16, core::mem::size_of_val(&finfo.q_matrix));
+    }, ())
+}
+
+#[no_mangle]
+pub extern "C" fn oapvd_fh_to_finfo(fh: *mut ffi::oapv_fh_t, pbu_type: c_int, group_id: c_int, finfo: *mut ffi::oapv_frm_info_t) {
+    ffi_try!({
+        let fh = &mut *fh;
+        oapvd_fi_to_finfo(core::ptr::addr_of_mut!(fh.fi), pbu_type, group_id, finfo);
+        let finfo = &mut *finfo;
+        let pic_w_mb = ((fh.fi.frame_width as i32 + (16 - 1)) >> 4) as i32;
+        let pic_h_mb = ((fh.fi.frame_height as i32 + (16 - 1)) >> 4) as i32;
+        finfo.tile_width_in_mbs = fh.tile_width_in_mbs;
+        finfo.tile_height_in_mbs = fh.tile_height_in_mbs;
+        finfo.tile_cols = div_round_up(pic_w_mb, fh.tile_width_in_mbs);
+        finfo.tile_rows = div_round_up(pic_h_mb, fh.tile_height_in_mbs);
+        finfo.num_tiles = finfo.tile_cols * finfo.tile_rows;
+        finfo.use_q_matrix = fh.use_q_matrix;
+        let modv = (1 << 3) - 1;
+        for c in 0..4usize {
+            for i in 0..64usize {
+                finfo.q_matrix[c][i] = fh.q_matrix[c][i >> 3][i & modv];
+            }
+        }
+        finfo.color_description_present_flag = fh.color_description_present_flag;
+        finfo.color_primaries = fh.color_primaries as u8;
+        finfo.transfer_characteristics = fh.transfer_characteristics as u8;
+        finfo.matrix_coefficients = fh.matrix_coefficients as u8;
+        finfo.full_range_flag = fh.full_range_flag;
+    }, ())
+}
+
+#[no_mangle]
+pub extern "C" fn oapvd_info_pbu(pbu: *mut c_void, pbu_size: c_int, pbu_info: *mut ffi::oapv_pbu_info_t) -> c_int {
+    ffi_try!({
+        if pbu.is_null() || pbu_info.is_null() {
+            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+        }
+        if pbu_size < 4 {
+            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+        }
+        let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
+        ffi::oapv_bsr_init(&mut bs, pbu as *mut u8, pbu_size as u32, None);
+
+        (*pbu_info).pbu_type = ffi::oapv_bsr_read(&mut bs, 8) as c_int;
+        (*pbu_info).group_id = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
+
+        ffi::OAPV_OK as c_int
+    }, -1)
+}
+
+#[no_mangle]
+pub extern "C" fn oapvd_info_frame(pbu: *mut c_void, pbu_size: c_int, frm_info: *mut ffi::oapv_frm_info_t) -> c_int {
+    ffi_try!({
+        if pbu.is_null() || frm_info.is_null() {
+            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+        }
+        if pbu_size < (ffi::OAPV_PBU_HEADER_BYTE as c_int + ffi::OAPV_FRAME_INFO_BYTE as c_int) {
+            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+        }
+        let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
+        let mut pbuh: ffi::oapv_pbuh_t = core::mem::zeroed();
+        let mut fh: ffi::oapv_fh_t = core::mem::zeroed();
+        ffi::oapv_bsr_init(&mut bs, pbu as *mut u8, pbu_size as u32, None);
+
+        let ret = ffi::oapvd_vlc_pbu_header(&mut bs, &mut pbuh);
+        if ret != 0 {
+            return ret;
+        }
+        if !pbu_type_is_frame(pbuh.pbu_type) {
+            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+        }
+        let ret = ffi::oapvd_vlc_frame_header(&mut bs, &mut fh, core::ptr::null_mut(), 0);
+        if ret != 0 {
+            return ret;
+        }
+        oapvd_fh_to_finfo(&mut fh, pbuh.pbu_type, pbuh.group_id, frm_info);
+        ffi::OAPV_OK as c_int
+    }, -1)
+}
+
+#[no_mangle]
+pub extern "C" fn oapvd_info_tile(pbu: *mut c_void, pbu_size: c_int, pos_tiles: *mut ffi::oapv_tile_pos_t, num_tiles: *mut c_int) -> c_int {
+    ffi_try!({
+        if pbu.is_null() || num_tiles.is_null() {
+            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+        }
+        if !pos_tiles.is_null() && *num_tiles < 0 {
+            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+        }
+        if pbu_size < (ffi::OAPV_PBU_HEADER_BYTE as c_int + ffi::OAPV_FRAME_INFO_BYTE as c_int) {
+            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+        }
+        let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
+        let mut pbuh: ffi::oapv_pbuh_t = core::mem::zeroed();
+        let mut fh: ffi::oapv_fh_t = core::mem::zeroed();
+        ffi::oapv_bsr_init(&mut bs, pbu as *mut u8, pbu_size as u32, None);
+
+        let ret = ffi::oapvd_vlc_pbu_header(&mut bs, &mut pbuh);
+        if ret != 0 {
+            return ret;
+        }
+        if !pbu_type_is_frame(pbuh.pbu_type) {
+            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+        }
+
+        // the tile sizes the frame header may carry are reported into the
+        // caller's array, which must be cleared first since they are optional
+        if !pos_tiles.is_null() {
+            for i in 0..*num_tiles as usize {
+                let e = pos_tiles.add(i);
+                (*e).offset = 0;
+                (*e).size = 0;
+            }
+        }
+        let cap = if !pos_tiles.is_null() { *num_tiles } else { 0 };
+        let ret = ffi::oapvd_vlc_frame_header(&mut bs, &mut fh, pos_tiles, cap);
+        if ret != 0 {
+            return ret;
+        }
+
+        let pic_w_mb = ((fh.fi.frame_width as i32 + (16 - 1)) >> 4) as i32;
+        let pic_h_mb = ((fh.fi.frame_height as i32 + (16 - 1)) >> 4) as i32;
+
+        let tile_cols = div_round_up(pic_w_mb, fh.tile_width_in_mbs);
+        let tile_rows = div_round_up(pic_h_mb, fh.tile_height_in_mbs);
+
+        let mut n: c_int = 0;
+        let ret = oapv_validate_tile_topology(fh.fi.profile_idc, tile_cols, tile_rows, &mut n);
+        if ret != 0 {
+            return ret;
+        }
+
+        if pos_tiles.is_null() {
+            // query the number of tiles only
+            *num_tiles = n;
+            return ffi::OAPV_OK as c_int;
+        }
+        if *num_tiles < n {
+            // not enough capacity
+            *num_tiles = n;
+            return ffi::OAPV_ERR_REACHED_MAX as c_int;
+        }
+
+        let mut tpos = pos_tiles;
+        for i in 0..tile_rows {
+            for j in 0..tile_cols {
+                (*tpos).x_mb = fh.tile_width_in_mbs * j;
+                (*tpos).y_mb = fh.tile_height_in_mbs * i;
+
+                if (*tpos).x_mb + fh.tile_width_in_mbs > pic_w_mb {
+                    (*tpos).w_mb = pic_w_mb - (*tpos).x_mb;
+                } else {
+                    (*tpos).w_mb = fh.tile_width_in_mbs;
+                }
+                if (*tpos).y_mb + fh.tile_height_in_mbs > pic_h_mb {
+                    (*tpos).h_mb = pic_h_mb - (*tpos).y_mb;
+                } else {
+                    (*tpos).h_mb = fh.tile_height_in_mbs;
+                }
+                (*tpos).idx = i * tile_cols + j;
+                tpos = tpos.add(1);
+            }
+        }
+        if fh.tile_size_present_in_fh_flag != 0 {
+            // tile data follows the frame header; each tile unit is a 4-byte size
+            // field plus the tile data of the size reported above
+            let mut off: i64 = bs.cur.offset_from(bs.beg) as i64 - ((bs.leftbits >> 3) as i64);
+            for i in 0..n as usize {
+                off += ffi::OAPV_TILE_SIZE_LEN as i64 + (*pos_tiles.add(i)).size as i64;
+                // the tile must lie within the PBU
+                if off > pbu_size as i64 {
+                    return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+                }
+                (*pos_tiles.add(i)).offset = (off - ffi::OAPV_TILE_SIZE_LEN as i64 - (*pos_tiles.add(i)).size as i64) as c_int;
+            }
+        }
+        *num_tiles = n;
+
+        ffi::OAPV_OK as c_int
+    }, -1)
+}
+
+#[no_mangle]
+pub extern "C" fn oapvd_info(au: *mut c_void, au_size: c_int, aui: *mut ffi::oapv_au_info_t) -> c_int {
+    ffi_try!({
+        if au.is_null() || aui.is_null() {
+            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+        }
+
+        // read signature ('aPv1')
+        if au_size <= 4 {
+            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+        }
+        let mut signature: u32 = 0;
+        let ret = ffi::oapv_bsr_read_direct(au, 32, &mut signature);
+        if ret != 0 {
+            return ret;
+        }
+        if signature != 0x61507631 {
+            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+        }
+        let mut cur_read_size: u32 = 4;
+        let mut frm_count: c_int = 0;
+
+        // parse PBUs
+        loop {
+            let mut pbu_size: u32 = 0;
+            let remain = (au_size as u32).wrapping_sub(cur_read_size);
+            if remain < 8 {
+                return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+            }
+            let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
+            ffi::oapv_bsr_init(&mut bs, (au as *mut u8).add(cur_read_size as usize), remain, None);
+
+            let ret = ffi::oapvd_vlc_pbu_size(&mut bs, &mut pbu_size);
+            if ret != 0 {
+                return ret;
+            }
+            let remain = remain - 4; // size of pbu_size syntax
+            if !(pbu_size >= 4 && pbu_size <= remain) {
+                return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+            }
+
+            let mut pbuh: ffi::oapv_pbuh_t = core::mem::zeroed();
+            let ret = ffi::oapvd_vlc_pbu_header(&mut bs, &mut pbuh);
+            if ret != 0 {
+                return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+            }
+            if pbuh.pbu_type == ffi::OAPV_PBU_TYPE_AU_INFO as i32 {
+                // parse access_unit_info in PBU
+                let mut ai: ffi::oapv_aui_t = core::mem::zeroed();
+                let ret = ffi::oapvd_vlc_au_info(&mut bs, &mut ai);
+                if ret != 0 {
+                    return ret;
+                }
+
+                (*aui).num_frms = ai.num_frames;
+                for i in 0..ai.num_frames as usize {
+                    oapvd_fi_to_finfo(
+                        core::ptr::addr_of_mut!(ai.frame_info[i]),
+                        ai.pbu_type[i],
+                        ai.group_id[i],
+                        core::ptr::addr_of_mut!((*aui).frm_info[i]),
+                    );
+                }
+                return ffi::OAPV_OK as c_int; // found access_unit_info, no need to read more PBUs
+            }
+            if pbu_type_is_frame(pbuh.pbu_type) {
+                // parse frame_header in PBU to report the tile information, the
+                // color description, and the quantization matrix as well as
+                // frame_info
+                if frm_count >= ffi::OAPV_MAX_NUM_FRAMES as i32 {
+                    return ffi::OAPV_ERR_REACHED_MAX as c_int;
+                }
+                let mut fh: ffi::oapv_fh_t = core::mem::zeroed();
+                let ret = ffi::oapvd_vlc_frame_header(&mut bs, &mut fh, core::ptr::null_mut(), 0);
+                if ret != 0 {
+                    return ret;
+                }
+                oapvd_fh_to_finfo(&mut fh, pbuh.pbu_type, pbuh.group_id, core::ptr::addr_of_mut!((*aui).frm_info[frm_count as usize]));
+                frm_count += 1;
+            }
+            (*aui).num_frms = frm_count;
+            cur_read_size = cur_read_size.wrapping_add(pbu_size + 4); // 4 bytes for pbu_size syntax itself
+            if cur_read_size >= au_size as u32 {
+                break;
+            }
+        }
+        ffi::OAPV_OK as c_int
+    }, -1)
 }
