@@ -389,7 +389,15 @@ int oapvm_rem(oapvm_t mid, int group_id, int type, unsigned char *uuid)
     if(md == NULL) {
         return OAPV_ERR_NOT_FOUND;
     }
-    return meta_rm_mdp(ctx, md, type, uuid);
+    int ret = meta_rm_mdp(ctx, md, type, uuid);
+    if(OAPV_SUCCEEDED(ret) && md->mdp_num == 0) {
+        // drop the emptied group, so that it is not written as an empty PBU
+        int idx = (int)(md - ctx->md_arr);
+        memmove(md, md + 1, sizeof(oapv_md_t) * (ctx->num - idx - 1));
+        ctx->num--;
+        oapv_mset(&ctx->md_arr[ctx->num], 0, sizeof(oapv_md_t));
+    }
+    return ret;
 }
 
 int oapvm_set_all(oapvm_t mid, oapvm_payload_t *pld, int num_plds)
