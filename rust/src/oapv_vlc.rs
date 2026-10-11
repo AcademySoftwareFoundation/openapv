@@ -79,7 +79,7 @@ pub unsafe fn bsr_is_unexpected_eob(bs: *const oapv_bs_t) -> bool {
 }
 
 pub unsafe fn bsr_move_byte_align(bs: *mut oapv_bs_t, byte: i64) {
-    (*bs).cur = (*bs).cur.offset((byte - ((*bs).leftbits >> 3) as i64) as isize);
+    crate::oapv_bs::bsr_set_cur(bs, (*bs).cur.wrapping_offset((byte - ((*bs).leftbits >> 3) as i64) as isize));
     (*bs).code = 0;
     (*bs).leftbits = 0;
 }
@@ -100,11 +100,10 @@ pub struct BsSt<'a> {
 }
 
 impl<'a> BsSt<'a> {
-    // the caller guarantees that cur..end of 'bs' is readable for 'a
+    // the caller guarantees that beg..end of 'bs' is readable for 'a
     #[inline(always)]
     pub unsafe fn load(bs: *mut oapv_bs_t) -> BsSt<'a> {
-        let len = (*bs).end.offset_from((*bs).cur);
-        let data: &[u8] = if len > 0 { core::slice::from_raw_parts((*bs).cur, len as usize) } else { &[] };
+        let data = crate::oapv_bs::bsr_unread(bs);
         BsSt { code: (*bs).code, leftbits: (*bs).leftbits, data, pos: 0, is_eob: (*bs).is_eob }
     }
 

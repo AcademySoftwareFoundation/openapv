@@ -187,6 +187,23 @@ pub extern "C" fn oapv_bsw_write(bs: *mut oapv_bs_t, val: u32, len: c_int) -> c_
 // decoder side
 ///////////////////////////////////////////////////////////////////////////////
 
+// the unread bytes of 'bs'; a cursor outside beg..=end panics instead of
+// reading outside the bitstream
+#[inline]
+pub(crate) unsafe fn bsr_unread<'a>(bs: *const oapv_bs_t) -> &'a [u8] {
+    let (beg, cur, end) = ((*bs).beg as *const u8, (*bs).cur as *const u8, (*bs).end as *const u8);
+    assert!(beg <= cur && cur <= end, "bitstream cursor out of range");
+    let len = end.offset_from(cur) as usize;
+    if len == 0 { &[] } else { core::slice::from_raw_parts(cur, len) }
+}
+
+// moves the cursor of 'bs' to 'pos', which must lie within beg..=end
+#[inline]
+pub(crate) unsafe fn bsr_set_cur(bs: *mut oapv_bs_t, pos: *mut u8) {
+    assert!((*bs).beg <= pos && pos <= (*bs).end, "bitstream cursor out of range");
+    (*bs).cur = pos;
+}
+
 unsafe fn bsr_skip_code(bs: *mut oapv_bs_t, size: c_int) {
     if size == 64 {
         (*bs).code = 0;
@@ -198,30 +215,22 @@ unsafe fn bsr_skip_code(bs: *mut oapv_bs_t, size: c_int) {
 }
 
 unsafe extern "C" fn bsr_flush(bs: *mut oapv_bs_t, byte: c_int) -> c_int {
-    let mut shift = 56i32;
-    let mut code: u64 = 0;
+    let data = bsr_unread(bs);
+    let byte = (byte.max(0) as usize).min(data.len());
 
-    let remained = (*bs).end.offset_from((*bs).cur) as c_int;
-    let mut byte = byte;
-    if byte > remained {
-        byte = remained;
-    }
-
-    if byte <= 0 {
+    if byte == 0 {
         (*bs).code = 0;
         (*bs).leftbits = 0;
         (*bs).is_eob = 1;
         return -1;
     }
 
-    (*bs).leftbits = byte << 3;
-
-    while byte > 0 {
-        code |= (*(*bs).cur as u64) << shift;
-        (*bs).cur = (*bs).cur.add(1);
-        byte -= 1;
-        shift -= 8;
+    let mut code: u64 = 0;
+    for (i, &b) in data[..byte].iter().enumerate() {
+        code |= (b as u64) << (56 - 8 * i);
     }
+    (*bs).leftbits = (byte << 3) as c_int;
+    (*bs).cur = (*bs).cur.add(byte);
     (*bs).code = code;
     0
 }
@@ -286,7 +295,7 @@ pub(crate) unsafe fn bsr_sink(bs: *mut oapv_bs_t) -> *mut core::ffi::c_void {
     if (*bs).leftbits & 7 != 0 {
         return core::ptr::null_mut();
     }
-    (*bs).cur = (*bs).cur.sub(((*bs).leftbits >> 3) as usize);
+    bsr_set_cur(bs, (*bs).cur.wrapping_sub(((*bs).leftbits >> 3) as usize));
     (*bs).code = 0;
     (*bs).leftbits = 0;
     (*bs).cur as *mut core::ffi::c_void
@@ -301,7 +310,7 @@ pub extern "C" fn oapv_bsr_sink(bs: *mut oapv_bs_t) -> *mut core::ffi::c_void {
 pub(crate) unsafe fn bsr_move(bs: *mut oapv_bs_t, pos: *mut u8) {
     (*bs).code = 0;
     (*bs).leftbits = 0;
-    (*bs).cur = pos;
+    bsr_set_cur(bs, pos);
 }
 
 #[no_mangle]
