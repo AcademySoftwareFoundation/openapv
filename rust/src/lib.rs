@@ -34,15 +34,53 @@
 
 #![allow(non_snake_case, non_camel_case_types, non_upper_case_globals)]
 
-// catches a panic at the C ABI boundary and returns $on_err instead
+use core::cell::Cell;
+use core::ffi::c_int;
+
+thread_local! {
+    // set when a panic is caught on this thread, until the C side takes it
+    static PANICKED: Cell<bool> = const { Cell::new(false) };
+}
+
+fn set_panic() {
+    PANICKED.with(|p| p.set(true));
+}
+
+fn take_panic() -> bool {
+    PANICKED.with(|p| p.replace(false))
+}
+
+// internal functions: catches a panic at the C ABI boundary, records it for
+// the C caller and returns $on_err, the value the C function fails with
 macro_rules! ffi_try {
     ($body:expr, $on_err:expr) => {{
         let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { unsafe { $body } }));
         match r {
             Ok(v) => v,
-            Err(_) => $on_err,
+            Err(_) => {
+                crate::set_panic();
+                $on_err
+            }
         }
     }};
+}
+
+// public API: a panic caught here or in a callee ends the call with $on_panic
+macro_rules! ffi_api {
+    ($body:expr, $on_panic:expr) => {{
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { unsafe { $body } }));
+        let panicked = crate::take_panic();
+        match r {
+            Ok(v) if !panicked => v,
+            _ => $on_panic,
+        }
+    }};
+}
+
+// lets the C side turn a panic caught on this thread into OAPV_ERR_INTERNAL_PANIC
+#[no_mangle]
+pub extern "C" fn oapv_rust_take_panic() -> c_int {
+    take_panic() as c_int
 }
 
 mod ffi {

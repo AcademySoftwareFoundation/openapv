@@ -44,6 +44,20 @@ OAPVD_RUST_FN int  oapvd_set_tile_info(oapvd_tile_t *tile, int w_pel, int h_pel,
 OAPVD_RUST_FN int  oapvd_frm_setup(oapvd_ctx_t *ctx, int cs);
 OAPVD_RUST_FN int  oapvd_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb);
 
+// a panic caught in the Rust code on this thread fails the call with
+// OAPV_ERR_INTERNAL_PANIC
+#if defined(OAPV_RUST_DEC)
+int oapv_rust_take_panic(void);
+#define OAPV_RUST_PANIC_CHECK(ret)               \
+    do {                                         \
+        if(oapv_rust_take_panic()) {             \
+            (ret) = OAPV_ERR_INTERNAL_PANIC;     \
+        }                                        \
+    } while(0)
+#else
+#define OAPV_RUST_PANIC_CHECK(ret) do {} while(0)
+#endif
+
 static void imgb_pad(oapv_imgb_t *imgb, int aw, int ah, int comp_sft[N_C][2])
 {
     int imgb_w = imgb->w[0];
@@ -890,6 +904,7 @@ static int enc_thread_tile(void *arg)
         oapv_tpool_leave_cs(ctx->sync_obj);
     }
 ERR:
+    OAPV_RUST_PANIC_CHECK(ret);
     return ret;
 }
 
@@ -1367,7 +1382,7 @@ void oapve_delete(oapve_t eid)
     enc_ctx_free(ctx);
 }
 
-int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frms_t *rfrms)
+static int enc_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frms_t *rfrms)
 {
     oapv_bs_t    bsw;
     oapve_ctx_t *ctx;
@@ -1504,6 +1519,13 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
 
 ERR:
     enc_frm_finish(ctx, stat);
+    return ret;
+}
+
+int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb, oapve_stat_t *stat, oapv_frms_t *rfrms)
+{
+    int ret = enc_encode(eid, ifrms, mid, bitb, stat, rfrms);
+    OAPV_RUST_PANIC_CHECK(ret);
     return ret;
 }
 
@@ -2035,6 +2057,7 @@ static int dec_thread_tile(void *arg)
         }
         oapv_tpool_leave_cs(ctx->sync_obj);
     }
+    OAPV_RUST_PANIC_CHECK(thread_ret);
     return thread_ret;
 
 ERR:
@@ -2045,7 +2068,9 @@ ERR:
         tile[tidx + 1].bs_beg = tile[tidx].bs_beg;
     }
     oapv_tpool_leave_cs(ctx->sync_obj);
-    return OAPV_ERR_MALFORMED_BITSTREAM;
+    ret = OAPV_ERR_MALFORMED_BITSTREAM;
+    OAPV_RUST_PANIC_CHECK(ret);
+    return ret;
 }
 
 /* a destination holds one sample per pixel, so a component of the tile needs
@@ -2187,6 +2212,7 @@ static int dec_thread_tile_sel(void *arg)
         }
     }
 
+    OAPV_RUST_PANIC_CHECK(thread_ret);
     return thread_ret;
 }
 
@@ -2363,7 +2389,7 @@ void oapvd_delete(oapvd_t did)
     dec_ctx_free(ctx);
 }
 
-int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat)
+static int dec_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat)
 {
     oapvd_ctx_t *ctx;
     oapv_pbuh_t  pbuh;
@@ -2484,6 +2510,13 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
     return ret;
 
 ERR:
+    return ret;
+}
+
+int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid, oapvd_stat_t *stat)
+{
+    int ret = dec_decode(did, bitb, ofrms, mid, stat);
+    OAPV_RUST_PANIC_CHECK(ret);
     return ret;
 }
 
@@ -2729,7 +2762,7 @@ ERR:
 
 #endif
 
-int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat)
+static int dec_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat)
 {
     oapvd_ctx_t *ctx;
     oapv_pbuh_t  pbuh;
@@ -2813,7 +2846,14 @@ ERR:
     return OAPV_OK;
 }
 
-int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_req_t *tile_reqs)
+int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat)
+{
+    int ret = dec_decode_frame(did, bitb, imgb, stat);
+    OAPV_RUST_PANIC_CHECK(ret);
+    return ret;
+}
+
+static int dec_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_req_t *tile_reqs)
 {
     oapvd_ctx_t     *ctx;
     oapv_pbuh_t      pbuh;
@@ -2890,7 +2930,14 @@ int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_
     return ret;
 }
 
-int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
+int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_req_t *tile_reqs)
+{
+    int ret = dec_decode_tiles(did, bitb, num_tiles, tile_reqs);
+    OAPV_RUST_PANIC_CHECK(ret);
+    return ret;
+}
+
+static int dec_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
 {
     oapvd_ctx_t *ctx;
     int          ret;
@@ -2927,7 +2974,14 @@ int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
     return OAPV_OK;
 }
 
-int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_t mid)
+int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
+{
+    int ret = dec_decode_auinfo(did, bitb, aui);
+    OAPV_RUST_PANIC_CHECK(ret);
+    return ret;
+}
+
+static int dec_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_t mid)
 {
     oapvd_ctx_t *ctx;
     oapv_pbuh_t  pbuh;
@@ -2956,6 +3010,13 @@ int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_t mid)
 
     return OAPV_OK;
 ERR:
+    return ret;
+}
+
+int oapvd_decode_metadata(oapvd_t did, oapv_bitb_t *bitb, oapvm_t mid)
+{
+    int ret = dec_decode_metadata(did, bitb, mid);
+    OAPV_RUST_PANIC_CHECK(ret);
     return ret;
 }
 

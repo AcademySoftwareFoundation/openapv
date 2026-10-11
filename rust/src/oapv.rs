@@ -431,7 +431,7 @@ pub extern "C" fn oapvd_fh_to_finfo(fh: *mut ffi::oapv_fh_t, pbu_type: c_int, gr
 
 #[no_mangle]
 pub extern "C" fn oapvd_info_pbu(pbu: *mut c_void, pbu_size: c_int, pbu_info: *mut ffi::oapv_pbu_info_t) -> c_int {
-    ffi_try!({
+    ffi_api!({
         if pbu.is_null() || pbu_info.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
@@ -445,12 +445,12 @@ pub extern "C" fn oapvd_info_pbu(pbu: *mut c_void, pbu_size: c_int, pbu_info: *m
         (*pbu_info).group_id = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
 
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvd_info_frame(pbu: *mut c_void, pbu_size: c_int, frm_info: *mut ffi::oapv_frm_info_t) -> c_int {
-    ffi_try!({
+    ffi_api!({
         if pbu.is_null() || frm_info.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
@@ -475,12 +475,12 @@ pub extern "C" fn oapvd_info_frame(pbu: *mut c_void, pbu_size: c_int, frm_info: 
         }
         oapvd_fh_to_finfo(&mut fh, pbuh.pbu_type, pbuh.group_id, frm_info);
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvd_info_tile(pbu: *mut c_void, pbu_size: c_int, pos_tiles: *mut ffi::oapv_tile_pos_t, num_tiles: *mut c_int) -> c_int {
-    ffi_try!({
+    ffi_api!({
         if pbu.is_null() || num_tiles.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
@@ -577,12 +577,12 @@ pub extern "C" fn oapvd_info_tile(pbu: *mut c_void, pbu_size: c_int, pos_tiles: 
         *num_tiles = n;
 
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvd_info(au: *mut c_void, au_size: c_int, aui: *mut ffi::oapv_au_info_t) -> c_int {
-    ffi_try!({
+    ffi_api!({
         if au.is_null() || aui.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
@@ -667,5 +667,5 @@ pub extern "C" fn oapvd_info(au: *mut c_void, au_size: c_int, aui: *mut ffi::oap
             }
         }
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }

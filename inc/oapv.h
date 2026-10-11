@@ -153,6 +153,8 @@ extern "C" {
 #define OAPV_ERR_UNSUPPORTED            (-104)
 // unexpected internal error
 #define OAPV_ERR_UNEXPECTED             (-105)
+// an internal error was caught in the library and the call was aborted
+#define OAPV_ERR_INTERNAL_PANIC         (-106)
 /* the color format or bit depth is not allowed by the profile or the
    bitstream */
 #define OAPV_ERR_UNSUPPORTED_COLORSPACE (-201)

@@ -201,7 +201,7 @@ pub extern "C" fn oapvm_id_to_ctx(id: ffi::oapvm_t) -> *mut ffi::oapvm_ctx_t {
 
 #[no_mangle]
 pub extern "C" fn oapvm_write_mdcv(mdcv: *mut ffi::oapvm_payload_mdcv_t, data: *mut c_void, size: *mut c_int) -> c_int {
-    ffi_try!({
+    ffi_api!({
         if mdcv.is_null() || data.is_null() || size.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
@@ -249,12 +249,12 @@ pub extern "C" fn oapvm_write_mdcv(mdcv: *mut ffi::oapvm_payload_mdcv_t, data: *
 
         *size = 24; // MDCV payload has 24 bytes
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvm_read_mdcv(data: *mut c_void, size: c_int, mdcv: *mut ffi::oapvm_payload_mdcv_t) -> c_int {
-    ffi_try!({
+    ffi_api!({
         if data.is_null() || mdcv.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
@@ -276,12 +276,12 @@ pub extern "C" fn oapvm_read_mdcv(data: *mut c_void, size: c_int, mdcv: *mut ffi
         (*mdcv).max_mastering_luminance = ffi::oapv_bsr_read(&mut bs, 32) as core::ffi::c_ulong;
         (*mdcv).min_mastering_luminance = ffi::oapv_bsr_read(&mut bs, 32) as core::ffi::c_ulong;
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvm_write_cll(cll: *mut ffi::oapvm_payload_cll_t, data: *mut c_void, size: *mut c_int) -> c_int {
-    ffi_try!({
+    ffi_api!({
         if cll.is_null() || data.is_null() || size.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
@@ -304,12 +304,12 @@ pub extern "C" fn oapvm_write_cll(cll: *mut ffi::oapvm_payload_cll_t, data: *mut
 
         *size = 4; // CLL payload has 4 bytes
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvm_read_cll(data: *mut c_void, size: c_int, cll: *mut ffi::oapvm_payload_cll_t) -> c_int {
-    ffi_try!({
+    ffi_api!({
         if data.is_null() || cll.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
@@ -322,12 +322,12 @@ pub extern "C" fn oapvm_read_cll(data: *mut c_void, size: c_int, cll: *mut ffi::
         (*cll).max_cll = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
         (*cll).max_fall = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvm_set(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, data: *mut c_void, size: c_int) -> c_int {
-    ffi_try!({
+    ffi_api!({
         let mut pld_data_new: *mut c_void = core::ptr::null_mut();
         let mut mdp_new: *mut ffi::oapv_mdp_t = core::ptr::null_mut();
 
@@ -404,12 +404,12 @@ pub extern "C" fn oapvm_set(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, data
             (*mdp_t).pld_data = pld_data_new;
         }
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvm_get(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, data: *mut *mut c_void, size: *mut c_int, uuid: *mut u8) -> c_int {
-    ffi_try!({
+    ffi_api!({
         let ctx = oapvm_id_to_ctx(mid);
         if ctx.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
@@ -430,12 +430,12 @@ pub extern "C" fn oapvm_get(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, data
         *data = (*mdp).pld_data;
         *size = (*mdp).pld_size as c_int;
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvm_rem(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, uuid: *mut u8) -> c_int {
-    ffi_try!({
+    ffi_api!({
         let ctx = oapvm_id_to_ctx(mid);
         if ctx.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
@@ -449,12 +449,12 @@ pub extern "C" fn oapvm_rem(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, uuid
             return ffi::OAPV_ERR_NOT_FOUND as c_int;
         }
         meta_rm_mdp(ctx, md, mdt, uuid)
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvm_set_all(mid: ffi::oapvm_t, pld: *mut ffi::oapvm_payload_t, num_plds: c_int) -> c_int {
-    ffi_try!({
+    ffi_api!({
         if pld.is_null() || num_plds < 0 {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
@@ -465,12 +465,12 @@ pub extern "C" fn oapvm_set_all(mid: ffi::oapvm_t, pld: *mut ffi::oapvm_payload_
             }
         }
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvm_get_all(mid: ffi::oapvm_t, pld: *mut ffi::oapvm_payload_t, num_plds: *mut c_int) -> c_int {
-    ffi_try!({
+    ffi_api!({
         let ctx = oapvm_id_to_ctx(mid);
         if ctx.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
@@ -509,12 +509,12 @@ pub extern "C" fn oapvm_get_all(mid: ffi::oapvm_t, pld: *mut ffi::oapvm_payload_
         }
         *num_plds = pld_cnt;
         ffi::OAPV_OK as c_int
-    }, -1)
+    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvm_rem_all(mid: ffi::oapvm_t) {
-    ffi_try!({
+    ffi_api!({
         let ctx = oapvm_id_to_ctx(mid);
         if ctx.is_null() {
             return;
@@ -550,7 +550,7 @@ unsafe fn meta_ctx_free(ctx: *mut ffi::oapvm_ctx_t) {
 
 #[no_mangle]
 pub extern "C" fn oapvm_create(cdesc: *mut ffi::oapvm_cdesc_t, err: *mut c_int) -> ffi::oapvm_t {
-    ffi_try!({
+    ffi_api!({
         if cdesc.is_null() {
             if !err.is_null() {
                 *err = ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
@@ -585,12 +585,17 @@ pub extern "C" fn oapvm_create(cdesc: *mut ffi::oapvm_cdesc_t, err: *mut c_int) 
             *err = ffi::OAPV_OK as c_int;
         }
         ctx as ffi::oapvm_t
-    }, core::ptr::null_mut())
+    }, {
+        if !err.is_null() {
+            unsafe { *err = ffi::OAPV_ERR_INTERNAL_PANIC as c_int };
+        }
+        core::ptr::null_mut()
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn oapvm_delete(mid: ffi::oapvm_t) {
-    ffi_try!({
+    ffi_api!({
         let ctx = oapvm_id_to_ctx(mid);
         if ctx.is_null() {
             return;
