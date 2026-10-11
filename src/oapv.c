@@ -123,7 +123,8 @@ static void imgb_pad_p210(oapv_imgb_t *imgb, int aw, int ah, int comp_sft[N_C][2
     }
 }
 
-static void fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_t *finfo)
+#if !defined(OAPV_RUST_DEC)
+void oapvd_fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_t *finfo)
 {
     finfo->w = (int)fi->frame_width; // casting to 'int' would be fine here
     finfo->h = (int)fi->frame_height; // casting to 'int' would be fine here
@@ -160,9 +161,12 @@ static void fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info
     oapv_mset(finfo->q_matrix, 16, sizeof(finfo->q_matrix));
 }
 
-static void fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo)
+#endif
+
+#if !defined(OAPV_RUST_DEC)
+void oapvd_fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo)
 {
-    fi_to_finfo(&fh->fi, pbu_type, group_id, finfo);
+    oapvd_fi_to_finfo(&fh->fi, pbu_type, group_id, finfo);
     int pic_w_mb = (fh->fi.frame_width + (OAPV_MB_W - 1)) >> OAPV_LOG2_MB_W;
     int pic_h_mb = (fh->fi.frame_height + (OAPV_MB_H - 1)) >> OAPV_LOG2_MB_H;
     finfo->tile_width_in_mbs = fh->tile_width_in_mbs;
@@ -183,6 +187,8 @@ static void fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info
     finfo->matrix_coefficients = fh->matrix_coefficients;
     finfo->full_range_flag = fh->full_range_flag;
 }
+
+#endif
 
 // the SIMD kernels clip in signed 16-bit lanes, which a bit depth of 16 does not fit
 static oapv_fn_blk_to_pic_t get_blk_to_pic_16(int bd)
@@ -1426,7 +1432,7 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         DUMP_LOAD(1);
 
         stat->frm_size[i] = pbu_size;
-        fh_to_finfo(&ctx->fh, frm->pbu_type, frm->group_id, &stat->aui.frm_info[i]);
+        oapvd_fh_to_finfo(&ctx->fh, frm->pbu_type, frm->group_id, &stat->aui.frm_info[i]);
 
         // add frame hash value of reconstructed frame into metadata list
         if(ctx->use_frm_hash[i]) {
@@ -1656,6 +1662,8 @@ static int dec_block(oapvd_ctx_t *ctx, oapvd_core_t *core, int log2_w, int log2_
 
 #if defined(OAPV_RUST_DEC)
 /* provided by src/oapv.rs when OAPV_RUST_DEC is defined */
+void oapvd_oapvd_fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_t *finfo);
+void oapvd_oapvd_fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo);
 int oapvd_frm_setup(oapvd_ctx_t *ctx, int cs);
 int oapvd_set_tile_info(oapvd_tile_t *tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles);
 int oapvd_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb);
@@ -2447,7 +2455,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
             // check thread's return value
             oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
-            fh_to_finfo(&ctx->fh, pbuh.pbu_type, pbuh.group_id, &stat->aui.frm_info[nfrms]);
+            oapvd_fh_to_finfo(&ctx->fh, pbuh.pbu_type, pbuh.group_id, &stat->aui.frm_info[nfrms]);
 
             ofrms->frm[nfrms].pbu_type = pbuh.pbu_type;
             ofrms->frm[nfrms].group_id = pbuh.group_id;
@@ -2500,6 +2508,7 @@ int oapvd_config(oapvd_t did, int cfg, void *buf, int *size)
     return OAPV_OK;
 }
 
+#if !defined(OAPV_RUST_DEC)
 int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
 {
     int ret, frm_count = 0;
@@ -2543,7 +2552,7 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
 
             aui->num_frms = ai.num_frames;
             for(int i = 0; i < ai.num_frames; i++) {
-                fi_to_finfo(&ai.frame_info[i], ai.pbu_type[i], ai.group_id[i], &aui->frm_info[i]);
+                oapvd_fi_to_finfo(&ai.frame_info[i], ai.pbu_type[i], ai.group_id[i], &aui->frm_info[i]);
             }
             return OAPV_OK; // founded access_unit_info, no need to read more PBUs
         }
@@ -2557,7 +2566,7 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
             ret = oapvd_vlc_frame_header(&bs, &fh, NULL, 0);
             oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
-            fh_to_finfo(&fh, pbuh.pbu_type, pbuh.group_id, &aui->frm_info[frm_count]);
+            oapvd_fh_to_finfo(&fh, pbuh.pbu_type, pbuh.group_id, &aui->frm_info[frm_count]);
             frm_count++;
         }
         aui->num_frms = frm_count;
@@ -2567,6 +2576,9 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
     return OAPV_OK;
 }
 
+#endif
+
+#if !defined(OAPV_RUST_DEC)
 int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_info)
 {
     oapv_bs_t bs;
@@ -2582,6 +2594,9 @@ int oapvd_info_pbu(void *pbu, int pbu_size, oapv_pbu_info_t *pbu_info)
     return OAPV_OK;
 }
 
+#endif
+
+#if !defined(OAPV_RUST_DEC)
 int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info)
 {
     oapv_bs_t    bs;
@@ -2605,13 +2620,16 @@ int oapvd_info_frame(void *pbu, int pbu_size, oapv_frm_info_t *frm_info)
     ret = oapvd_vlc_frame_header(&bs, &fh, NULL, 0);
     oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
-    fh_to_finfo(&fh, pbuh.pbu_type, pbuh.group_id, frm_info);
+    oapvd_fh_to_finfo(&fh, pbuh.pbu_type, pbuh.group_id, frm_info);
 
 ERR:
     DUMP_SET(1);
     return ret;
 }
 
+#endif
+
+#if !defined(OAPV_RUST_DEC)
 int oapvd_info_tile(void *pbu, int pbu_size, oapv_tile_pos_t *pos_tiles, int *num_tiles)
 {
     oapv_bs_t    bs;
@@ -2705,6 +2723,8 @@ ERR:
     return ret;
 }
 
+#endif
+
 int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_stat_t *stat)
 {
     oapvd_ctx_t *ctx;
@@ -2778,7 +2798,7 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
     // go to the end of frame data
     oapv_bsr_move(bs, ctx->tile_end);
     // set stat
-    fh_to_finfo(&ctx->fh, pbuh.pbu_type, pbuh.group_id, &stat->aui.frm_info[0]);
+    oapvd_fh_to_finfo(&ctx->fh, pbuh.pbu_type, pbuh.group_id, &stat->aui.frm_info[0]);
     stat->read = stat->frm_size[0] = BSR_GET_READ_BYTE(bs);
     stat->aui.num_frms = 1;
     return ret;
@@ -2898,7 +2918,7 @@ int oapvd_decode_auinfo(oapvd_t did, oapv_bitb_t *bitb, oapv_au_info_t *aui)
 
     aui->num_frms = ai.num_frames;
     for(int i = 0; i < ai.num_frames; i++) {
-        fi_to_finfo(&ai.frame_info[i], ai.pbu_type[i], ai.group_id[i], &aui->frm_info[i]);
+        oapvd_fi_to_finfo(&ai.frame_info[i], ai.pbu_type[i], ai.group_id[i], &aui->frm_info[i]);
     }
     return OAPV_OK;
 }
