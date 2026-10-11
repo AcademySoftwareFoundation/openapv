@@ -209,7 +209,7 @@ pub extern "C" fn oapvd_frm_setup(ctx: *mut ffi::oapvd_ctx_t, cs: c_int) -> c_in
             (*t).bs_beg = core::ptr::null_mut();
             (*t).dst = core::ptr::null_mut();
         }
-        (*(*ctx).tile).bs_beg = ffi::oapv_bsr_sink(core::ptr::addr_of_mut!((*ctx).bs)) as *mut u8;
+        (*(*ctx).tile).bs_beg = crate::oapv_bs::bsr_sink(core::ptr::addr_of_mut!((*ctx).bs)) as *mut u8;
         (*ctx).tile_idx = 0;
 
         ffi::OAPV_OK as c_int
@@ -347,10 +347,10 @@ pub extern "C" fn oapvd_info_pbu(pbu: *mut c_void, pbu_size: c_int, pbu_info: *m
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
         let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
-        ffi::oapv_bsr_init(&mut bs, pbu as *mut u8, pbu_size as u32, None);
+        crate::oapv_bs::bsr_init(&mut bs, pbu as *mut u8, pbu_size as u32, None);
 
-        (*pbu_info).pbu_type = ffi::oapv_bsr_read(&mut bs, 8) as c_int;
-        (*pbu_info).group_id = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
+        (*pbu_info).pbu_type = crate::oapv_bs::bsr_read(&mut bs, 8) as c_int;
+        (*pbu_info).group_id = crate::oapv_bs::bsr_read(&mut bs, 16) as c_int;
 
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
@@ -368,16 +368,16 @@ pub extern "C" fn oapvd_info_frame(pbu: *mut c_void, pbu_size: c_int, frm_info: 
         let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
         let mut pbuh: ffi::oapv_pbuh_t = core::mem::zeroed();
         let mut fh: ffi::oapv_fh_t = core::mem::zeroed();
-        ffi::oapv_bsr_init(&mut bs, pbu as *mut u8, pbu_size as u32, None);
+        crate::oapv_bs::bsr_init(&mut bs, pbu as *mut u8, pbu_size as u32, None);
 
-        let ret = ffi::oapvd_vlc_pbu_header(&mut bs, &mut pbuh);
+        let ret = crate::oapv_vlc::dec_vlc_pbu_header(&mut bs, &mut pbuh);
         if ret != 0 {
             return ret;
         }
         if !pbu_type_is_frame(pbuh.pbu_type) {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
-        let ret = ffi::oapvd_vlc_frame_header(&mut bs, &mut fh, core::ptr::null_mut(), 0);
+        let ret = crate::oapv_vlc::dec_vlc_frame_header(&mut bs, &mut fh, core::ptr::null_mut(), 0);
         if ret != 0 {
             return ret;
         }
@@ -401,9 +401,9 @@ pub extern "C" fn oapvd_info_tile(pbu: *mut c_void, pbu_size: c_int, pos_tiles: 
         let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
         let mut pbuh: ffi::oapv_pbuh_t = core::mem::zeroed();
         let mut fh: ffi::oapv_fh_t = core::mem::zeroed();
-        ffi::oapv_bsr_init(&mut bs, pbu as *mut u8, pbu_size as u32, None);
+        crate::oapv_bs::bsr_init(&mut bs, pbu as *mut u8, pbu_size as u32, None);
 
-        let ret = ffi::oapvd_vlc_pbu_header(&mut bs, &mut pbuh);
+        let ret = crate::oapv_vlc::dec_vlc_pbu_header(&mut bs, &mut pbuh);
         if ret != 0 {
             return ret;
         }
@@ -421,7 +421,7 @@ pub extern "C" fn oapvd_info_tile(pbu: *mut c_void, pbu_size: c_int, pos_tiles: 
             }
         }
         let cap = if !pos_tiles.is_null() { *num_tiles } else { 0 };
-        let ret = ffi::oapvd_vlc_frame_header(&mut bs, &mut fh, pos_tiles, cap);
+        let ret = crate::oapv_vlc::dec_vlc_frame_header(&mut bs, &mut fh, pos_tiles, cap);
         if ret != 0 {
             return ret;
         }
@@ -500,7 +500,7 @@ pub extern "C" fn oapvd_info(au: *mut c_void, au_size: c_int, aui: *mut ffi::oap
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
         let mut signature: u32 = 0;
-        let ret = ffi::oapv_bsr_read_direct(au, 32, &mut signature);
+        let ret = crate::oapv_bs::bsr_read_direct(au, 32, &mut signature);
         if ret != 0 {
             return ret;
         }
@@ -518,9 +518,9 @@ pub extern "C" fn oapvd_info(au: *mut c_void, au_size: c_int, aui: *mut ffi::oap
                 return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
             }
             let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
-            ffi::oapv_bsr_init(&mut bs, (au as *mut u8).add(cur_read_size as usize), remain, None);
+            crate::oapv_bs::bsr_init(&mut bs, (au as *mut u8).add(cur_read_size as usize), remain, None);
 
-            let ret = ffi::oapvd_vlc_pbu_size(&mut bs, &mut pbu_size);
+            let ret = crate::oapv_vlc::dec_vlc_pbu_size(&mut bs, &mut pbu_size);
             if ret != 0 {
                 return ret;
             }
@@ -530,14 +530,14 @@ pub extern "C" fn oapvd_info(au: *mut c_void, au_size: c_int, aui: *mut ffi::oap
             }
 
             let mut pbuh: ffi::oapv_pbuh_t = core::mem::zeroed();
-            let ret = ffi::oapvd_vlc_pbu_header(&mut bs, &mut pbuh);
+            let ret = crate::oapv_vlc::dec_vlc_pbu_header(&mut bs, &mut pbuh);
             if ret != 0 {
                 return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
             }
             if pbuh.pbu_type == ffi::OAPV_PBU_TYPE_AU_INFO as i32 {
                 // parse access_unit_info in PBU
                 let mut ai: ffi::oapv_aui_t = core::mem::zeroed();
-                let ret = ffi::oapvd_vlc_au_info(&mut bs, &mut ai);
+                let ret = crate::oapv_vlc::dec_vlc_au_info(&mut bs, &mut ai);
                 if ret != 0 {
                     return ret;
                 }
@@ -561,7 +561,7 @@ pub extern "C" fn oapvd_info(au: *mut c_void, au_size: c_int, aui: *mut ffi::oap
                     return ffi::OAPV_ERR_REACHED_MAX as c_int;
                 }
                 let mut fh: ffi::oapv_fh_t = core::mem::zeroed();
-                let ret = ffi::oapvd_vlc_frame_header(&mut bs, &mut fh, core::ptr::null_mut(), 0);
+                let ret = crate::oapv_vlc::dec_vlc_frame_header(&mut bs, &mut fh, core::ptr::null_mut(), 0);
                 if ret != 0 {
                     return ret;
                 }
