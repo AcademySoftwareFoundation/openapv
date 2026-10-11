@@ -64,7 +64,7 @@ fn main() {
         .allowlist_type("oapv.*")
         .allowlist_type("OAPV.*")
         .clang_arg("-DOAPV_STATIC_DEFINE")
-        .allowlist_var("OAPV.*|N_C|Y_C|U_C|V_C|DEC_.*|MIN_QUANT|oapv_tbl_.*|oapve_tbl_.*")
+        .allowlist_var("OAPV.*|OAPVM.*|N_C|Y_C|U_C|V_C|DEC_.*|MIN_QUANT|oapv_tbl_.*|oapve_tbl_.*")
         .allowlist_function("oapv.*")
         .ctypes_prefix("core::ffi")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))

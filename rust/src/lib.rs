@@ -36,4 +36,5 @@
 
 mod oapv;
 mod oapv_bs;
+mod oapv_metadata;
 mod oapv_vlc;
