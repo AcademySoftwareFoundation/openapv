@@ -31,6 +31,13 @@
 
 #include "oapv_def.h"
 
+// defined in rust/src/oapv.rs instead of here when OAPV_RUST_DEC is set
+void oapvd_fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_t *finfo);
+void oapvd_fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo);
+int  oapvd_set_tile_info(oapvd_tile_t *tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles);
+int  oapvd_frm_setup(oapvd_ctx_t *ctx, int cs);
+int  oapvd_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb);
+
 static void imgb_pad(oapv_imgb_t *imgb, int aw, int ah, int comp_sft[N_C][2])
 {
     int imgb_w = imgb->w[0];
@@ -1659,15 +1666,6 @@ static int dec_block(oapvd_ctx_t *ctx, oapvd_core_t *core, int log2_w, int log2_
     ctx->fn_itx[0](core->coef, ITX_SHIFT1, ITX_SHIFT2(bit_depth), 1 << log2_w);
     return OAPV_OK;
 }
-
-#if defined(OAPV_RUST_DEC)
-/* provided by src/oapv.rs when OAPV_RUST_DEC is defined */
-void oapvd_oapvd_fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_t *finfo);
-void oapvd_oapvd_fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo);
-int oapvd_frm_setup(oapvd_ctx_t *ctx, int cs);
-int oapvd_set_tile_info(oapvd_tile_t *tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles);
-int oapvd_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb);
-#endif
 
 #if !defined(OAPV_RUST_DEC)
 int oapvd_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles)
