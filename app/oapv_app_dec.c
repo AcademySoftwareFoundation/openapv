@@ -275,6 +275,10 @@ static int set_extra_config(oapvd_t id, args_var_t *args_vars)
     int ret, size, value;
 
     if(args_vars->hash) { // enable frame hash calculation
+        if(args_vars->output_csp == OUTPUT_CSP_P210) {
+            logerr("ERR: cannot use frame hash with '--output-csp 1' (P210)\n");
+            return -1;
+        }
         value = 1; // true
         size = 4;
         ret = oapvd_config(id, OAPV_CFG_SET_USE_FRM_HASH, &value, &size);
@@ -341,11 +345,6 @@ static void print_commandline(int argc, const char **argv)
 static void print_stat_au(oapvd_stat_t *stat, int au_cnt, args_var_t *args_var, oapv_clk_t clk_au, oapv_clk_t clk_tot)
 {
     if(op_verbose >= VERBOSE_FRAME) {
-        if(au_cnt == 0) {
-            if(args_var->output_csp != OUTPUT_CSP_NATIVE && args_var->hash != 0) {
-                logv2("[Warning] cannot check frame hash value if special output CSP is defined\n")
-            }
-        }
         logv3_line("");
         logv3("AU %-5d  %10d-bytes  %3d-frame(s) %10d msec\n", au_cnt, stat->read, stat->aui.num_frms, oapv_clk_msec(clk_au));
     }
@@ -400,18 +399,13 @@ static void print_stat_frm(oapvd_stat_t *stat, oapv_frms_t *frms, oapvm_t mid, a
         if(args_var->hash) {
             char *str_hash[4] = { "unsupport", "mismatch", "unavail", "match" };
 
-            if(args_var->output_csp != OUTPUT_CSP_NATIVE) {
-                hash_idx = 0;
-            }
-            else {
-                ret = check_frm_hash(mid, frms->frm[i].imgb, frms->frm[i].group_id);
-                if(ret < 0)
-                    hash_idx = 1; // mismatch
-                else if(ret > 0)
-                    hash_idx = 2; // unavailable
-                else
-                    hash_idx = 3; // matched
-            }
+            ret = check_frm_hash(mid, frms->frm[i].imgb, frms->frm[i].group_id);
+            if(ret < 0)
+                hash_idx = 1; // mismatch
+            else if(ret > 0)
+                hash_idx = 2; // unavailable
+            else
+                hash_idx = 3; // matched
             logv2("hash:%s", str_hash[hash_idx]);
         }
         logv2("\n");
