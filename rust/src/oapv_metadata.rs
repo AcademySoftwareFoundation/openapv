@@ -338,6 +338,10 @@ pub extern "C" fn oapvm_set(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, data
         if !((!data.is_null() && size > 0) || (data.is_null() && size == 0)) {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
+        // the group ID is written into the metadata PBU header
+        if !(group_id >= 0 && group_id <= ffi::OAPV_MAX_GROUP_ID as c_int) {
+            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+        }
 
         let ret = meta_verify_mdp_data(mdt, size, data as *mut u8);
         if ret != 0 {
