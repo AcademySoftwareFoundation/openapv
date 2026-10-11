@@ -91,4 +91,5 @@ mod ffi {
 mod oapv;
 mod oapv_bs;
 mod oapv_metadata;
+mod oapv_util;
 mod oapv_vlc;

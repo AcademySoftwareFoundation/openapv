@@ -37,81 +37,11 @@
 use core::ffi::c_int;
 use core::ffi::c_void;
 use crate::ffi;
+use crate::oapv_util::*;
 
-const Y_C: usize = 0;
-const U_C: usize = 1;
-const V_C: usize = 2;
-const OAPV_CF_PLANAR2: i32 = 20;
-const DEC_TILE_STAT_FLAG_DO: i32 = 1 << 4;
-
-fn cs_get_format(cs: c_int) -> i32 {
-    cs & 0xFF
-}
-
-fn color_format_to_chroma_format_idc(cf: i32) -> i32 {
-    if cf == OAPV_CF_PLANAR2 {
-        2
-    } else {
-        match cf {
-            10 => 0,
-            11 => 1,
-            12 => 2,
-            13 => 3,
-            _ => 4,
-        }
-    }
-}
-
-fn get_chroma_sft_w(cfi: i32) -> i32 {
-    if cfi == 0 || cfi == 1 || cfi == 2 { 1 } else { 0 }
-}
-
-fn get_chroma_sft_h(cfi: i32) -> i32 {
-    if cfi == 0 || cfi == 1 { 1 } else { 0 }
-}
-
-fn get_num_comp(cfi: i32) -> i32 {
-    if cfi == 0 {
-        1
-    } else if cfi == 4 {
-        4
-    } else {
-        3
-    }
-}
-
-fn oapv_align_value(val: i32, align: i32) -> i32 {
-    (val + align - 1) / align * align
-}
-
-fn oapv_validate_tile_topology(profile_idc: i32, tile_cols: i32, tile_rows: i32, num_tiles: *mut i32) -> i32 {
-    if tile_cols < 1 || tile_rows < 1 {
-        return ffi::OAPV_ERR_MALFORMED_BITSTREAM;
-    }
-    let unconst = is_unconst_profile(profile_idc);
-    if !unconst && (tile_cols > 20 || tile_rows > 20) {
-        return ffi::OAPV_ERR_MALFORMED_BITSTREAM;
-    }
-    let n = tile_cols as i64 * tile_rows as i64;
-    let limit = if unconst { i32::MAX as i64 } else { 20 * 20 as i64 };
-    if n > limit {
-        return ffi::OAPV_ERR_MALFORMED_BITSTREAM;
-    }
-    if !num_tiles.is_null() {
-        unsafe { *num_tiles = n as i32 };
-    }
-    ffi::OAPV_OK as i32
-}
-
-fn is_unconst_profile(idc: i32) -> bool {
-    idc == ffi::OAPV_PROFILE_422_10_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_422_12_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_444_10_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_444_12_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_4444_10_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_4444_12_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_400_10_UNCONST as i32
-}
+const Y_C: usize = ffi::Y_C as usize;
+const U_C: usize = ffi::U_C as usize;
+const V_C: usize = ffi::V_C as usize;
 
 unsafe fn get_blk_to_pic_16(bd: i32) -> ffi::oapv_fn_blk_to_pic_t {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -215,7 +145,7 @@ pub extern "C" fn oapvd_frm_setup(ctx: *mut ffi::oapvd_ctx_t, cs: c_int) -> c_in
             (*ctx).disable_companding = (*ctx).force_disable_companding;
         }
 
-        if cs_get_format(cs) == OAPV_CF_PLANAR2 {
+        if cs_get_format(cs) == ffi::OAPV_CF_PLANAR2 as i32 {
             (*ctx).fn_blk_to_pic[Y_C] = get_blk_to_pic_p21x_y((*ctx).bit_depth);
             (*ctx).fn_blk_to_pic[U_C] = get_blk_to_pic_p21x_uv((*ctx).bit_depth);
             (*ctx).fn_blk_to_pic[V_C] = get_blk_to_pic_p21x_uv((*ctx).bit_depth);
@@ -247,7 +177,7 @@ pub extern "C" fn oapvd_frm_setup(ctx: *mut ffi::oapvd_ctx_t, cs: c_int) -> c_in
             (*ctx).fh.fi.profile_idc,
             (*ctx).num_tile_cols,
             (*ctx).num_tile_rows,
-            &mut (*ctx).num_tiles,
+            Some(&mut (*ctx).num_tiles),
         );
         if ret != 0 {
             return ret;
@@ -303,7 +233,7 @@ pub extern "C" fn oapvd_frm_prepare(ctx: *mut ffi::oapvd_ctx_t, imgb: *mut ffi::
         }
 
         let byte_depth = ((*ctx).fh.fi.bit_depth + 7) / 8;
-        let planar2 = cs_get_format((*ctx).cs) == OAPV_CF_PLANAR2;
+        let planar2 = cs_get_format((*ctx).cs) == ffi::OAPV_CF_PLANAR2 as i32;
         let num_pln = if planar2 { 2 } else { (*ctx).num_c };
 
         if (*imgb).np < num_pln {
@@ -328,7 +258,7 @@ pub extern "C" fn oapvd_frm_prepare(ctx: *mut ffi::oapvd_ctx_t, imgb: *mut ffi::
         }
 
         for i in 0..(*ctx).num_tiles as usize {
-            (*(*ctx).tile.add(i)).stat = DEC_TILE_STAT_FLAG_DO;
+            (*(*ctx).tile.add(i)).stat = ffi::DEC_TILE_STAT_FLAG_DO as i32;
         }
 
         ffi::OAPV_OK as c_int
@@ -338,28 +268,6 @@ pub extern "C" fn oapvd_frm_prepare(ctx: *mut ffi::oapvd_ctx_t, imgb: *mut ffi::
 // ---------------------------------------------------------------------------
 // frame-info conversion helpers and stateless info() entry points
 // ---------------------------------------------------------------------------
-
-fn chroma_format_idc_to_color_format(cfi: i32) -> i32 {
-    match cfi {
-        0 => ffi::OAPV_CF_YCBCR400 as i32,
-        1 => ffi::OAPV_CF_YCBCR420 as i32,
-        2 => ffi::OAPV_CF_YCBCR422 as i32,
-        3 => ffi::OAPV_CF_YCBCR444 as i32,
-        _ => ffi::OAPV_CF_YCBCR4444 as i32,
-    }
-}
-
-fn cs_set(f: i32, bit: i32, e: i32) -> i32 {
-    (e << 14) | (bit << 8) | f
-}
-
-fn div_round_up(n: i32, d: i32) -> i32 {
-    (n + d - 1) / d
-}
-
-fn pbu_type_is_frame(pbu_type: i32) -> bool {
-    pbu_type == 1 || pbu_type == 2 || (pbu_type >= 25 && pbu_type <= 27)
-}
 
 #[no_mangle]
 pub extern "C" fn oapvd_fi_to_finfo(fi: *mut ffi::oapv_fi_t, pbu_type: c_int, group_id: c_int, finfo: *mut ffi::oapv_frm_info_t) {
@@ -407,12 +315,12 @@ pub extern "C" fn oapvd_fh_to_finfo(fh: *mut ffi::oapv_fh_t, pbu_type: c_int, gr
         let fh = &mut *fh;
         oapvd_fi_to_finfo(core::ptr::addr_of_mut!(fh.fi), pbu_type, group_id, finfo);
         let finfo = &mut *finfo;
-        let pic_w_mb = ((fh.fi.frame_width as i32 + (16 - 1)) >> 4) as i32;
-        let pic_h_mb = ((fh.fi.frame_height as i32 + (16 - 1)) >> 4) as i32;
+        let pic_w_mb = oapv_div_round_up(fh.fi.frame_width as i32, ffi::OAPV_MB_W as i32);
+        let pic_h_mb = oapv_div_round_up(fh.fi.frame_height as i32, ffi::OAPV_MB_H as i32);
         finfo.tile_width_in_mbs = fh.tile_width_in_mbs;
         finfo.tile_height_in_mbs = fh.tile_height_in_mbs;
-        finfo.tile_cols = div_round_up(pic_w_mb, fh.tile_width_in_mbs);
-        finfo.tile_rows = div_round_up(pic_h_mb, fh.tile_height_in_mbs);
+        finfo.tile_cols = oapv_div_round_up(pic_w_mb, fh.tile_width_in_mbs);
+        finfo.tile_rows = oapv_div_round_up(pic_h_mb, fh.tile_height_in_mbs);
         finfo.num_tiles = finfo.tile_cols * finfo.tile_rows;
         finfo.use_q_matrix = fh.use_q_matrix;
         let modv = (1 << 3) - 1;
@@ -518,14 +426,14 @@ pub extern "C" fn oapvd_info_tile(pbu: *mut c_void, pbu_size: c_int, pos_tiles: 
             return ret;
         }
 
-        let pic_w_mb = ((fh.fi.frame_width as i32 + (16 - 1)) >> 4) as i32;
-        let pic_h_mb = ((fh.fi.frame_height as i32 + (16 - 1)) >> 4) as i32;
+        let pic_w_mb = oapv_div_round_up(fh.fi.frame_width as i32, ffi::OAPV_MB_W as i32);
+        let pic_h_mb = oapv_div_round_up(fh.fi.frame_height as i32, ffi::OAPV_MB_H as i32);
 
-        let tile_cols = div_round_up(pic_w_mb, fh.tile_width_in_mbs);
-        let tile_rows = div_round_up(pic_h_mb, fh.tile_height_in_mbs);
+        let tile_cols = oapv_div_round_up(pic_w_mb, fh.tile_width_in_mbs);
+        let tile_rows = oapv_div_round_up(pic_h_mb, fh.tile_height_in_mbs);
 
         let mut n: c_int = 0;
-        let ret = oapv_validate_tile_topology(fh.fi.profile_idc, tile_cols, tile_rows, &mut n);
+        let ret = oapv_validate_tile_topology(fh.fi.profile_idc, tile_cols, tile_rows, Some(&mut n));
         if ret != 0 {
             return ret;
         }
