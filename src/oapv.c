@@ -2462,15 +2462,17 @@ int oapvd_config(oapvd_t did, int cfg, void *buf, int *size)
 
     ctx = dec_id_to_ctx(did);
     oapv_assert_rv(ctx, OAPV_ERR_INVALID_ARGUMENT);
-    oapv_assert_rv(buf != NULL, OAPV_ERR_INVALID_ARGUMENT);
+    oapv_assert_rv(buf != NULL && size != NULL, OAPV_ERR_INVALID_ARGUMENT);
 
     switch(cfg) {
     /* set config ************************************************************/
     case OAPV_CFG_SET_USE_FRM_HASH:
+        oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         ctx->use_frm_hash = (*((int *)buf)) ? 1 : 0;
         break;
 
     case OAPV_CFG_SET_DISABLE_COMPANDING:
+        oapv_assert_rv(*size == sizeof(int), OAPV_ERR_INVALID_ARGUMENT);
         ctx->force_disable_companding = (*((int *)buf)) ? 1 : 0;
         break;
     default:
