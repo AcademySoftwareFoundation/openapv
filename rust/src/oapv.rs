@@ -231,6 +231,10 @@ pub extern "C" fn oapvd_frm_prepare(ctx: *mut ffi::oapvd_ctx_t, imgb: *mut ffi::
         if ret != 0 {
             return ret;
         }
+        // the frame hash is not defined for the PLANAR2 layout
+        if (*ctx).use_frm_hash != 0 && cs_get_format((*imgb).cs) == ffi::OAPV_CF_PLANAR2 as i32 {
+            return ffi::OAPV_ERR_UNSUPPORTED as c_int;
+        }
 
         let byte_depth = ((*ctx).fh.fi.bit_depth + 7) / 8;
         let planar2 = cs_get_format((*ctx).cs) == ffi::OAPV_CF_PLANAR2 as i32;
@@ -499,11 +503,9 @@ pub extern "C" fn oapvd_info(au: *mut c_void, au_size: c_int, aui: *mut ffi::oap
         if au_size <= 4 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
-        let mut signature: u32 = 0;
-        let ret = crate::oapv_bs::bsr_read_direct(au, 32, &mut signature);
-        if ret != 0 {
-            return ret;
-        }
+        let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
+        crate::oapv_bs::bsr_init(&mut bs, au as *mut u8, au_size as u32, None);
+        let signature = crate::oapv_bs::bsr_read(&mut bs, 32);
         if signature != 0x61507631 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }

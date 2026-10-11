@@ -132,22 +132,29 @@ pub extern "C" fn oapv_bsw_sink(bs: *mut oapv_bs_t) -> *mut core::ffi::c_void {
 }
 
 #[inline]
-pub(crate) unsafe fn bsw_write_direct(addr: *mut core::ffi::c_void, val: u32, len: c_int) -> c_int {
-    if len & 0x7 != 0 {
+pub(crate) unsafe fn bsw_write_direct(bs: *mut oapv_bs_t, addr: *mut core::ffi::c_void, val: u32, len: c_int) -> c_int {
+    if len & 0x7 != 0 || len <= 0 || len > 32 {
         return -1;
     }
-    let p = addr as *mut u8;
-    let mut v = val.wrapping_shl((32 - len) as u32);
-    for i in 0..(len >> 3) as usize {
-        *p.add(i) = (v >> 24) as u8;
+    // 'addr' is a byte position already written in 'bs'
+    let (beg, end, p) = ((*bs).beg as *const u8, (*bs).end as *const u8, addr as *const u8);
+    if p.is_null() || p < beg || p > end {
+        return -1;
+    }
+    let buf = core::slice::from_raw_parts_mut((*bs).beg, end.offset_from(beg) as usize);
+    let off = p.offset_from(beg) as usize;
+    let Some(dst) = buf.get_mut(off..off + (len >> 3) as usize) else { return -1 };
+    let mut v = val << (32 - len);
+    for b in dst {
+        *b = (v >> 24) as u8;
         v <<= 8;
     }
     0
 }
 
 #[no_mangle]
-pub extern "C" fn oapv_bsw_write_direct(addr: *mut core::ffi::c_void, val: u32, len: c_int) -> c_int {
-    ffi_try!(bsw_write_direct(addr, val, len), -1)
+pub extern "C" fn oapv_bsw_write_direct(bs: *mut oapv_bs_t, addr: *mut core::ffi::c_void, val: u32, len: c_int) -> c_int {
+    ffi_try!(bsw_write_direct(bs, addr, val, len), -1)
 }
 
 #[inline]
@@ -383,30 +390,4 @@ pub(crate) unsafe fn bsr_read1(bs: *mut oapv_bs_t) -> c_int {
 #[no_mangle]
 pub extern "C" fn oapv_bsr_read1(bs: *mut oapv_bs_t) -> c_int {
     ffi_try!(bsr_read1(bs), -1)
-}
-
-#[inline]
-pub(crate) unsafe fn bsr_read_direct(addr: *const core::ffi::c_void, len: c_int, out: *mut u32) -> c_int {
-    if addr.is_null() || out.is_null() || len <= 0 || len > 32 {
-        return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
-    }
-
-    let mut code: u32 = 0;
-    let mut shift = 24i32;
-    let mut p = addr as *const u8;
-    let mut byte = (len + 7) >> 3;
-
-    while byte > 0 {
-        code |= (*p as u32) << shift;
-        shift -= 8;
-        byte -= 1;
-        p = p.add(1);
-    }
-    *out = code >> (32 - len);
-    0
-}
-
-#[no_mangle]
-pub extern "C" fn oapv_bsr_read_direct(addr: *const core::ffi::c_void, len: c_int, out: *mut u32) -> c_int {
-    ffi_try!(bsr_read_direct(addr, len, out), ffi::OAPV_ERR_UNEXPECTED as c_int)
 }

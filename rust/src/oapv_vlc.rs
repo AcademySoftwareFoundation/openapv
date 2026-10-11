@@ -589,7 +589,9 @@ pub extern "C" fn oapve_vlc_metadata(md: *mut ffi::oapv_md_t, bs: *mut ffi::oapv
             return ffi::OAPV_ERR_OUT_OF_BS_BUF as c_int;
         }
         let md_size = (bs_pos_end.offset_from(bs_pos_md) as u32) - 4;
-        crate::oapv_bs::bsw_write_direct(bs_pos_md as *mut core::ffi::c_void, md_size, 32);
+        if crate::oapv_bs::bsw_write_direct(bs, bs_pos_md as *mut core::ffi::c_void, md_size, 32) != 0 {
+            return ffi::OAPV_ERR_OUT_OF_BS_BUF as c_int;
+        }
 
         return ffi::OAPV_OK as c_int;
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
@@ -1012,6 +1014,9 @@ pub(crate) unsafe fn dec_vlc_au_info(bs: *mut ffi::oapv_bs_t, aui: *mut ffi::oap
     for fidx in 0..(*aui).num_frames as usize {
         (*aui).pbu_type[fidx] = crate::oapv_bs::bsr_read(bs, 8) as i32;
         (*aui).group_id[fidx] = crate::oapv_bs::bsr_read(bs, 16) as i32;
+        if (*aui).group_id[fidx] < 0 || (*aui).group_id[fidx] > ffi::OAPV_MAX_GROUP_ID as i32 {
+            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+        }
         let reserved_zero_8bits = crate::oapv_bs::bsr_read(bs, 8) as i32;
         if reserved_zero_8bits != 0 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
