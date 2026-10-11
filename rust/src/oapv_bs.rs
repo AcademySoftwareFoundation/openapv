@@ -44,6 +44,19 @@ use crate::ffi::oapv_bs_t;
 // encoder side
 ///////////////////////////////////////////////////////////////////////////////
 
+// the room left in 'bs' from its cursor on; the cursor may have run past end
+// when the buffer was too small, which leaves no room, but one before beg
+// panics instead of writing outside the buffer
+#[inline]
+pub(crate) unsafe fn bsw_room<'a>(bs: *const oapv_bs_t) -> &'a mut [u8] {
+    let (beg, cur, end) = ((*bs).beg as *const u8, (*bs).cur as *const u8, (*bs).end as *const u8);
+    assert!(beg <= cur && beg <= end, "bitstream cursor out of range");
+    if cur >= end {
+        return &mut [];
+    }
+    core::slice::from_raw_parts_mut((*bs).cur, end.offset_from(cur) as usize)
+}
+
 unsafe fn bsw_get_sink_byte(bs: *const oapv_bs_t) -> c_int {
     (64 - (*bs).leftbits + 7) >> 3
 }
@@ -54,16 +67,17 @@ unsafe extern "C" fn bsw_flush(bs: *mut oapv_bs_t, bytes: c_int) -> c_int {
         bytes = bsw_get_sink_byte(bs);
     }
 
-    if (*bs).cur.add(bytes as usize) > (*bs).end {
+    let room = bsw_room(bs);
+    let bytes = bytes.max(0) as usize;
+    if bytes > room.len() {
         return -1;
     }
 
-    while bytes > 0 {
-        *(*bs).cur = ((*bs).code >> 56) as u8;
-        (*bs).cur = (*bs).cur.add(1);
+    for b in &mut room[..bytes] {
+        *b = ((*bs).code >> 56) as u8;
         (*bs).code <<= 8;
-        bytes -= 1;
     }
+    (*bs).cur = (*bs).cur.add(bytes);
 
     (*bs).leftbits = 64;
 
@@ -72,6 +86,7 @@ unsafe extern "C" fn bsw_flush(bs: *mut oapv_bs_t, bytes: c_int) -> c_int {
 
 #[inline]
 pub(crate) unsafe fn bsw_init(bs: *mut oapv_bs_t, buf: *mut u8, size: c_int, fn_flush: ffi::oapv_bs_fn_flush_t) {
+    assert!(size >= 0, "negative bitstream buffer size");
     (*bs).size = size as u32;
     (*bs).beg = buf;
     (*bs).cur = buf;
@@ -100,7 +115,7 @@ pub extern "C" fn oapv_bsw_deinit(bs: *mut oapv_bs_t) {
 
 #[inline]
 pub(crate) unsafe fn bsw_sink(bs: *mut oapv_bs_t) -> *mut core::ffi::c_void {
-    if (*bs).cur.add(bsw_get_sink_byte(bs) as usize) >= (*bs).end {
+    if bsw_get_sink_byte(bs) as usize >= bsw_room(bs).len() {
         return core::ptr::null_mut();
     }
     if let Some(f) = (*bs).fn_flush {
@@ -141,7 +156,7 @@ pub(crate) unsafe fn bsw_write1(bs: *mut oapv_bs_t, val: c_int) -> c_int {
     (*bs).code |= ((val & 0x1) as u64) << (*bs).leftbits;
 
     if (*bs).leftbits == 0 {
-        if (*bs).cur >= (*bs).end {
+        if bsw_room(bs).is_empty() {
             return -1;
         }
         if let Some(f) = (*bs).fn_flush {
