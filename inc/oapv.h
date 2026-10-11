@@ -76,7 +76,7 @@ extern "C" {
 // version numbers (should be changed in case of new release)
 #define OAPV_VER_APISET                 (1)
 #define OAPV_VER_MAJOR                  (1)
-#define OAPV_VER_MINOR                  (2)
+#define OAPV_VER_MINOR                  (3)
 #define OAPV_VER_PATCH                  (0)
 
 // version macros: the version string is API_SET.MAJOR.MINOR.PATCH
