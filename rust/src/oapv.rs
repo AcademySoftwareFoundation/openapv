@@ -114,22 +114,37 @@ fn is_unconst_profile(idc: i32) -> bool {
 }
 
 unsafe fn get_blk_to_pic_16(bd: i32) -> ffi::oapv_fn_blk_to_pic_t {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     if bd < 16 && ffi::oapv_check_cpu_info_x86() >> 2 & 1 != 0 {
         return Some(ffi::oapv_blk_to_pic_16_avx);
+    }
+    #[cfg(target_arch = "aarch64")]
+    if bd < 16 {
+        return Some(ffi::oapv_blk_to_pic_16_neon);
     }
     Some(ffi::oapv_blk_to_pic_16)
 }
 
 unsafe fn get_blk_to_pic_p21x_y(bd: i32) -> ffi::oapv_fn_blk_to_pic_t {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     if bd < 16 && ffi::oapv_check_cpu_info_x86() >> 2 & 1 != 0 {
         return Some(ffi::oapv_blk_to_pic_p21x_y_avx);
+    }
+    #[cfg(target_arch = "aarch64")]
+    if bd < 16 {
+        return Some(ffi::oapv_blk_to_pic_p21x_y_neon);
     }
     Some(ffi::oapv_blk_to_pic_p21x_y)
 }
 
 unsafe fn get_blk_to_pic_p21x_uv(bd: i32) -> ffi::oapv_fn_blk_to_pic_t {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     if bd < 16 && ffi::oapv_check_cpu_info_x86() >> 2 & 1 != 0 {
         return Some(ffi::oapv_blk_to_pic_p21x_uv_avx);
+    }
+    #[cfg(target_arch = "aarch64")]
+    if bd < 16 {
+        return Some(ffi::oapv_blk_to_pic_p21x_uv_neon);
     }
     Some(ffi::oapv_blk_to_pic_p21x_uv)
 }
