@@ -699,7 +699,7 @@ ERR:
     if(bs_buf != NULL)
         free(bs_buf);
 
-    return 0;
+    return ret;
 }
 
 /* read a 4-byte big-endian unsigned integer.
@@ -1166,7 +1166,7 @@ ERR:
 
     free(tile_reqs);
 
-    return 0;
+    return ret;
 }
 
 int main(int argc, const char **argv)
