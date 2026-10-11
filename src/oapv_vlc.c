@@ -1018,6 +1018,7 @@ int oapvd_vlc_au_info(oapv_bs_t *bs, oapv_aui_t *aui)
         DUMP_HLS(pbu_type, aui->pbu_type[fidx]);
         aui->group_id[fidx] = oapv_bsr_read(bs, 16);
         DUMP_HLS(group_id, aui->group_id[fidx]);
+        oapv_assert_rv(aui->group_id[fidx] >= 0 && aui->group_id[fidx] <= OAPV_MAX_GROUP_ID, OAPV_ERR_MALFORMED_BITSTREAM);
         reserved_zero_8bits = oapv_bsr_read(bs, 8);
         DUMP_HLS(reserved_zero_8bits, reserved_zero_8bits);
         oapv_assert_rv(reserved_zero_8bits == 0, OAPV_ERR_MALFORMED_BITSTREAM);
