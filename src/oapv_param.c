@@ -532,7 +532,7 @@ static int enc_update_param_bitrate(oapve_param_t* param)
     oapv_assert_rv(level_idx >= 0 && level_idx < MAX_LEVEL_NUM, OAPV_ERR_INVALID_LEVEL);
     oapv_assert_rv(param->band_idc >= 0 && param->band_idc < MAX_BAND_NUM, OAPV_ERR_INVALID_BAND);
 
-    if (param->bitrate == 0 && param->qp == OAPVE_PARAM_QP_AUTO) {
+    if (param->bitrate == 0 && param->rc_type == OAPV_RC_ABR) {
         param->bitrate = max_coded_data_rate[level_idx][param->band_idc];
     }
     else if (param->bitrate > 0) {
@@ -601,6 +601,11 @@ int oapve_param_update(oapve_ctx_t* ctx)
         oapv_assert_rv(ret == OAPV_OK, ret);
         int num_tiles = oapv_div_round_up(ctx->w, ctx->cdesc.param[i].tile_w) * oapv_div_round_up(ctx->h, ctx->cdesc.param[i].tile_h);
         min_num_tiles = oapv_min(min_num_tiles, num_tiles);
+
+        // the encoder chooses the QP only under rate control
+        if(ctx->cdesc.param[i].rc_type == OAPV_RC_CQP && ctx->cdesc.param[i].qp == OAPVE_PARAM_QP_AUTO) {
+            ctx->cdesc.param[i].rc_type = OAPV_RC_ABR;
+        }
 
         ret = enc_update_param_level_band(&ctx->cdesc.param[i]);
         oapv_assert_rv(ret == OAPV_OK, ret);

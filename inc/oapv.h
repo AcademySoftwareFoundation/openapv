@@ -899,12 +899,13 @@ struct oapve_param {
     // frame rate (Hz) numerator, denominator
     int           fps_num;
     int           fps_den;
-    // rate control type; OAPV_RC_CQP or OAPV_RC_ABR
+    /* rate control type; OAPV_RC_CQP or OAPV_RC_ABR. A QP of
+       OAPVE_PARAM_QP_AUTO turns OAPV_RC_CQP into OAPV_RC_ABR. */
     int           rc_type;
     /* quantization parameters : 0 ~ (63 + (bitdepth - 10)*6)
        - 10bit input: 0 ~ 63
        - 12bit input: 0 ~ 75
-       or OAPVE_PARAM_QP_AUTO
+       or OAPVE_PARAM_QP_AUTO; with OAPV_RC_ABR, the QP of the first frame
     */
     unsigned char qp;
     // quantization parameter offset of component 1
@@ -913,7 +914,8 @@ struct oapve_param {
     signed char   qp_offset_c2;
     // quantization parameter offset of component 3
     signed char   qp_offset_c3;
-    // bitrate (unit: kbps); the target of OAPV_RC_ABR
+    /* bitrate (unit: kbps); the target of OAPV_RC_ABR, or 0 for the maximum
+       bitrate of the level and band */
     int           bitrate;
     // use filler data for tight constant bitrate
     int           use_filler;
