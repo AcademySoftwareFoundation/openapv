@@ -46,12 +46,12 @@ pub unsafe fn bsw_is_align8(bs: *const oapv_bs_t) -> bool {
 
 #[inline(always)]
 unsafe fn bsw_flush_8byte(bs: *mut oapv_bs_t) {
-    if (*bs).cur.add(8) <= (*bs).end {
-        core::ptr::write_unaligned((*bs).cur as *mut [u8; 8], (*bs).code.to_be_bytes());
-        (*bs).cur = (*bs).cur.add(8);
-    } else {
-        (*bs).cur = (*bs).cur.add(8);
+    // without room the bytes are dropped and the cursor still moves on, so
+    // that the encoder finds the overflow from the written size
+    if let Some(w) = crate::oapv_bs::bsw_room(bs).first_chunk_mut::<8>() {
+        *w = (*bs).code.to_be_bytes();
     }
+    (*bs).cur = (*bs).cur.wrapping_add(8);
     (*bs).code = 0;
     (*bs).leftbits = 64;
 }
