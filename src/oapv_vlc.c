@@ -516,7 +516,7 @@ int oapve_vlc_metadata(oapv_md_t *md, oapv_bs_t *bs)
     bs_pos_end = oapv_bsw_sink(bs);
     oapv_assert_rv(bs_pos_end != NULL, OAPV_ERR_OUT_OF_BS_BUF);
     u32 md_size = (u32)(bs_pos_end - bs_pos_md) - 4;
-    oapv_bsw_write_direct(bs_pos_md, md_size, 32);
+    oapv_assert_rv(oapv_bsw_write_direct(bs, bs_pos_md, md_size, 32) == 0, OAPV_ERR_OUT_OF_BS_BUF);
     DUMP_SAVE(1);
     DUMP_LOAD(0);
     DUMP_HLS(metadata_size, md_size);

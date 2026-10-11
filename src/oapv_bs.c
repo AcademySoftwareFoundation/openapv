@@ -81,12 +81,14 @@ void *oapv_bsw_sink(oapv_bs_t *bs)
     return (void *)bs->cur;
 }
 
-int oapv_bsw_write_direct(void *addr, u32 val, int len)
+/* rewrite 'len' bits at 'addr', a byte position already written in 'bs' */
+int oapv_bsw_write_direct(oapv_bs_t *bs, void *addr, u32 val, int len)
 {
     int            i;
     unsigned char *p = (unsigned char *)addr;
 
-    oapv_assert_rv((len & 0x7) == 0, -1); // len should be byte-aligned
+    oapv_assert_rv((len & 0x7) == 0 && len > 0 && len <= 32, -1); // len should be byte-aligned
+    oapv_assert_rv(p != NULL && p >= bs->beg && p + (len >> 3) <= bs->end, -1);
 
     val <<= (32 - len);
     for(i = 0; i < (len >> 3); i++) {
@@ -286,27 +288,6 @@ int oapv_bsr_read1(oapv_bs_t *bs)
 
     return code;
 }
-
-int oapv_bsr_read_direct(const void *addr, int len, u32 *out)
-{
-    u32 code = 0;
-    int shift = 24;
-    const u8 *p = (const u8 *)addr;
-    int byte = (len + 7) >> 3;
-
-    if(!addr || !out || len <= 0 || len > 32)
-        return OAPV_ERR_INVALID_ARGUMENT;
-
-    while(byte) {
-        code |= (u32)(*(p)) << shift;
-        shift -= 8;
-        byte--;
-        p++;
-    }
-    *out = (code >> (32 - len));
-    return OAPV_OK;
-}
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // end of decoder code
