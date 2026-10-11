@@ -1039,7 +1039,7 @@ pub extern "C" fn oapvd_vlc_pbu_header(bs: *mut ffi::oapv_bs_t, pbuh: *mut ffi::
         }
 
         (*pbuh).group_id = ffi::oapv_bsr_read(bs, 16) as i32;
-        if (*pbuh).group_id < 0 || (*pbuh).group_id >= 0xFFFF {
+        if (*pbuh).group_id < 0 || (*pbuh).group_id > ffi::OAPV_MAX_GROUP_ID as i32 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
 
