@@ -35,6 +35,8 @@
 
 use crate::ffi;
 
+pub(crate) use dec::{dec_vlc_au_info, dec_vlc_frame_header, dec_vlc_pbu_header, dec_vlc_pbu_size};
+
 mod bits {
 use super::ffi::oapv_bs_t;
 
@@ -267,7 +269,7 @@ unsafe fn enc_vlc_quantization_matrix(bs: *mut ffi::oapv_bs_t, ctx: *mut ffi::oa
     for cidx in 0..num_c {
         for y in 0..8 {
             for x in 0..8 {
-                ffi::oapv_bsw_write(bs, (*fh).q_matrix[cidx][y][x] as u32, 8);
+                crate::oapv_bs::bsw_write(bs, (*fh).q_matrix[cidx][y][x] as u32, 8);
             }
         }
     }
@@ -275,12 +277,12 @@ unsafe fn enc_vlc_quantization_matrix(bs: *mut ffi::oapv_bs_t, ctx: *mut ffi::oa
 }
 
 unsafe fn enc_vlc_tile_info(bs: *mut ffi::oapv_bs_t, ctx: *mut ffi::oapve_ctx_t, fh: *mut ffi::oapv_fh_t) -> i32 {
-    ffi::oapv_bsw_write(bs, (*fh).tile_width_in_mbs as u32, 20);
-    ffi::oapv_bsw_write(bs, (*fh).tile_height_in_mbs as u32, 20);
-    ffi::oapv_bsw_write(bs, (*fh).tile_size_present_in_fh_flag as u32, 1);
+    crate::oapv_bs::bsw_write(bs, (*fh).tile_width_in_mbs as u32, 20);
+    crate::oapv_bs::bsw_write(bs, (*fh).tile_height_in_mbs as u32, 20);
+    crate::oapv_bs::bsw_write(bs, (*fh).tile_size_present_in_fh_flag as u32, 1);
     if (*fh).tile_size_present_in_fh_flag != 0 {
         for i in 0..(*ctx).num_tiles as usize {
-            ffi::oapv_bsw_write(bs, (*(*ctx).tile.add(i)).tile_size as u32, 32);
+            crate::oapv_bs::bsw_write(bs, (*(*ctx).tile.add(i)).tile_size as u32, 32);
         }
     }
     0
@@ -428,17 +430,17 @@ pub extern "C" fn oapve_set_tile_header(ctx: *mut ffi::oapve_ctx_t, th: *mut ffi
 #[no_mangle]
 pub extern "C" fn oapve_vlc_frame_info(bs: *mut ffi::oapv_bs_t, fi: *mut ffi::oapv_fi_t) -> c_int {
     ffi_try!({
-        ffi::oapv_bsw_write(bs, (*fi).profile_idc as u32, 8);
-        ffi::oapv_bsw_write(bs, (*fi).level_idc as u32, 8);
-        ffi::oapv_bsw_write(bs, (*fi).band_idc as u32, 3);
-        ffi::oapv_bsw_write(bs, 0, 5);
-        ffi::oapv_bsw_write(bs, (*fi).frame_width as u32, 24);
-        ffi::oapv_bsw_write(bs, (*fi).frame_height as u32, 24);
-        ffi::oapv_bsw_write(bs, (*fi).chroma_format_idc as u32, 4);
-        ffi::oapv_bsw_write(bs, ((*fi).bit_depth - 8) as u32, 4);
-        ffi::oapv_bsw_write(bs, (*fi).capture_time_distance as u32, 8);
-        ffi::oapv_bsw_write1(bs, (*fi).use_companding);
-        ffi::oapv_bsw_write(bs, 0, 7);
+        crate::oapv_bs::bsw_write(bs, (*fi).profile_idc as u32, 8);
+        crate::oapv_bs::bsw_write(bs, (*fi).level_idc as u32, 8);
+        crate::oapv_bs::bsw_write(bs, (*fi).band_idc as u32, 3);
+        crate::oapv_bs::bsw_write(bs, 0, 5);
+        crate::oapv_bs::bsw_write(bs, (*fi).frame_width as u32, 24);
+        crate::oapv_bs::bsw_write(bs, (*fi).frame_height as u32, 24);
+        crate::oapv_bs::bsw_write(bs, (*fi).chroma_format_idc as u32, 4);
+        crate::oapv_bs::bsw_write(bs, ((*fi).bit_depth - 8) as u32, 4);
+        crate::oapv_bs::bsw_write(bs, (*fi).capture_time_distance as u32, 8);
+        crate::oapv_bs::bsw_write1(bs, (*fi).use_companding);
+        crate::oapv_bs::bsw_write(bs, 0, 7);
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
@@ -451,21 +453,21 @@ pub extern "C" fn oapve_vlc_frame_header(bs: *mut ffi::oapv_bs_t, ctx: *mut ffi:
         }
 
         oapve_vlc_frame_info(bs, &mut (*fh).fi);
-        ffi::oapv_bsw_write(bs, 0, 8);
-        ffi::oapv_bsw_write1(bs, (*fh).color_description_present_flag);
+        crate::oapv_bs::bsw_write(bs, 0, 8);
+        crate::oapv_bs::bsw_write1(bs, (*fh).color_description_present_flag);
         if (*fh).color_description_present_flag != 0 {
-            ffi::oapv_bsw_write(bs, (*fh).color_primaries as u32, 8);
-            ffi::oapv_bsw_write(bs, (*fh).transfer_characteristics as u32, 8);
-            ffi::oapv_bsw_write(bs, (*fh).matrix_coefficients as u32, 8);
-            ffi::oapv_bsw_write1(bs, (*fh).full_range_flag);
+            crate::oapv_bs::bsw_write(bs, (*fh).color_primaries as u32, 8);
+            crate::oapv_bs::bsw_write(bs, (*fh).transfer_characteristics as u32, 8);
+            crate::oapv_bs::bsw_write(bs, (*fh).matrix_coefficients as u32, 8);
+            crate::oapv_bs::bsw_write1(bs, (*fh).full_range_flag);
         }
-        ffi::oapv_bsw_write1(bs, (*fh).use_q_matrix);
+        crate::oapv_bs::bsw_write1(bs, (*fh).use_q_matrix);
         if (*fh).use_q_matrix != 0 {
             enc_vlc_quantization_matrix(bs, ctx, fh);
         }
         enc_vlc_tile_info(bs, ctx, fh);
 
-        ffi::oapv_bsw_write(bs, 0, 8);
+        crate::oapv_bs::bsw_write(bs, 0, 8);
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
@@ -476,7 +478,7 @@ pub extern "C" fn oapve_vlc_tile_size(bs: *mut ffi::oapv_bs_t, tile_size: c_int)
         if !bsw_is_align8(bs) {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
-        ffi::oapv_bsw_write(bs, tile_size as u32, 32);
+        crate::oapv_bs::bsw_write(bs, tile_size as u32, 32);
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
@@ -490,15 +492,15 @@ pub extern "C" fn oapve_vlc_tile_header(ctx: *mut ffi::oapve_ctx_t, bs: *mut ffi
         (*th).tile_header_size = 5;
         (*th).tile_header_size += (*ctx).num_c * 5;
 
-        ffi::oapv_bsw_write(bs, (*th).tile_header_size as u32, 16);
-        ffi::oapv_bsw_write(bs, (*th).tile_index as u32, 16);
+        crate::oapv_bs::bsw_write(bs, (*th).tile_header_size as u32, 16);
+        crate::oapv_bs::bsw_write(bs, (*th).tile_index as u32, 16);
         for c in 0..(*ctx).num_c as usize {
-            ffi::oapv_bsw_write(bs, (*th).tile_data_size[c] as u32, 32);
+            crate::oapv_bs::bsw_write(bs, (*th).tile_data_size[c] as u32, 32);
         }
         for c in 0..(*ctx).num_c as usize {
-            ffi::oapv_bsw_write(bs, (*th).tile_qp[c] as u32, 8);
+            crate::oapv_bs::bsw_write(bs, (*th).tile_qp[c] as u32, 8);
         }
-        ffi::oapv_bsw_write(bs, (*th).reserved_zero_8bits as u32, 8);
+        crate::oapv_bs::bsw_write(bs, (*th).reserved_zero_8bits as u32, 8);
 
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
@@ -507,19 +509,19 @@ pub extern "C" fn oapve_vlc_tile_header(ctx: *mut ffi::oapve_ctx_t, bs: *mut ffi
 #[no_mangle]
 pub extern "C" fn oapve_vlc_au_info(bs: *mut ffi::oapv_bs_t, ctx: *mut ffi::oapve_ctx_t, frms: *mut ffi::oapv_frms_t, bs_fi_pos: *mut *mut ffi::oapv_bs_t) -> c_int {
     ffi_try!({
-        ffi::oapv_bsw_write(bs, (*frms).num_frms as u32, 16);
+        crate::oapv_bs::bsw_write(bs, (*frms).num_frms as u32, 16);
         for fidx in 0..(*frms).num_frms as usize {
-            ffi::oapv_bsw_write(bs, (*frms).frm[fidx].pbu_type as u32, 8);
-            ffi::oapv_bsw_write(bs, (*frms).frm[fidx].group_id as u32, 16);
-            ffi::oapv_bsw_write(bs, 0, 8);
+            crate::oapv_bs::bsw_write(bs, (*frms).frm[fidx].pbu_type as u32, 8);
+            crate::oapv_bs::bsw_write(bs, (*frms).frm[fidx].group_id as u32, 16);
+            crate::oapv_bs::bsw_write(bs, 0, 8);
             let dst = *bs_fi_pos.add(core::mem::size_of::<ffi::oapv_bs_t>() * fidx);
             core::ptr::copy_nonoverlapping(bs, dst, 1);
             oapve_vlc_frame_info(bs, &mut (*ctx).fh.fi);
         }
 
-        ffi::oapv_bsw_write(bs, 0, 8);
+        crate::oapv_bs::bsw_write(bs, 0, 8);
         while !bsw_is_align8(bs) {
-            ffi::oapv_bsw_write1(bs, 0);
+            crate::oapv_bs::bsw_write1(bs, 0);
         }
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
@@ -531,7 +533,7 @@ pub extern "C" fn oapve_vlc_pbu_size(bs: *mut ffi::oapv_bs_t, pbu_size: c_int) -
         if !bsw_is_align8(bs) {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
-        ffi::oapv_bsw_write(bs, pbu_size as u32, 32);
+        crate::oapv_bs::bsw_write(bs, pbu_size as u32, 32);
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
@@ -539,9 +541,9 @@ pub extern "C" fn oapve_vlc_pbu_size(bs: *mut ffi::oapv_bs_t, pbu_size: c_int) -
 #[no_mangle]
 pub extern "C" fn oapve_vlc_pbu_header(bs: *mut ffi::oapv_bs_t, pbu_type: c_int, group_id: c_int) -> c_int {
     ffi_try!({
-        ffi::oapv_bsw_write(bs, pbu_type as u32, 8);
-        ffi::oapv_bsw_write(bs, group_id as u32, 16);
-        ffi::oapv_bsw_write(bs, 0, 8);
+        crate::oapv_bs::bsw_write(bs, pbu_type as u32, 8);
+        crate::oapv_bs::bsw_write(bs, group_id as u32, 16);
+        crate::oapv_bs::bsw_write(bs, 0, 8);
 
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
@@ -550,42 +552,42 @@ pub extern "C" fn oapve_vlc_pbu_header(bs: *mut ffi::oapv_bs_t, pbu_type: c_int,
 #[no_mangle]
 pub extern "C" fn oapve_vlc_metadata(md: *mut ffi::oapv_md_t, bs: *mut ffi::oapv_bs_t) -> c_int {
     ffi_try!({
-        let bs_pos_md = ffi::oapv_bsw_sink(bs) as *mut u8;
+        let bs_pos_md = crate::oapv_bs::bsw_sink(bs) as *mut u8;
         if bs_pos_md.is_null() {
             return ffi::OAPV_ERR_OUT_OF_BS_BUF as c_int;
         }
 
-        ffi::oapv_bsw_write(bs, 0, 32);
+        crate::oapv_bs::bsw_write(bs, 0, 32);
 
         let mut mdp = (*md).md_payload;
         while !mdp.is_null() {
             let mut mdp_pltype = (*mdp).pld_type;
             while mdp_pltype >= 255 {
-                ffi::oapv_bsw_write(bs, 0xFF, 8);
+                crate::oapv_bs::bsw_write(bs, 0xFF, 8);
                 mdp_pltype -= 255;
             }
-            ffi::oapv_bsw_write(bs, mdp_pltype, 8);
+            crate::oapv_bs::bsw_write(bs, mdp_pltype, 8);
 
             let mut mdp_size = (*mdp).pld_size;
             while mdp_size >= 255 {
-                ffi::oapv_bsw_write(bs, 0xFF, 8);
+                crate::oapv_bs::bsw_write(bs, 0xFF, 8);
                 mdp_size -= 255;
             }
-            ffi::oapv_bsw_write(bs, mdp_size, 8);
+            crate::oapv_bs::bsw_write(bs, mdp_size, 8);
 
             for i in 0..(*mdp).pld_size as isize {
                 let payload_data = (*mdp).pld_data as *mut u8;
-                ffi::oapv_bsw_write(bs, *payload_data.offset(i) as u32, 8);
+                crate::oapv_bs::bsw_write(bs, *payload_data.offset(i) as u32, 8);
             }
 
             mdp = (*mdp).next;
         }
-        let bs_pos_end = ffi::oapv_bsw_sink(bs) as *mut u8;
+        let bs_pos_end = crate::oapv_bs::bsw_sink(bs) as *mut u8;
         if bs_pos_end.is_null() {
             return ffi::OAPV_ERR_OUT_OF_BS_BUF as c_int;
         }
         let md_size = (bs_pos_end.offset_from(bs_pos_md) as u32) - 4;
-        ffi::oapv_bsw_write_direct(bs_pos_md as *mut core::ffi::c_void, md_size, 32);
+        crate::oapv_bs::bsw_write_direct(bs_pos_md as *mut core::ffi::c_void, md_size, 32);
 
         return ffi::OAPV_OK as c_int;
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
@@ -703,7 +705,7 @@ unsafe fn dec_vlc_q_matrix(bs: *mut ffi::oapv_bs_t, fh: *mut ffi::oapv_fh_t) -> 
     for cidx in 0..num_comp as usize {
         for y in 0..8 {
             for x in 0..8 {
-                let v = ffi::oapv_bsr_read(bs, 8);
+                let v = crate::oapv_bs::bsr_read(bs, 8);
                 (*fh).q_matrix[cidx][y][x] = v as u8;
                 if (*fh).q_matrix[cidx][y][x] == 0 {
                     return ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
@@ -715,12 +717,12 @@ unsafe fn dec_vlc_q_matrix(bs: *mut ffi::oapv_bs_t, fh: *mut ffi::oapv_fh_t) -> 
 }
 
 unsafe fn dec_vlc_tile_info(bs: *mut ffi::oapv_bs_t, fh: *mut ffi::oapv_fh_t, pos_tiles: *mut ffi::oapv_tile_pos_t, cap: c_int) -> i32 {
-    (*fh).tile_width_in_mbs = ffi::oapv_bsr_read(bs, 20) as i32;
+    (*fh).tile_width_in_mbs = crate::oapv_bs::bsr_read(bs, 20) as i32;
     if (*fh).tile_width_in_mbs <= 0 {
         return ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
     }
 
-    (*fh).tile_height_in_mbs = ffi::oapv_bsr_read(bs, 20) as i32;
+    (*fh).tile_height_in_mbs = crate::oapv_bs::bsr_read(bs, 20) as i32;
     if (*fh).tile_height_in_mbs <= 0 {
         return ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
     }
@@ -739,12 +741,12 @@ unsafe fn dec_vlc_tile_info(bs: *mut ffi::oapv_bs_t, fh: *mut ffi::oapv_fh_t, po
         return ret;
     }
 
-    (*fh).tile_size_present_in_fh_flag = ffi::oapv_bsr_read1(bs);
+    (*fh).tile_size_present_in_fh_flag = crate::oapv_bs::bsr_read1(bs);
 
     if (*fh).tile_size_present_in_fh_flag != 0 {
         let num_tiles = tile_cols * tile_rows;
         for i in 0..num_tiles as usize {
-            let tile_size = ffi::oapv_bsr_read(bs, 32);
+            let tile_size = crate::oapv_bs::bsr_read(bs, 32);
             if tile_size == 0 {
                 return ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
             }
@@ -870,7 +872,7 @@ unsafe fn ac_coef_body(s: &mut BsSt, coef: *mut i16, kparam_ac: *mut c_int) -> i
 #[no_mangle]
 pub extern "C" fn oapvd_vlc_au_size(bs: *mut ffi::oapv_bs_t, au_size: *mut u32) -> c_int {
     ffi_try!({
-        let size = ffi::oapv_bsr_read(bs, 32);
+        let size = crate::oapv_bs::bsr_read(bs, 32);
         if size == 0 || size == 0xFFFFFFFFu32 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
@@ -882,78 +884,84 @@ pub extern "C" fn oapvd_vlc_au_size(bs: *mut ffi::oapv_bs_t, au_size: *mut u32) 
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
 
+#[inline]
+pub(crate) unsafe fn dec_vlc_pbu_size(bs: *mut ffi::oapv_bs_t, pbu_size: *mut u32) -> c_int {
+    let size = crate::oapv_bs::bsr_read(bs, 32);
+    if size == 0 || size == 0xFFFFFFFFu32 {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+    if bsr_is_unexpected_eob(bs) {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+    *pbu_size = size;
+    ffi::OAPV_OK as c_int
+}
+
 #[no_mangle]
 pub extern "C" fn oapvd_vlc_pbu_size(bs: *mut ffi::oapv_bs_t, pbu_size: *mut u32) -> c_int {
-    ffi_try!({
-        let size = ffi::oapv_bsr_read(bs, 32);
-        if size == 0 || size == 0xFFFFFFFFu32 {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-        if bsr_is_unexpected_eob(bs) {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-        *pbu_size = size;
-        ffi::OAPV_OK as c_int
-    }, ffi::OAPV_ERR_UNEXPECTED as c_int)
+    ffi_try!(dec_vlc_pbu_size(bs, pbu_size), ffi::OAPV_ERR_UNEXPECTED as c_int)
+}
+
+#[inline]
+pub(crate) unsafe fn dec_vlc_pbu_header(bs: *mut ffi::oapv_bs_t, pbuh: *mut ffi::oapv_pbuh_t) -> c_int {
+    (*pbuh).pbu_type = crate::oapv_bs::bsr_read(bs, 8) as i32;
+    if (*pbuh).pbu_type == 0 {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+    if (*pbuh).pbu_type >= 3 && (*pbuh).pbu_type <= 24 {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+    if (*pbuh).pbu_type >= 28 && (*pbuh).pbu_type <= 64 {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+    if (*pbuh).pbu_type >= 68 {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+
+    (*pbuh).group_id = crate::oapv_bs::bsr_read(bs, 16) as i32;
+    if (*pbuh).group_id < 0 || (*pbuh).group_id > ffi::OAPV_MAX_GROUP_ID as i32 {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+
+    let reserved_zero = crate::oapv_bs::bsr_read(bs, 8) as i32;
+    if reserved_zero != 0 {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+
+    if bsr_is_unexpected_eob(bs) {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+    ffi::OAPV_OK as c_int
 }
 
 #[no_mangle]
 pub extern "C" fn oapvd_vlc_pbu_header(bs: *mut ffi::oapv_bs_t, pbuh: *mut ffi::oapv_pbuh_t) -> c_int {
-    ffi_try!({
-        (*pbuh).pbu_type = ffi::oapv_bsr_read(bs, 8) as i32;
-        if (*pbuh).pbu_type == 0 {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-        if (*pbuh).pbu_type >= 3 && (*pbuh).pbu_type <= 24 {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-        if (*pbuh).pbu_type >= 28 && (*pbuh).pbu_type <= 64 {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-        if (*pbuh).pbu_type >= 68 {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-
-        (*pbuh).group_id = ffi::oapv_bsr_read(bs, 16) as i32;
-        if (*pbuh).group_id < 0 || (*pbuh).group_id > ffi::OAPV_MAX_GROUP_ID as i32 {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-
-        let reserved_zero = ffi::oapv_bsr_read(bs, 8) as i32;
-        if reserved_zero != 0 {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-
-        if bsr_is_unexpected_eob(bs) {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-        ffi::OAPV_OK as c_int
-    }, ffi::OAPV_ERR_UNEXPECTED as c_int)
+    ffi_try!(dec_vlc_pbu_header(bs, pbuh), ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvd_vlc_frame_info(bs: *mut ffi::oapv_bs_t, fi: *mut ffi::oapv_fi_t) -> c_int {
     ffi_try!({
-        (*fi).profile_idc = ffi::oapv_bsr_read(bs, 8) as i32;
-        (*fi).level_idc = ffi::oapv_bsr_read(bs, 8) as i32;
-        (*fi).band_idc = ffi::oapv_bsr_read(bs, 3) as i32;
+        (*fi).profile_idc = crate::oapv_bs::bsr_read(bs, 8) as i32;
+        (*fi).level_idc = crate::oapv_bs::bsr_read(bs, 8) as i32;
+        (*fi).band_idc = crate::oapv_bs::bsr_read(bs, 3) as i32;
 
-        let mut reserved_zero = ffi::oapv_bsr_read(bs, 5) as i32;
+        let mut reserved_zero = crate::oapv_bs::bsr_read(bs, 5) as i32;
         if reserved_zero != 0 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
 
-        (*fi).frame_width = ffi::oapv_bsr_read(bs, 24);
+        (*fi).frame_width = crate::oapv_bs::bsr_read(bs, 24);
         if (*fi).frame_width == 0 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
 
-        (*fi).frame_height = ffi::oapv_bsr_read(bs, 24);
+        (*fi).frame_height = crate::oapv_bs::bsr_read(bs, 24);
         if (*fi).frame_height == 0 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
 
-        (*fi).chroma_format_idc = ffi::oapv_bsr_read(bs, 4) as i32;
+        (*fi).chroma_format_idc = crate::oapv_bs::bsr_read(bs, 4) as i32;
         if (*fi).chroma_format_idc < 0 || (*fi).chroma_format_idc > 4 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
@@ -961,21 +969,21 @@ pub extern "C" fn oapvd_vlc_frame_info(bs: *mut ffi::oapv_bs_t, fi: *mut ffi::oa
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
 
-        (*fi).bit_depth = ffi::oapv_bsr_read(bs, 4) as i32;
+        (*fi).bit_depth = crate::oapv_bs::bsr_read(bs, 4) as i32;
         if (*fi).bit_depth < 2 || (*fi).bit_depth > 8 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
         (*fi).bit_depth += 8;
 
-        (*fi).capture_time_distance = ffi::oapv_bsr_read(bs, 8) as i32;
-        (*fi).use_companding = ffi::oapv_bsr_read1(bs);
+        (*fi).capture_time_distance = crate::oapv_bs::bsr_read(bs, 8) as i32;
+        (*fi).use_companding = crate::oapv_bs::bsr_read1(bs);
         if (*fi).profile_idc != ffi::OAPV_PROFILE_444_16C12 as i32 && (*fi).profile_idc != ffi::OAPV_PROFILE_4444_16C12 as i32 {
             if (*fi).use_companding != 0 {
                 return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
             }
         }
 
-        reserved_zero = ffi::oapv_bsr_read(bs, 7) as i32;
+        reserved_zero = crate::oapv_bs::bsr_read(bs, 7) as i32;
         if reserved_zero != 0 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
@@ -993,107 +1001,113 @@ pub extern "C" fn oapvd_vlc_frame_info(bs: *mut ffi::oapv_bs_t, fi: *mut ffi::oa
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
 
-#[no_mangle]
-pub extern "C" fn oapvd_vlc_au_info(bs: *mut ffi::oapv_bs_t, aui: *mut ffi::oapv_aui_t) -> c_int {
-    ffi_try!({
-        (*aui).num_frames = ffi::oapv_bsr_read(bs, 16) as i32;
-        if (*aui).num_frames > ffi::OAPV_MAX_NUM_FRAMES as i32 {
-            return ffi::OAPV_ERR_REACHED_MAX as c_int;
-        }
-        for fidx in 0..(*aui).num_frames as usize {
-            (*aui).pbu_type[fidx] = ffi::oapv_bsr_read(bs, 8) as i32;
-            (*aui).group_id[fidx] = ffi::oapv_bsr_read(bs, 16) as i32;
-            let reserved_zero_8bits = ffi::oapv_bsr_read(bs, 8) as i32;
-            if reserved_zero_8bits != 0 {
-                return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-            }
-            let ret = oapvd_vlc_frame_info(bs, &mut (*aui).frame_info[fidx]);
-            if ret != 0 {
-                return ret;
-            }
-        }
-        let reserved_zero_8bits = ffi::oapv_bsr_read(bs, 8) as i32;
+#[inline]
+pub(crate) unsafe fn dec_vlc_au_info(bs: *mut ffi::oapv_bs_t, aui: *mut ffi::oapv_aui_t) -> c_int {
+    (*aui).num_frames = crate::oapv_bs::bsr_read(bs, 16) as i32;
+    if (*aui).num_frames > ffi::OAPV_MAX_NUM_FRAMES as i32 {
+        return ffi::OAPV_ERR_REACHED_MAX as c_int;
+    }
+    for fidx in 0..(*aui).num_frames as usize {
+        (*aui).pbu_type[fidx] = crate::oapv_bs::bsr_read(bs, 8) as i32;
+        (*aui).group_id[fidx] = crate::oapv_bs::bsr_read(bs, 16) as i32;
+        let reserved_zero_8bits = crate::oapv_bs::bsr_read(bs, 8) as i32;
         if reserved_zero_8bits != 0 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
-
-        if bsr_is_unexpected_eob(bs) {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+        let ret = oapvd_vlc_frame_info(bs, &mut (*aui).frame_info[fidx]);
+        if ret != 0 {
+            return ret;
         }
+    }
+    let reserved_zero_8bits = crate::oapv_bs::bsr_read(bs, 8) as i32;
+    if reserved_zero_8bits != 0 {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
 
-        ffi::oapv_bsr_align8(bs);
-        ffi::OAPV_OK as c_int
-    }, ffi::OAPV_ERR_UNEXPECTED as c_int)
+    if bsr_is_unexpected_eob(bs) {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+
+    crate::oapv_bs::bsr_align8(bs);
+    ffi::OAPV_OK as c_int
+}
+
+#[no_mangle]
+pub extern "C" fn oapvd_vlc_au_info(bs: *mut ffi::oapv_bs_t, aui: *mut ffi::oapv_aui_t) -> c_int {
+    ffi_try!(dec_vlc_au_info(bs, aui), ffi::OAPV_ERR_UNEXPECTED as c_int)
+}
+
+#[inline]
+pub(crate) unsafe fn dec_vlc_frame_header(bs: *mut ffi::oapv_bs_t, fh: *mut ffi::oapv_fh_t, pos_tiles: *mut ffi::oapv_tile_pos_t, cap: c_int) -> c_int {
+    let ret = oapvd_vlc_frame_info(bs, &mut (*fh).fi);
+    if ret != 0 {
+        return ret;
+    }
+
+    let mut reserved_zero = crate::oapv_bs::bsr_read(bs, 8) as i32;
+    if reserved_zero != 0 {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+
+    (*fh).color_description_present_flag = crate::oapv_bs::bsr_read1(bs);
+    if (*fh).color_description_present_flag != 0 {
+        (*fh).color_primaries = crate::oapv_bs::bsr_read(bs, 8) as i32;
+        (*fh).transfer_characteristics = crate::oapv_bs::bsr_read(bs, 8) as i32;
+        (*fh).matrix_coefficients = crate::oapv_bs::bsr_read(bs, 8) as i32;
+        (*fh).full_range_flag = crate::oapv_bs::bsr_read1(bs);
+    } else {
+        (*fh).color_primaries = 2;
+        (*fh).transfer_characteristics = 2;
+        (*fh).matrix_coefficients = 2;
+        (*fh).full_range_flag = 0;
+    }
+    (*fh).use_q_matrix = crate::oapv_bs::bsr_read1(bs);
+    if (*fh).use_q_matrix != 0 {
+        let ret = dec_vlc_q_matrix(bs, fh);
+        if ret != 0 {
+            return ret;
+        }
+    }
+
+    let ret = dec_vlc_tile_info(bs, fh, pos_tiles, cap);
+    if ret != 0 {
+        return ret;
+    }
+
+    reserved_zero = crate::oapv_bs::bsr_read(bs, 8) as i32;
+    if reserved_zero != 0 {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+
+    if bsr_is_unexpected_eob(bs) {
+        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+    }
+
+    crate::oapv_bs::bsr_align8(bs);
+
+    if (*fh).use_q_matrix == 0 {
+        let num_comp = get_num_comp((*fh).fi.chroma_format_idc);
+        for cidx in 0..num_comp as usize {
+            for y in 0..8 {
+                for x in 0..8 {
+                    (*fh).q_matrix[cidx][y][x] = 16;
+                }
+            }
+        }
+    }
+
+    ffi::OAPV_OK as c_int
 }
 
 #[no_mangle]
 pub extern "C" fn oapvd_vlc_frame_header(bs: *mut ffi::oapv_bs_t, fh: *mut ffi::oapv_fh_t, pos_tiles: *mut ffi::oapv_tile_pos_t, cap: c_int) -> c_int {
-    ffi_try!({
-        let ret = oapvd_vlc_frame_info(bs, &mut (*fh).fi);
-        if ret != 0 {
-            return ret;
-        }
-
-        let mut reserved_zero = ffi::oapv_bsr_read(bs, 8) as i32;
-        if reserved_zero != 0 {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-
-        (*fh).color_description_present_flag = ffi::oapv_bsr_read1(bs);
-        if (*fh).color_description_present_flag != 0 {
-            (*fh).color_primaries = ffi::oapv_bsr_read(bs, 8) as i32;
-            (*fh).transfer_characteristics = ffi::oapv_bsr_read(bs, 8) as i32;
-            (*fh).matrix_coefficients = ffi::oapv_bsr_read(bs, 8) as i32;
-            (*fh).full_range_flag = ffi::oapv_bsr_read1(bs);
-        } else {
-            (*fh).color_primaries = 2;
-            (*fh).transfer_characteristics = 2;
-            (*fh).matrix_coefficients = 2;
-            (*fh).full_range_flag = 0;
-        }
-        (*fh).use_q_matrix = ffi::oapv_bsr_read1(bs);
-        if (*fh).use_q_matrix != 0 {
-            let ret = dec_vlc_q_matrix(bs, fh);
-            if ret != 0 {
-                return ret;
-            }
-        }
-
-        let ret = dec_vlc_tile_info(bs, fh, pos_tiles, cap);
-        if ret != 0 {
-            return ret;
-        }
-
-        reserved_zero = ffi::oapv_bsr_read(bs, 8) as i32;
-        if reserved_zero != 0 {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-
-        if bsr_is_unexpected_eob(bs) {
-            return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
-        }
-
-        ffi::oapv_bsr_align8(bs);
-
-        if (*fh).use_q_matrix == 0 {
-            let num_comp = get_num_comp((*fh).fi.chroma_format_idc);
-            for cidx in 0..num_comp as usize {
-                for y in 0..8 {
-                    for x in 0..8 {
-                        (*fh).q_matrix[cidx][y][x] = 16;
-                    }
-                }
-            }
-        }
-
-        ffi::OAPV_OK as c_int
-    }, ffi::OAPV_ERR_UNEXPECTED as c_int)
+    ffi_try!(dec_vlc_frame_header(bs, fh, pos_tiles, cap), ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
 
 #[no_mangle]
 pub extern "C" fn oapvd_vlc_tile_size(bs: *mut ffi::oapv_bs_t, tile_size: *mut u32) -> c_int {
     ffi_try!({
-        let size = ffi::oapv_bsr_read(bs, 32);
+        let size = crate::oapv_bs::bsr_read(bs, 32);
         if size == 0 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
@@ -1110,16 +1124,16 @@ pub extern "C" fn oapvd_vlc_tile_header(bs: *mut ffi::oapv_bs_t, num_comp: c_int
     ffi_try!({
         let mut read_size: u32 = 0;
 
-        (*th).tile_header_size = ffi::oapv_bsr_read(bs, 16) as i32;
+        (*th).tile_header_size = crate::oapv_bs::bsr_read(bs, 16) as i32;
 
         if (*th).tile_header_size != 5 + num_comp * 5 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
         read_size = read_size.wrapping_add((*th).tile_header_size as u32);
 
-        (*th).tile_index = ffi::oapv_bsr_read(bs, 16) as i32;
+        (*th).tile_index = crate::oapv_bs::bsr_read(bs, 16) as i32;
         for c in 0..num_comp as usize {
-            (*th).tile_data_size[c] = ffi::oapv_bsr_read(bs, 32);
+            (*th).tile_data_size[c] = crate::oapv_bs::bsr_read(bs, 32);
             let ret = oapv_validate_payload_bounds(tile_size as u64, read_size as u64, (*th).tile_data_size[c] as u64);
             if ret != 0 {
                 return ret;
@@ -1127,12 +1141,12 @@ pub extern "C" fn oapvd_vlc_tile_header(bs: *mut ffi::oapv_bs_t, num_comp: c_int
             read_size = read_size.wrapping_add((*th).tile_data_size[c]);
         }
         for c in 0..num_comp as usize {
-            (*th).tile_qp[c] = ffi::oapv_bsr_read(bs, 8) as i32;
+            (*th).tile_qp[c] = crate::oapv_bs::bsr_read(bs, 8) as i32;
             if (*th).tile_qp[c] < MIN_QUANT || (*th).tile_qp[c] > max_quant(bit_depth) {
                 return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
             }
         }
-        (*th).reserved_zero_8bits = ffi::oapv_bsr_read(bs, 8) as i32;
+        (*th).reserved_zero_8bits = crate::oapv_bs::bsr_read(bs, 8) as i32;
         if (*th).reserved_zero_8bits != 0 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
@@ -1141,7 +1155,7 @@ pub extern "C" fn oapvd_vlc_tile_header(bs: *mut ffi::oapv_bs_t, num_comp: c_int
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
 
-        ffi::oapv_bsr_align8(bs);
+        crate::oapv_bs::bsr_align8(bs);
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
@@ -1150,7 +1164,7 @@ pub extern "C" fn oapvd_vlc_tile_header(bs: *mut ffi::oapv_bs_t, num_comp: c_int
 pub extern "C" fn oapvd_vlc_tile_dummy_data(bs: *mut ffi::oapv_bs_t) -> c_int {
     ffi_try!({
         while bsr_get_left_byte(bs) > 0 {
-            ffi::oapv_bsr_read(bs, 8);
+            crate::oapv_bs::bsr_read(bs, 8);
             if bsr_is_unexpected_eob(bs) {
                 return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
             }
@@ -1162,18 +1176,18 @@ pub extern "C" fn oapvd_vlc_tile_dummy_data(bs: *mut ffi::oapv_bs_t) -> c_int {
 #[no_mangle]
 pub extern "C" fn oapvd_vlc_metadata(bs: *mut ffi::oapv_bs_t, pbu_size: u32, mid: ffi::oapvm_t, group_id: c_int) -> c_int {
     ffi_try!({
-        let mut metadata_size = ffi::oapv_bsr_read(bs, 32);
+        let mut metadata_size = crate::oapv_bs::bsr_read(bs, 32);
         if pbu_size < 8 || metadata_size > (pbu_size - 8) {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
         }
-        let bs_start_pos = ffi::oapv_bsr_sink(bs) as *mut u8;
+        let bs_start_pos = crate::oapv_bs::bsr_sink(bs) as *mut u8;
 
         while metadata_size > 0 {
             let mut payload_type: u32 = 0;
             let mut payload_size: u32 = 0;
             let mut t0: u32;
             loop {
-                t0 = ffi::oapv_bsr_read(bs, 8);
+                t0 = crate::oapv_bs::bsr_read(bs, 8);
                 if bsr_is_unexpected_eob(bs) {
                     return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
                 }
@@ -1197,7 +1211,7 @@ pub extern "C" fn oapvd_vlc_metadata(bs: *mut ffi::oapv_bs_t, pbu_size: u32, mid
             payload_type += t0;
 
             loop {
-                t0 = ffi::oapv_bsr_read(bs, 8);
+                t0 = crate::oapv_bs::bsr_read(bs, 8);
                 if bsr_is_unexpected_eob(bs) {
                     return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
                 }
@@ -1226,13 +1240,13 @@ pub extern "C" fn oapvd_vlc_metadata(bs: *mut ffi::oapv_bs_t, pbu_size: u32, mid
             if bsr_get_left_byte(bs) < payload_size as i64 {
                 return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
             }
-            let mut payload_data = ffi::oapv_bsr_sink(bs) as *mut u8;
+            let mut payload_data = crate::oapv_bs::bsr_sink(bs) as *mut u8;
             if payload_size == 0 {
                 payload_data = core::ptr::null_mut();
             }
             bsr_move_byte_align(bs, payload_size as i64);
             if !mid.is_null() {
-                let mut ret = ffi::oapvm_set(mid, group_id, payload_type as i32, payload_data as *mut core::ffi::c_void, payload_size as i32);
+                let mut ret = crate::oapv_metadata::meta_set(mid, group_id, payload_type as i32, payload_data as *mut core::ffi::c_void, payload_size as i32);
                 if ret == ffi::OAPV_ERR_INVALID_ARGUMENT as i32 {
                     ret = ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
                 }
@@ -1243,7 +1257,7 @@ pub extern "C" fn oapvd_vlc_metadata(bs: *mut ffi::oapv_bs_t, pbu_size: u32, mid
             metadata_size -= payload_size;
         }
         let target_read_size: i64 = (pbu_size - 8) as i64;
-        let filled = (ffi::oapv_bsr_sink(bs) as *mut u8).offset_from(bs_start_pos);
+        let filled = (crate::oapv_bs::bsr_sink(bs) as *mut u8).offset_from(bs_start_pos);
         let filler_size = target_read_size - filled as i64;
         if filler_size < 0 {
             return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
@@ -1263,7 +1277,7 @@ pub extern "C" fn oapvd_vlc_filler(bs: *mut ffi::oapv_bs_t, filler_size: u32) ->
     ffi_try!({
         let mut filler_size = filler_size;
         while filler_size > 0 {
-            let val = ffi::oapv_bsr_read(bs, 8);
+            let val = crate::oapv_bs::bsr_read(bs, 8);
             if bsr_is_unexpected_eob(bs) {
                 return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
             }

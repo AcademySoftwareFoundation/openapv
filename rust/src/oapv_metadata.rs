@@ -206,46 +206,46 @@ pub extern "C" fn oapvm_write_mdcv(mdcv: *mut ffi::oapvm_payload_mdcv_t, data: *
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
         let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
-        ffi::oapv_bsw_init(&mut bs, data as *mut u8, 24, None);
+        crate::oapv_bs::bsw_init(&mut bs, data as *mut u8, 24, None);
 
         for i in 0..3usize {
             let t = (*mdcv).primary_chromaticity_x[i];
             if !(t >= 0 && t <= 0xFFFF) {
                 return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
             }
-            ffi::oapv_bsw_write(&mut bs, t as u32, 16);
+            crate::oapv_bs::bsw_write(&mut bs, t as u32, 16);
 
             let t = (*mdcv).primary_chromaticity_y[i];
             if !(t >= 0 && t <= 0xFFFF) {
                 return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
             }
-            ffi::oapv_bsw_write(&mut bs, t as u32, 16);
+            crate::oapv_bs::bsw_write(&mut bs, t as u32, 16);
         }
         let t = (*mdcv).white_point_chromaticity_x;
         if !(t >= 0 && t <= 0xFFFF) {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
-        ffi::oapv_bsw_write(&mut bs, t as u32, 16);
+        crate::oapv_bs::bsw_write(&mut bs, t as u32, 16);
 
         let t = (*mdcv).white_point_chromaticity_y;
         if !(t >= 0 && t <= 0xFFFF) {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
-        ffi::oapv_bsw_write(&mut bs, t as u32, 16);
+        crate::oapv_bs::bsw_write(&mut bs, t as u32, 16);
 
         if (*mdcv).max_mastering_luminance > 0xFFFF_FFFF {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
         let tu32 = (*mdcv).max_mastering_luminance as u32;
-        ffi::oapv_bsw_write(&mut bs, tu32, 32);
+        crate::oapv_bs::bsw_write(&mut bs, tu32, 32);
 
         if (*mdcv).min_mastering_luminance > 0xFFFF_FFFF {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
         let tu32 = (*mdcv).min_mastering_luminance as u32;
-        ffi::oapv_bsw_write(&mut bs, tu32, 32);
+        crate::oapv_bs::bsw_write(&mut bs, tu32, 32);
 
-        ffi::oapv_bsw_deinit(&mut bs);
+        crate::oapv_bs::bsw_deinit(&mut bs);
 
         *size = 24; // MDCV payload has 24 bytes
         ffi::OAPV_OK as c_int
@@ -262,19 +262,19 @@ pub extern "C" fn oapvm_read_mdcv(data: *mut c_void, size: c_int, mdcv: *mut ffi
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
         let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
-        ffi::oapv_bsr_init(&mut bs, data as *mut u8, size as u32, None);
+        crate::oapv_bs::bsr_init(&mut bs, data as *mut u8, size as u32, None);
 
         for i in 0..3usize {
-            (*mdcv).primary_chromaticity_x[i] = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
+            (*mdcv).primary_chromaticity_x[i] = crate::oapv_bs::bsr_read(&mut bs, 16) as c_int;
         }
         for i in 0..3usize {
-            (*mdcv).primary_chromaticity_y[i] = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
+            (*mdcv).primary_chromaticity_y[i] = crate::oapv_bs::bsr_read(&mut bs, 16) as c_int;
         }
-        (*mdcv).white_point_chromaticity_x = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
-        (*mdcv).white_point_chromaticity_y = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
+        (*mdcv).white_point_chromaticity_x = crate::oapv_bs::bsr_read(&mut bs, 16) as c_int;
+        (*mdcv).white_point_chromaticity_y = crate::oapv_bs::bsr_read(&mut bs, 16) as c_int;
 
-        (*mdcv).max_mastering_luminance = ffi::oapv_bsr_read(&mut bs, 32) as core::ffi::c_ulong;
-        (*mdcv).min_mastering_luminance = ffi::oapv_bsr_read(&mut bs, 32) as core::ffi::c_ulong;
+        (*mdcv).max_mastering_luminance = crate::oapv_bs::bsr_read(&mut bs, 32) as core::ffi::c_ulong;
+        (*mdcv).min_mastering_luminance = crate::oapv_bs::bsr_read(&mut bs, 32) as core::ffi::c_ulong;
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
@@ -286,21 +286,21 @@ pub extern "C" fn oapvm_write_cll(cll: *mut ffi::oapvm_payload_cll_t, data: *mut
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
         let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
-        ffi::oapv_bsw_init(&mut bs, data as *mut u8, 4, None);
+        crate::oapv_bs::bsw_init(&mut bs, data as *mut u8, 4, None);
 
         let t = (*cll).max_cll;
         if !(t >= 0 && t <= 0xFFFF) {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
-        ffi::oapv_bsw_write(&mut bs, t as u32, 16);
+        crate::oapv_bs::bsw_write(&mut bs, t as u32, 16);
 
         let t = (*cll).max_fall;
         if !(t >= 0 && t <= 0xFFFF) {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
-        ffi::oapv_bsw_write(&mut bs, t as u32, 16);
+        crate::oapv_bs::bsw_write(&mut bs, t as u32, 16);
 
-        ffi::oapv_bsw_deinit(&mut bs);
+        crate::oapv_bs::bsw_deinit(&mut bs);
 
         *size = 4; // CLL payload has 4 bytes
         ffi::OAPV_OK as c_int
@@ -317,94 +317,97 @@ pub extern "C" fn oapvm_read_cll(data: *mut c_void, size: c_int, cll: *mut ffi::
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
         }
         let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
-        ffi::oapv_bsr_init(&mut bs, data as *mut u8, size as u32, None);
+        crate::oapv_bs::bsr_init(&mut bs, data as *mut u8, size as u32, None);
 
-        (*cll).max_cll = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
-        (*cll).max_fall = ffi::oapv_bsr_read(&mut bs, 16) as c_int;
+        (*cll).max_cll = crate::oapv_bs::bsr_read(&mut bs, 16) as c_int;
+        (*cll).max_fall = crate::oapv_bs::bsr_read(&mut bs, 16) as c_int;
         ffi::OAPV_OK as c_int
     }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
-#[no_mangle]
-pub extern "C" fn oapvm_set(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, data: *mut c_void, size: c_int) -> c_int {
-    ffi_api!({
-        let mut pld_data_new: *mut c_void = core::ptr::null_mut();
-        let mut mdp_new: *mut ffi::oapv_mdp_t = core::ptr::null_mut();
+#[inline]
+pub(crate) unsafe fn meta_set(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, data: *mut c_void, size: c_int) -> c_int {
+    let mut pld_data_new: *mut c_void = core::ptr::null_mut();
+    let mut mdp_new: *mut ffi::oapv_mdp_t = core::ptr::null_mut();
 
-        let ctx = oapvm_id_to_ctx(mid);
-        if ctx.is_null() {
-            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
-        }
-        if !((!data.is_null() && size > 0) || (data.is_null() && size == 0)) {
-            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
-        }
-        // the group ID is written into the metadata PBU header
-        if !(group_id >= 0 && group_id <= ffi::OAPV_MAX_GROUP_ID as c_int) {
-            return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
-        }
+    let ctx = oapvm_id_to_ctx(mid);
+    if ctx.is_null() {
+        return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+    }
+    if !((!data.is_null() && size > 0) || (data.is_null() && size == 0)) {
+        return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+    }
+    // the group ID is written into the metadata PBU header
+    if !(group_id >= 0 && group_id <= ffi::OAPV_MAX_GROUP_ID as c_int) {
+        return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
+    }
 
-        let ret = meta_verify_mdp_data(mdt, size, data as *mut u8);
-        if ret != 0 {
-            return ret;
-        }
+    let ret = meta_verify_mdp_data(mdt, size, data as *mut u8);
+    if ret != 0 {
+        return ret;
+    }
 
-        let mut uuid: *const u8 = core::ptr::null();
-        if mdt == ffi::OAPV_METADATA_USER_DEFINED as c_int {
-            uuid = data as *const u8;
-        }
+    let mut uuid: *const u8 = core::ptr::null();
+    if mdt == ffi::OAPV_METADATA_USER_DEFINED as c_int {
+        uuid = data as *const u8;
+    }
 
-        if size > 0 {
-            pld_data_new = ops_malloc(ctx, size as u32);
-            if pld_data_new.is_null() {
-                return ffi::OAPV_ERR_OUT_OF_MEMORY as c_int;
-            }
-            core::ptr::copy_nonoverlapping(data as *const u8, pld_data_new as *mut u8, size as usize);
+    if size > 0 {
+        pld_data_new = ops_malloc(ctx, size as u32);
+        if pld_data_new.is_null() {
+            return ffi::OAPV_ERR_OUT_OF_MEMORY as c_int;
         }
+        core::ptr::copy_nonoverlapping(data as *const u8, pld_data_new as *mut u8, size as usize);
+    }
 
-        // a new group is added only once the payload can be stored, so that a
-        // failure leaves no empty group behind
-        let mut md = meta_find_md(ctx, group_id);
-        if md.is_null() && (*ctx).num >= ffi::OAPV_MAX_NUM_METAS as c_int {
+    // a new group is added only once the payload can be stored, so that a
+    // failure leaves no empty group behind
+    let mut md = meta_find_md(ctx, group_id);
+    if md.is_null() && (*ctx).num >= ffi::OAPV_MAX_NUM_METAS as c_int {
+        ops_free(ctx, mdp_new as *mut c_void);
+        ops_free(ctx, pld_data_new);
+        return ffi::OAPV_ERR_REACHED_MAX as c_int;
+    }
+
+    let mdp_t = if !md.is_null() { meta_find_mdp(md, mdt, uuid) } else { core::ptr::null_mut() };
+    if mdp_t.is_null() {
+        // add new one
+        if meta_get_num_mdp(ctx) >= ffi::OAPV_MAX_NUM_META_PAYLOADS as c_int {
             ops_free(ctx, mdp_new as *mut c_void);
             ops_free(ctx, pld_data_new);
             return ffi::OAPV_ERR_REACHED_MAX as c_int;
         }
-
-        let mdp_t = if !md.is_null() { meta_find_mdp(md, mdt, uuid) } else { core::ptr::null_mut() };
-        if mdp_t.is_null() {
-            // add new one
-            if meta_get_num_mdp(ctx) >= ffi::OAPV_MAX_NUM_META_PAYLOADS as c_int {
-                ops_free(ctx, mdp_new as *mut c_void);
-                ops_free(ctx, pld_data_new);
-                return ffi::OAPV_ERR_REACHED_MAX as c_int;
-            }
-            mdp_new = ops_malloc(ctx, core::mem::size_of::<ffi::oapv_mdp_t>() as u32) as *mut ffi::oapv_mdp_t;
-            if mdp_new.is_null() {
-                ops_free(ctx, pld_data_new);
-                return ffi::OAPV_ERR_OUT_OF_MEMORY as c_int;
-            }
-            if md.is_null() {
-                md = core::ptr::addr_of_mut!((*ctx).md_arr[(*ctx).num as usize]);
-                (*md).group_id = group_id;
-                (*md).mdp_num = 0;
-                (*md).md_payload = core::ptr::null_mut();
-                (*ctx).num += 1;
-            }
-            (*mdp_new).pld_size = size as u32;
-            (*mdp_new).pld_type = mdt as u32;
-            (*mdp_new).pld_data = pld_data_new;
-            (*mdp_new).next = (*md).md_payload; // add to head
-
-            (*md).md_payload = mdp_new;
-            (*md).mdp_num += 1;
-        } else {
-            // replace the existing one
-            (*mdp_t).pld_size = size as u32;
-            ops_free(ctx, (*mdp_t).pld_data);
-            (*mdp_t).pld_data = pld_data_new;
+        mdp_new = ops_malloc(ctx, core::mem::size_of::<ffi::oapv_mdp_t>() as u32) as *mut ffi::oapv_mdp_t;
+        if mdp_new.is_null() {
+            ops_free(ctx, pld_data_new);
+            return ffi::OAPV_ERR_OUT_OF_MEMORY as c_int;
         }
-        ffi::OAPV_OK as c_int
-    }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
+        if md.is_null() {
+            md = core::ptr::addr_of_mut!((*ctx).md_arr[(*ctx).num as usize]);
+            (*md).group_id = group_id;
+            (*md).mdp_num = 0;
+            (*md).md_payload = core::ptr::null_mut();
+            (*ctx).num += 1;
+        }
+        (*mdp_new).pld_size = size as u32;
+        (*mdp_new).pld_type = mdt as u32;
+        (*mdp_new).pld_data = pld_data_new;
+        (*mdp_new).next = (*md).md_payload; // add to head
+
+        (*md).md_payload = mdp_new;
+        (*md).mdp_num += 1;
+    } else {
+        // replace the existing one
+        (*mdp_t).pld_size = size as u32;
+        ops_free(ctx, (*mdp_t).pld_data);
+        (*mdp_t).pld_data = pld_data_new;
+    }
+    ffi::OAPV_OK as c_int
+}
+
+#[no_mangle]
+pub extern "C" fn oapvm_set(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, data: *mut c_void, size: c_int) -> c_int {
+    ffi_api!(meta_set(mid, group_id, mdt, data, size), ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
 #[no_mangle]
