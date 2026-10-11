@@ -35,130 +35,6 @@
 
 use crate::ffi;
 
-mod util {
-use super::ffi;
-
-pub const OAPV_KPARAM_DC_MIN: i32 = 0;
-pub const OAPV_KPARAM_DC_MAX: i32 = 5;
-pub const OAPV_KPARAM_AC_MIN: i32 = 0;
-pub const OAPV_KPARAM_AC_MAX: i32 = 4;
-pub const OAPV_KPARAM_RUN_MIN: i32 = 0;
-pub const OAPV_MAX_TILE_COLS: i32 = 20;
-pub const OAPV_MAX_TILE_ROWS: i32 = 20;
-pub const OAPV_MAX_TILES: i32 = OAPV_MAX_TILE_ROWS * OAPV_MAX_TILE_COLS;
-pub const MAX_QUANT_BASE: i32 = 63;
-pub const MIN_QUANT: i32 = 0;
-pub const MAX_TX_VAL: i32 = (1 << 15) - 1;
-pub const MIN_TX_VAL: i32 = -(1 << 15);
-
-pub fn max_quant(bd: i32) -> i32 {
-    MAX_QUANT_BASE + (bd - 10) * 6
-}
-
-pub fn oapv_min(a: i32, b: i32) -> i32 {
-    if a < b { a } else { b }
-}
-
-pub fn oapv_max(a: i32, b: i32) -> i32 {
-    if a > b { a } else { b }
-}
-
-pub fn oapv_abs32(a: i32) -> i32 {
-    (a ^ (a >> 31)) - (a >> 31)
-}
-
-pub fn oapv_abs16(a: i32) -> i32 {
-    (a ^ (a >> 15)) - (a >> 15)
-}
-
-pub fn oapv_clip3(min: i32, max: i32, val: i32) -> i32 {
-    oapv_max(min, oapv_min(max, val))
-}
-
-pub fn oapv_set_sign(val: i32, sign: i32) -> i32 {
-    if sign != 0 { -val } else { val }
-}
-
-pub fn oapv_set_sign16(val: i32, sign: i32) -> i32 {
-    (val ^ (((sign << 15) as i16 as i32) >> 15)) + sign
-}
-
-pub fn oapv_get_sign32(val: i32) -> i32 {
-    (val >> 31) & 1
-}
-
-pub fn oapv_get_sign16(val: i32) -> i32 {
-    (val >> 15) & 1
-}
-
-pub fn kparam_dc_of(level: i32) -> i32 {
-    oapv_min(level >> 1, OAPV_KPARAM_DC_MAX)
-}
-
-pub fn kparam_ac_of(level: i32) -> i32 {
-    oapv_min(level >> 2, OAPV_KPARAM_AC_MAX)
-}
-
-pub fn kparam_run_of(run: i32) -> i32 {
-    oapv_min(run >> 2, 2)
-}
-
-pub fn get_num_comp(chroma_format_idc: i32) -> i32 {
-    if chroma_format_idc == 0 {
-        1
-    } else if chroma_format_idc == 4 {
-        4
-    } else {
-        3
-    }
-}
-
-pub fn is_unconst_profile(idc: i32) -> bool {
-    idc == ffi::OAPV_PROFILE_422_10_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_422_12_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_444_10_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_444_12_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_4444_10_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_4444_12_UNCONST as i32
-        || idc == ffi::OAPV_PROFILE_400_10_UNCONST as i32
-}
-
-pub unsafe fn oapv_validate_tile_topology(
-    profile_idc: i32,
-    tile_cols: i32,
-    tile_rows: i32,
-    num_tiles: *mut i32,
-) -> i32 {
-    let unconst = is_unconst_profile(profile_idc);
-    if tile_cols < 1 || (!unconst && tile_cols > OAPV_MAX_TILE_COLS) {
-        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
-    }
-    if tile_rows < 1 || (!unconst && tile_rows > OAPV_MAX_TILE_ROWS) {
-        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
-    }
-    let n = tile_cols as i64 * tile_rows as i64;
-    let limit = if unconst { i32::MAX as i64 } else { OAPV_MAX_TILES as i64 };
-    if n > limit {
-        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
-    }
-    if !num_tiles.is_null() {
-        *num_tiles = n as i32;
-    }
-    ffi::OAPV_OK as i32
-}
-
-pub fn oapv_validate_payload_bounds(remaining: u64, header: u64, payload: u64) -> i32 {
-    if remaining < header {
-        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
-    }
-    if payload > remaining - header {
-        return ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
-    }
-    ffi::OAPV_OK as i32
-}
-
-}
-
 mod bits {
 use super::ffi::oapv_bs_t;
 
@@ -346,7 +222,7 @@ impl BsSt {
 mod enc {
 use super::bits::*;
 use super::ffi;
-use super::util::*;
+use crate::oapv_util::*;
 use core::ffi::c_int;
 
 const ENC_PREFIX_VLC: [[u16; 2]; 3] = [[1, 0xFF], [0, 0], [0, 1]];
@@ -504,8 +380,8 @@ pub extern "C" fn oapve_set_frame_header(ctx: *mut ffi::oapve_ctx_t, fh: *mut ff
         (*fh).fi.bit_depth = (*ctx).bit_depth;
         (*fh).fi.use_companding = (*ctx).use_companding;
 
-        (*fh).tile_width_in_mbs = (*param).tile_w / 16;
-        (*fh).tile_height_in_mbs = (*param).tile_h / 16;
+        (*fh).tile_width_in_mbs = (*param).tile_w / ffi::OAPV_MB_W as i32;
+        (*fh).tile_height_in_mbs = (*param).tile_h / ffi::OAPV_MB_H as i32;
         (*fh).color_description_present_flag = (*param).color_description_present_flag;
         (*fh).color_primaries = (*param).color_primaries as i32;
         (*fh).transfer_characteristics = (*param).transfer_characteristics as i32;
@@ -819,7 +695,7 @@ pub extern "C" fn oapve_vlc_get_coef_rate(core: *mut ffi::oapve_core_t, coef: *m
 mod dec {
 use super::bits::*;
 use super::ffi;
-use super::util::*;
+use crate::oapv_util::*;
 use core::ffi::c_int;
 
 unsafe fn dec_vlc_q_matrix(bs: *mut ffi::oapv_bs_t, fh: *mut ffi::oapv_fh_t) -> i32 {
@@ -849,16 +725,16 @@ unsafe fn dec_vlc_tile_info(bs: *mut ffi::oapv_bs_t, fh: *mut ffi::oapv_fh_t, po
         return ffi::OAPV_ERR_MALFORMED_BITSTREAM as i32;
     }
 
-    let pic_w = (((*fh).fi.frame_width + (16 - 1)) >> 4) << 4;
-    let pic_h = (((*fh).fi.frame_height + (16 - 1)) >> 4) << 4;
+    let pic_w = (((*fh).fi.frame_width + (ffi::OAPV_MB_W - 1)) >> ffi::OAPV_LOG2_MB_W) << ffi::OAPV_LOG2_MB_W;
+    let pic_h = (((*fh).fi.frame_height + (ffi::OAPV_MB_H - 1)) >> ffi::OAPV_LOG2_MB_H) << ffi::OAPV_LOG2_MB_H;
 
-    let tile_w = (*fh).tile_width_in_mbs as u32 * 16;
-    let tile_h = (*fh).tile_height_in_mbs as u32 * 16;
+    let tile_w = (*fh).tile_width_in_mbs as u32 * ffi::OAPV_MB_W;
+    let tile_h = (*fh).tile_height_in_mbs as u32 * ffi::OAPV_MB_H;
 
     let tile_cols = ((pic_w + (tile_w - 1)) / tile_w) as i32;
     let tile_rows = ((pic_h + (tile_h - 1)) / tile_h) as i32;
 
-    let ret = oapv_validate_tile_topology((*fh).fi.profile_idc, tile_cols, tile_rows, core::ptr::null_mut());
+    let ret = oapv_validate_tile_topology((*fh).fi.profile_idc, tile_cols, tile_rows, None);
     if ret != 0 {
         return ret;
     }
@@ -1121,7 +997,7 @@ pub extern "C" fn oapvd_vlc_frame_info(bs: *mut ffi::oapv_bs_t, fi: *mut ffi::oa
 pub extern "C" fn oapvd_vlc_au_info(bs: *mut ffi::oapv_bs_t, aui: *mut ffi::oapv_aui_t) -> c_int {
     ffi_try!({
         (*aui).num_frames = ffi::oapv_bsr_read(bs, 16) as i32;
-        if (*aui).num_frames > 16 {
+        if (*aui).num_frames > ffi::OAPV_MAX_NUM_FRAMES as i32 {
             return ffi::OAPV_ERR_REACHED_MAX as c_int;
         }
         for fidx in 0..(*aui).num_frames as usize {
