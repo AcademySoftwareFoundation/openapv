@@ -88,36 +88,39 @@ pub unsafe fn bsr_get_left_byte(bs: *const oapv_bs_t) -> i64 {
     (*bs).end.offset_from((*bs).cur) as i64 + ((*bs).leftbits >> 3) as i64
 }
 
-// local bit-reader state: a &mut BsSt carries noalias guarantees that a
-// raw *mut oapv_bs_t cannot, so the coefficient stores in the decode loops
-// do not force reloads of the bit buffer fields
-pub struct BsSt {
+// local bit-reader state over the unread bytes of the bitstream; reads go
+// through the slice, so a bad length check cannot read past its end, and a
+// &mut BsSt keeps the bit buffer in registers across the coefficient stores
+pub struct BsSt<'a> {
     pub code: u64,
     pub leftbits: i32,
-    pub cur: *mut u8,
-    pub end: *mut u8,
+    data: &'a [u8],
+    pos: usize,
     pub is_eob: i32,
 }
 
-impl BsSt {
+impl<'a> BsSt<'a> {
+    // the caller guarantees that cur..end of 'bs' is readable for 'a
     #[inline(always)]
-    pub unsafe fn load(bs: *mut oapv_bs_t) -> BsSt {
-        BsSt { code: (*bs).code, leftbits: (*bs).leftbits, cur: (*bs).cur, end: (*bs).end, is_eob: (*bs).is_eob }
+    pub unsafe fn load(bs: *mut oapv_bs_t) -> BsSt<'a> {
+        let len = (*bs).end.offset_from((*bs).cur);
+        let data: &[u8] = if len > 0 { core::slice::from_raw_parts((*bs).cur, len as usize) } else { &[] };
+        BsSt { code: (*bs).code, leftbits: (*bs).leftbits, data, pos: 0, is_eob: (*bs).is_eob }
     }
 
     #[inline(always)]
     pub unsafe fn store(&self, bs: *mut oapv_bs_t) {
         (*bs).code = self.code;
         (*bs).leftbits = self.leftbits;
-        (*bs).cur = self.cur;
+        (*bs).cur = (*bs).cur.add(self.pos);
         (*bs).is_eob = self.is_eob;
     }
 
     #[inline(always)]
-    pub unsafe fn flush_1byte(&mut self) {
-        if self.cur < self.end {
-            self.code = (*self.cur as u64) << 56;
-            self.cur = self.cur.add(1);
+    pub fn flush_1byte(&mut self) {
+        if let Some(&b) = self.data.get(self.pos) {
+            self.code = (b as u64) << 56;
+            self.pos += 1;
             self.leftbits = 8;
         } else {
             self.code = u64::MAX;
@@ -127,7 +130,7 @@ impl BsSt {
     }
 
     #[inline(always)]
-    pub unsafe fn read_1bit(&mut self) -> i32 {
+    pub fn read_1bit(&mut self) -> i32 {
         let bit = (self.code >> 63) as i32;
         self.code <<= 1;
         self.leftbits -= 1;
@@ -135,20 +138,20 @@ impl BsSt {
     }
 
     #[inline(always)]
-    pub unsafe fn topup(&mut self) {
+    pub fn topup(&mut self) {
         let n_ = (63 - self.leftbits) >> 3;
-        if self.end.offset_from(self.cur) >= 8 {
-            let p = self.cur;
-            let mut v = u64::from_be_bytes(core::ptr::read_unaligned(p as *const [u8; 8]));
+        if let Some(w) = self.data[self.pos..].first_chunk::<8>() {
+            let mut v = u64::from_be_bytes(*w);
             v &= !u64::MAX.wrapping_shr((n_ << 3) as u32);
             self.code |= v.wrapping_shr(self.leftbits as u32);
-            self.cur = self.cur.add(n_ as usize);
+            self.pos += n_ as usize;
             self.leftbits += n_ << 3;
         } else {
             let mut n_ = n_;
-            while n_ > 0 && self.cur < self.end {
-                self.code |= (*self.cur as u64).wrapping_shl((56 - self.leftbits) as u32);
-                self.cur = self.cur.add(1);
+            while n_ > 0 {
+                let Some(&b) = self.data.get(self.pos) else { break };
+                self.code |= (b as u64).wrapping_shl((56 - self.leftbits) as u32);
+                self.pos += 1;
                 self.leftbits += 8;
                 n_ -= 1;
             }
@@ -156,7 +159,7 @@ impl BsSt {
     }
 
     #[inline(always)]
-    pub unsafe fn read_zero_prefix(&mut self, k: &mut i32) {
+    pub fn read_zero_prefix(&mut self, k: &mut i32) {
         loop {
             if self.leftbits == 0 {
                 self.flush_1byte();
@@ -174,7 +177,7 @@ impl BsSt {
     }
 
     #[inline(always)]
-    pub unsafe fn dec_vlc_read(&mut self, mut k: i32) -> i32 {
+    pub fn dec_vlc_read(&mut self, mut k: i32) -> i32 {
         let symbol: u32;
         let mut parse_exp_golomb = false;
 
@@ -765,14 +768,14 @@ unsafe fn dec_vlc_tile_info(bs: *mut ffi::oapv_bs_t, fh: *mut ffi::oapv_fh_t, po
 pub extern "C" fn oapvd_vlc_dc_coef(bs: *mut ffi::oapv_bs_t, dc_diff: *mut c_int, kparam_dc: *mut c_int) -> c_int {
     ffi_try!({
         let mut s = BsSt::load(bs);
-        let ret = dc_coef_body(&mut s, dc_diff, kparam_dc);
+        let ret = dc_coef_body(&mut s, &mut *dc_diff, &mut *kparam_dc);
         s.store(bs);
         ret
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
 
 #[inline(always)]
-unsafe fn dc_coef_body(s: &mut BsSt, dc_diff: *mut c_int, kparam_dc: *mut c_int) -> i32 {
+fn dc_coef_body(s: &mut BsSt, dc_diff: &mut c_int, kparam_dc: &mut c_int) -> i32 {
     let abs_dc_diff = s.dec_vlc_read(*kparam_dc);
     if abs_dc_diff < 0 || abs_dc_diff > 65535 {
         return ffi::OAPV_ERR_MALFORMED_BITSTREAM;
@@ -799,15 +802,15 @@ unsafe fn dc_coef_body(s: &mut BsSt, dc_diff: *mut c_int, kparam_dc: *mut c_int)
 pub extern "C" fn oapvd_vlc_ac_coef(bs: *mut ffi::oapv_bs_t, coef: *mut i16, kparam_ac: *mut c_int) -> c_int {
     ffi_try!({
         let mut s = BsSt::load(bs);
-        let ret = ac_coef_body(&mut s, coef, kparam_ac);
+        // the caller passes the 64 coefficients of one block
+        let ret = ac_coef_body(&mut s, &mut *(coef as *mut [i16; 64]), &mut *kparam_ac, &*core::ptr::addr_of!(ffi::oapv_tbl_scan));
         s.store(bs);
         ret
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
 
 #[inline(always)]
-unsafe fn ac_coef_body(s: &mut BsSt, coef: *mut i16, kparam_ac: *mut c_int) -> i32 {
-    let scanp = ffi::oapv_tbl_scan.as_ptr();
+fn ac_coef_body(s: &mut BsSt, coef: &mut [i16; 64], kparam_ac: &mut c_int, scan: &[u8; 64]) -> i32 {
     let mut scan_pos_offset: i32 = 1;
 
     let mut first_ac = 1;
@@ -855,7 +858,7 @@ unsafe fn ac_coef_body(s: &mut BsSt, coef: *mut i16, kparam_ac: *mut c_int) -> i
             *kparam_ac = k_ac;
         }
 
-        *coef.add(*scanp.add(scan_pos_offset as usize) as usize) = val as i16;
+        coef[scan[scan_pos_offset as usize] as usize] = val as i16;
         scan_pos_offset += 1;
 
         if scan_pos_offset >= 64 {
