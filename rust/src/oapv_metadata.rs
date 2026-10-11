@@ -266,8 +266,6 @@ pub extern "C" fn oapvm_read_mdcv(data: *mut c_void, size: c_int, mdcv: *mut ffi
 
         for i in 0..3usize {
             (*mdcv).primary_chromaticity_x[i] = crate::oapv_bs::bsr_read(&mut bs, 16) as c_int;
-        }
-        for i in 0..3usize {
             (*mdcv).primary_chromaticity_y[i] = crate::oapv_bs::bsr_read(&mut bs, 16) as c_int;
         }
         (*mdcv).white_point_chromaticity_x = crate::oapv_bs::bsr_read(&mut bs, 16) as c_int;
@@ -451,7 +449,18 @@ pub extern "C" fn oapvm_rem(mid: ffi::oapvm_t, group_id: c_int, mdt: c_int, uuid
         if md.is_null() {
             return ffi::OAPV_ERR_NOT_FOUND as c_int;
         }
-        meta_rm_mdp(ctx, md, mdt, uuid)
+        let ret = meta_rm_mdp(ctx, md, mdt, uuid);
+        if ret == ffi::OAPV_OK as c_int && (*md).mdp_num == 0 {
+            // drop the emptied group, so that it is not written as an empty PBU
+            let num = (*ctx).num as usize;
+            let idx = md.offset_from(core::ptr::addr_of!((*ctx).md_arr[0])) as usize;
+            let md_arr = &mut (*ctx).md_arr;
+            let arr = &mut md_arr[..num];
+            arr[idx..].rotate_left(1);
+            arr[num - 1] = core::mem::zeroed();
+            (*ctx).num -= 1;
+        }
+        ret
     }, ffi::OAPV_ERR_INTERNAL_PANIC as c_int)
 }
 
