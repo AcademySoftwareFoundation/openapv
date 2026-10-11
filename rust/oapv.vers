@@ -1,4 +1,5 @@
 {
     global: oapv*;
-    local: *;
+    local: oapvd_fi_to_finfo; oapvd_fh_to_finfo; oapvd_set_tile_info;
+           oapvd_frm_setup; oapvd_frm_prepare; *;
 };
