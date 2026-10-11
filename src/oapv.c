@@ -1425,7 +1425,7 @@ int oapve_encode(oapve_t eid, oapv_frms_t *ifrms, oapvm_t mid, oapv_bitb_t *bitb
         DUMP_HLS(pbu_size, pbu_size);
         DUMP_LOAD(1);
 
-        stat->frm_size[i] = pbu_size + 4 /* PUB size length*/;
+        stat->frm_size[i] = pbu_size;
         fh_to_finfo(&ctx->fh, frm->pbu_type, frm->group_id, &stat->aui.frm_info[i]);
 
         // add frame hash value of reconstructed frame into metadata list
@@ -2437,7 +2437,7 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
 
             ofrms->frm[nfrms].pbu_type = pbuh.pbu_type;
             ofrms->frm[nfrms].group_id = pbuh.group_id;
-            stat->frm_size[nfrms] = pbu_size + 4; /* byte size of 'pbu_size' syntax */
+            stat->frm_size[nfrms] = pbu_size;
             nfrms++;
 
             // go to the end of frame data for next PDU

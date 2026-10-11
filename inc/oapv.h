@@ -962,7 +962,7 @@ struct oapve_stat {
     int            write;
     // information of encoded frames
     oapv_au_info_t aui;
-    // bitstream byte size of each frame
+    // byte size of each frame PBU, not counting its pbu_size field
     int            frm_size[OAPV_MAX_NUM_FRAMES];
 };
 
@@ -1063,7 +1063,7 @@ struct oapvd_stat {
     int            read;
     // information of decoded frames
     oapv_au_info_t aui;
-    // bitstream byte size of each frame
+    // byte size of each frame PBU, not counting its pbu_size field
     int            frm_size[OAPV_MAX_NUM_FRAMES];
 };
 
