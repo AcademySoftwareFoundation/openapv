@@ -67,7 +67,7 @@ elseif(OAPV_USE_RUST STREQUAL "auto" AND CARGO_EXECUTABLE)
 endif()
 
 if(OAPV_RUST)
-  message("  Rust modules (vlc, bs, dec): ${OAPV_RUST_DIR}")
+  message("  Rust modules (vlc, bs, dec, metadata): ${OAPV_RUST_DIR}")
   add_custom_command(
     OUTPUT "${OAPV_RUST_LIB}"
     COMMAND ${CARGO_EXECUTABLE} build --release
@@ -78,12 +78,14 @@ if(OAPV_RUST)
             "${OAPV_RUST_DIR}/src/oapv_vlc.rs"
             "${OAPV_RUST_DIR}/src/oapv_bs.rs"
             "${OAPV_RUST_DIR}/src/oapv.rs"
+            "${OAPV_RUST_DIR}/src/oapv_metadata.rs"
   )
   add_custom_target(oapv_rust_build DEPENDS "${OAPV_RUST_LIB}")
   add_library(oapv_rust STATIC IMPORTED GLOBAL)
   set_target_properties(oapv_rust PROPERTIES IMPORTED_LOCATION "${OAPV_RUST_LIB}")
   list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/oapv_vlc.c")
   list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/oapv_bs.c")
+  list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/oapv_metadata.c")
 else()
   message("  Rust modules: not used (C implementation)")
 endif()
