@@ -31,12 +31,18 @@
 
 #include "oapv_def.h"
 
-// defined in rust/src/oapv.rs instead of here when OAPV_RUST_DEC is set
-void oapvd_fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_t *finfo);
-void oapvd_fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo);
-int  oapvd_set_tile_info(oapvd_tile_t *tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles);
-int  oapvd_frm_setup(oapvd_ctx_t *ctx, int cs);
-int  oapvd_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb);
+// defined in rust/src/oapv.rs instead of here when OAPV_RUST_DEC is set, so
+// they have external linkage only then
+#if defined(OAPV_RUST_DEC)
+#define OAPVD_RUST_FN
+#else
+#define OAPVD_RUST_FN static
+#endif
+OAPVD_RUST_FN void oapvd_fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_t *finfo);
+OAPVD_RUST_FN void oapvd_fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo);
+OAPVD_RUST_FN int  oapvd_set_tile_info(oapvd_tile_t *tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles);
+OAPVD_RUST_FN int  oapvd_frm_setup(oapvd_ctx_t *ctx, int cs);
+OAPVD_RUST_FN int  oapvd_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb);
 
 static void imgb_pad(oapv_imgb_t *imgb, int aw, int ah, int comp_sft[N_C][2])
 {
@@ -131,7 +137,7 @@ static void imgb_pad_p210(oapv_imgb_t *imgb, int aw, int ah, int comp_sft[N_C][2
 }
 
 #if !defined(OAPV_RUST_DEC)
-void oapvd_fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_t *finfo)
+OAPVD_RUST_FN void oapvd_fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_t *finfo)
 {
     finfo->w = (int)fi->frame_width; // casting to 'int' would be fine here
     finfo->h = (int)fi->frame_height; // casting to 'int' would be fine here
@@ -171,7 +177,7 @@ void oapvd_fi_to_finfo(oapv_fi_t *fi, int pbu_type, int group_id, oapv_frm_info_
 #endif
 
 #if !defined(OAPV_RUST_DEC)
-void oapvd_fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo)
+OAPVD_RUST_FN void oapvd_fh_to_finfo(oapv_fh_t *fh, int pbu_type, int group_id, oapv_frm_info_t *finfo)
 {
     oapvd_fi_to_finfo(&fh->fi, pbu_type, group_id, finfo);
     int pic_w_mb = (fh->fi.frame_width + (OAPV_MB_W - 1)) >> OAPV_LOG2_MB_W;
@@ -1668,7 +1674,7 @@ static int dec_block(oapvd_ctx_t *ctx, oapvd_core_t *core, int log2_w, int log2_
 }
 
 #if !defined(OAPV_RUST_DEC)
-int oapvd_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles)
+OAPVD_RUST_FN int oapvd_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_w, int tile_h, int num_tile_cols, int num_tiles)
 {
 
     for (int i = 0; i < num_tiles; i++)
@@ -1685,7 +1691,7 @@ int oapvd_set_tile_info(oapvd_tile_t* tile, int w_pel, int h_pel, int tile_w, in
 #endif
 
 #if !defined(OAPV_RUST_DEC)
-int oapvd_frm_setup(oapvd_ctx_t *ctx, int cs)
+OAPVD_RUST_FN int oapvd_frm_setup(oapvd_ctx_t *ctx, int cs)
 {
     int i, ret;
 
@@ -1787,7 +1793,7 @@ int oapvd_frm_setup(oapvd_ctx_t *ctx, int cs)
 #endif
 
 #if !defined(OAPV_RUST_DEC)
-int oapvd_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
+OAPVD_RUST_FN int oapvd_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb)
 {
     int i, ret;
 
