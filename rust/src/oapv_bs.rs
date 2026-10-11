@@ -35,26 +35,10 @@
  * the rust/ crate.
  */
 
-#![allow(non_snake_case, non_camel_case_types, non_upper_case_globals)]
-
 use core::ffi::c_int;
+use crate::ffi;
 
-macro_rules! ffi_try {
-    ($body:expr, $on_err:expr) => {{
-        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { unsafe { $body } }));
-        match r {
-            Ok(v) => v,
-            Err(_) => $on_err,
-        }
-    }};
-}
-
-mod ffi {
-    #![allow(dead_code)]
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-}
-
-use self::ffi::oapv_bs_t;
+use crate::ffi::oapv_bs_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 // encoder side
