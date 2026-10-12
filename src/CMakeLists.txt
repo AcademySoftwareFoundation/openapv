@@ -191,16 +191,22 @@ endif()
 # Install shared library
 #
 # On non-DLL platforms shared library (liboapv.so) will be installed to <prefix>/lib.
-# On DLL platforms the shred DLL (oapv.dll) will be installed to <prefix>/bin and its import library will be installed to <prefix>/lib/oapv/import
+# On DLL platforms the shared DLL (oapv.dll) will be installed to <prefix>/bin and its import library will be installed to <prefix>/lib/import
+# for the MSVC toolchain, otherwise to <prefix>/lib.
 #
 if(OAPV_BUILD_SHARED_LIB)
   set_target_properties(${LIB_NAME_BASE}_dynamic PROPERTIES PUBLIC_HEADER "${OAPV_PUBLIC_HEADERS}")
+  if(MSVC)
+    set(OAPV_IMPORT_LIBDIR ${CMAKE_INSTALL_LIBDIR}/import)
+  else()
+    set(OAPV_IMPORT_LIBDIR ${CMAKE_INSTALL_LIBDIR})
+  endif()
   install(TARGETS ${LIB_NAME_BASE}_dynamic
           RUNTIME COMPONENT Libraries DESTINATION ${CMAKE_INSTALL_BINDIR}
           LIBRARY
             COMPONENT Libraries DESTINATION ${CMAKE_INSTALL_LIBDIR}
             NAMELINK_COMPONENT Development DESTINATION ${CMAKE_INSTALL_LIBDIR}
-          ARCHIVE COMPONENT Development DESTINATION ${CMAKE_INSTALL_LIBDIR}/import
+          ARCHIVE COMPONENT Development DESTINATION ${OAPV_IMPORT_LIBDIR}
           PUBLIC_HEADER COMPONENT Development DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${LIB_NAME_BASE}
   )
 
