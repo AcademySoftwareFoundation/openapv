@@ -2376,6 +2376,9 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
         oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
         remain -= 4; // size of pbu_size syntax
         oapv_assert_gv(pbu_size >= 4 && pbu_size <= remain, ret, OAPV_ERR_MALFORMED_BITSTREAM, ERR);
+        // parse this PBU only: end the reader where the PBU ends
+        oapv_bsr_init(bs, (u8 *)bitb->addr + cur_read_size, 4 + pbu_size, NULL);
+        oapv_bsr_skip(bs, 32); // pbu_size, read above
 
         ret = oapvd_vlc_pbu_header(bs, &pbuh);
         oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
@@ -2515,6 +2518,9 @@ int oapvd_info(void *au, int au_size, oapv_au_info_t *aui)
         oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
         remain -= 4; // size of pbu_size syntax
         oapv_assert_rv(pbu_size >= 4 && pbu_size <= remain, OAPV_ERR_MALFORMED_BITSTREAM);
+        // parse this PBU only: end the reader where the PBU ends
+        oapv_bsr_init(&bs, (u8 *)au + cur_read_size, 4 + pbu_size, NULL);
+        oapv_bsr_skip(&bs, 32); // pbu_size, read above
 
         /* pbu header */
         oapv_pbuh_t pbuh;
