@@ -369,7 +369,7 @@ static void print_stat_frm(oapvd_stat_t *stat, oapv_frms_t *frms, oapvm_t mid, a
     if(op_verbose < VERBOSE_FRAME)
         return;
 
-    assert(stat->aui.num_frms == frms->num_frms);
+    assert(stat->aui.num_frms <= frms->num_frms);
 
     finfo = stat->aui.frm_info;
 
@@ -617,7 +617,7 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         print_stat_frm(&stat, &ofrms, mid, args_var);
 
         /* write decoded frames into files */
-        for(i = 0; i < ofrms.num_frms; i++) {
+        for(i = 0; i < stat.aui.num_frms; i++) {
             frm = &ofrms.frm[i];
             if(ofrms.num_frms > 0) {
                 if(OAPV_CS_GET_BIT_DEPTH(frm->imgb->cs) != args_var->output_depth && args_var->output_csp != OUTPUT_CSP_P210) {

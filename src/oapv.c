@@ -2488,6 +2488,10 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
             ret = oapvd_vlc_filler(bs, (pbu_size - 4));
             oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
         }
+        else if(pbuh.pbu_type == OAPV_PBU_TYPE_AU_INFO) {
+            // a decoder can ignore it
+            oapv_bsr_move(bs, bs->end);
+        }
         cur_read_size += pbu_size + 4 /* byte size of 'pbu_size' syntax */;
         stat->read += BSR_GET_READ_BYTE(bs);
     } while(cur_read_size < bitb->ssize);
