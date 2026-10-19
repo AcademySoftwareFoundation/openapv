@@ -2454,8 +2454,6 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
             }
             /****************************************************/
 
-            /* READ FILLER HERE !!! */
-
             if(OAPV_SUCCEEDED(ret) && ctx->use_frm_hash) {
                 ret = oapv_imgb_set_md5(ctx->imgb);
             }
@@ -2479,6 +2477,11 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
 
             // go to the end of frame data for next PDU
             oapv_bsr_move(bs, ctx->tile_end);
+            // frame() ends with filler(), if any
+            if(bs->end > ctx->tile_end) {
+                ret = oapvd_vlc_filler(bs, (u32)(bs->end - ctx->tile_end));
+                oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+            }
         }
         else if(pbuh.pbu_type == OAPV_PBU_TYPE_METADATA) {
             ret = oapvd_vlc_metadata(bs, pbu_size, mid, pbuh.group_id);
@@ -2792,7 +2795,6 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
     }
     /****************************************************/
 
-    /* READ FILLER HERE !!! */
     if(OAPV_SUCCEEDED(ret) && ctx->use_frm_hash) {
         ret = oapv_imgb_set_md5(imgb);
     }
@@ -2809,6 +2811,11 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
 
     // go to the end of frame data
     oapv_bsr_move(bs, ctx->tile_end);
+    // frame() ends with filler(), if any
+    if(bs->end > ctx->tile_end) {
+        ret = oapvd_vlc_filler(bs, (u32)(bs->end - ctx->tile_end));
+        oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
+    }
     // set stat
     fh_to_finfo(&ctx->fh, pbuh.pbu_type, pbuh.group_id, &stat->aui.frm_info[0]);
     stat->read = stat->frm_size[0] = BSR_GET_READ_BYTE(bs);
