@@ -1771,7 +1771,7 @@ static int dec_frm_setup(oapvd_ctx_t *ctx, int cs)
 /* the tile sizes of the frame header, collected in ctx->pos_tiles. the header
    was read with the buffer a previous frame left behind; when that was too
    small to take the sizes, the header is read again from fh_beg. */
-static int dec_fh_tile_sizes(oapvd_ctx_t *ctx, u8 *fh_beg, int pos_tiles_cap)
+static int dec_fh_tile_sizes(oapvd_ctx_t *ctx, u8 *fh_beg)
 {
     if(!ctx->fh.tile_size_present_in_fh_flag) {
         return OAPV_OK;
@@ -1792,8 +1792,7 @@ static int dec_fh_tile_sizes(oapvd_ctx_t *ctx, u8 *fh_beg, int pos_tiles_cap)
         ctx->pos_tiles = (oapv_tile_pos_t *)oapv_ops_malloc(ctx, (unsigned int)pos_bytes);
         oapv_assert_rv(ctx->pos_tiles != NULL, OAPV_ERR_OUT_OF_MEMORY);
         ctx->pos_tiles_cap = ctx->num_tiles;
-    }
-    if(pos_tiles_cap < ctx->num_tiles) {
+
         oapv_bs_t bs;
         oapv_fh_t fh;
 
@@ -1804,7 +1803,7 @@ static int dec_fh_tile_sizes(oapvd_ctx_t *ctx, u8 *fh_beg, int pos_tiles_cap)
     return OAPV_OK;
 }
 
-static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb, u8 *fh_beg, int pos_tiles_cap)
+static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb, u8 *fh_beg)
 {
     int i, ret;
 
@@ -1819,7 +1818,7 @@ static int dec_frm_prepare(oapvd_ctx_t *ctx, oapv_imgb_t *imgb, u8 *fh_beg, int 
 
     ret = dec_frm_setup(ctx, imgb->cs);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
-    ret = dec_fh_tile_sizes(ctx, fh_beg, pos_tiles_cap);
+    ret = dec_fh_tile_sizes(ctx, fh_beg);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
     // the frame hash is not defined for the PLANAR2 layout
     oapv_assert_rv(!ctx->use_frm_hash || OAPV_CS_GET_FORMAT(imgb->cs) != OAPV_CF_PLANAR2, OAPV_ERR_UNSUPPORTED);
@@ -2426,11 +2425,10 @@ int oapvd_decode(oapvd_t did, oapv_bitb_t *bitb, oapv_frms_t *ofrms, oapvm_t mid
             oapv_assert_gv(nfrms < ofrms->num_frms, ret, OAPV_ERR_INVALID_ARGUMENT, ERR);
 
             u8 *fh_beg = (u8 *)oapv_bsr_sink(bs);
-            int pos_tiles_cap = ctx->pos_tiles_cap;
-            ret = oapvd_vlc_frame_header(bs, &ctx->fh, ctx->pos_tiles, pos_tiles_cap);
+            ret = oapvd_vlc_frame_header(bs, &ctx->fh, ctx->pos_tiles, ctx->pos_tiles_cap);
             oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
-            ret = dec_frm_prepare(ctx, ofrms->frm[nfrms].imgb, fh_beg, pos_tiles_cap);
+            ret = dec_frm_prepare(ctx, ofrms->frm[nfrms].imgb, fh_beg);
             oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
             int           thread_ret;
@@ -2766,12 +2764,11 @@ int oapvd_decode_frame(oapvd_t did, oapv_bitb_t *bitb, oapv_imgb_t *imgb, oapvd_
 
     // parse frame header
     u8 *fh_beg = (u8 *)oapv_bsr_sink(bs);
-    int pos_tiles_cap = ctx->pos_tiles_cap;
-    ret = oapvd_vlc_frame_header(bs, &ctx->fh, ctx->pos_tiles, pos_tiles_cap);
+    ret = oapvd_vlc_frame_header(bs, &ctx->fh, ctx->pos_tiles, ctx->pos_tiles_cap);
     oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
     // be ready to decode start
-    ret = dec_frm_prepare(ctx, imgb, fh_beg, pos_tiles_cap);
+    ret = dec_frm_prepare(ctx, imgb, fh_beg);
     oapv_assert_g(OAPV_SUCCEEDED(ret), ERR);
 
     int           thread_ret;
@@ -2834,7 +2831,6 @@ int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_
     oapv_pbuh_t      pbuh;
     oapv_tile_pos_t *pos_tiles = NULL;
     u8              *fh_beg;
-    int              pos_tiles_cap;
     int              ret = OAPV_OK;
 
     ctx = dec_id_to_ctx(did);
@@ -2859,14 +2855,13 @@ int oapvd_decode_tiles(oapvd_t did, oapv_bitb_t *bitb, int num_tiles, oapv_tile_
     // does not need, so they are collected as the header is read - whenever the
     // buffer a previous frame left behind is already large enough to take them.
     fh_beg = (u8 *)oapv_bsr_sink(&ctx->bs);
-    pos_tiles_cap = ctx->pos_tiles_cap;
-    ret = oapvd_vlc_frame_header(&ctx->bs, &ctx->fh, ctx->pos_tiles, pos_tiles_cap);
+    ret = oapvd_vlc_frame_header(&ctx->bs, &ctx->fh, ctx->pos_tiles, ctx->pos_tiles_cap);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
     ret = dec_tiles_prepare(ctx, num_tiles, tile_reqs);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
 
-    ret = dec_fh_tile_sizes(ctx, fh_beg, pos_tiles_cap);
+    ret = dec_fh_tile_sizes(ctx, fh_beg);
     oapv_assert_rv(OAPV_SUCCEEDED(ret), ret);
     if(ctx->fh.tile_size_present_in_fh_flag) {
         pos_tiles = ctx->pos_tiles;
