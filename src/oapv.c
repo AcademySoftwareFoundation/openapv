@@ -430,7 +430,7 @@ static double enc_block_rdo_slow(oapve_ctx_t *ctx, oapve_core_t *core, int log2_
                 int step_diff = q_step * map_idx_diff[i];
                 ctx->fn_itx_adj[0](rec_ups, rec_tmp, j, step_diff, 9);
                 for(int k = 0; k < 64; k++) {
-                    recon[k] = (rec_tmp[k] + 512) >> 10;
+                    recon[k] = (rec_tmp[k] + (1 << (ITX_SHIFT2(bit_depth) - 1))) >> ITX_SHIFT2(bit_depth);
                 }
 
                 int cost = (int)ctx->fn_ssd[0](blk_w, blk_h, org, recon, blk_w, blk_w);
