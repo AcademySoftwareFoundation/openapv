@@ -350,7 +350,7 @@ static double enc_block_rdo_slow(oapve_ctx_t *ctx, oapve_core_t *core, int log2_
     ALIGNED_16(s16 org[OAPV_BLK_D]);
     ALIGNED_16(s16 recon[OAPV_BLK_D]);
     ALIGNED_16(s16 coeff[OAPV_BLK_D]);
-    ALIGNED_16(s16 tmp_buf[OAPV_BLK_D]);
+    ALIGNED_16(s32 tmp_buf[OAPV_BLK_D]);
 
     ALIGNED_32(int rec_ups[OAPV_BLK_D]);
     ALIGNED_32(int rec_tmp[OAPV_BLK_D]);

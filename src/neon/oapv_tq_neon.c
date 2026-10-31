@@ -599,12 +599,22 @@ const oapv_fn_quant_t oapv_tbl_fn_quant_neon[2] =
 };
 
 
-static void oapv_itx_part_neon(s16* src, s16* dst, int shift1, int line)
+static inline void itx_store_4x4_32b(s32 *dst, int32x4_t a, int32x4_t b, int32x4_t c, int32x4_t d)
+{
+    int32x4_t ab0 = vtrn1q_s32(a, b);
+    int32x4_t ab1 = vtrn2q_s32(a, b);
+    int32x4_t cd0 = vtrn1q_s32(c, d);
+    int32x4_t cd1 = vtrn2q_s32(c, d);
+    vst1q_s32(dst + 0 * 8, vreinterpretq_s32_s64(vtrn1q_s64(vreinterpretq_s64_s32(ab0), vreinterpretq_s64_s32(cd0))));
+    vst1q_s32(dst + 1 * 8, vreinterpretq_s32_s64(vtrn1q_s64(vreinterpretq_s64_s32(ab1), vreinterpretq_s64_s32(cd1))));
+    vst1q_s32(dst + 2 * 8, vreinterpretq_s32_s64(vtrn2q_s64(vreinterpretq_s64_s32(ab0), vreinterpretq_s64_s32(cd0))));
+    vst1q_s32(dst + 3 * 8, vreinterpretq_s32_s64(vtrn2q_s64(vreinterpretq_s64_s32(ab1), vreinterpretq_s64_s32(cd1))));
+}
+
+static void oapv_itx_part_neon(s16* src, s32* dst, int shift1, int line)
 {
     int32x4_t add1 = vdupq_n_s32(1 << (shift1 - 1));
     int32x4_t sh1 = vdupq_n_s32(-shift1);
-
-    int16x4_t dest0, dest1, dest2, dest3, dest4, dest5, dest6, dest7, dest8, dest9, dest10, dest11, dest12, dest13, dest14, dest15;
 
     //DCT Pass 1
     {
@@ -687,77 +697,29 @@ static void oapv_itx_part_neon(s16* src, s16* dst, int shift1, int line)
         int32x4_t E6 = vsubq_s32(EE3, EO3);
         int32x4_t E7 = vsubq_s32(EE2, EO2);
 
-        dest0 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E0, O0), add1), sh1));
-        dest1 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E1, O1), add1), sh1));
-        dest2 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E2, O2), add1), sh1));
-        dest3 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E3, O3), add1), sh1));
-        dest4 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E0, O0), add1), sh1));
-        dest5 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E1, O1), add1), sh1));
-        dest6 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E2, O2), add1), sh1));
-        dest7 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E3, O3), add1), sh1));
-        dest8 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E4, O4), add1), sh1));
-        dest9 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E5, O5), add1), sh1));
-        dest10 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E6, O6), add1), sh1));
-        dest11 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E7, O7), add1), sh1));
-        dest12 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E4, O4), add1), sh1));
-        dest13 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E5, O5), add1), sh1));
-        dest14 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E6, O6), add1), sh1));
-        dest15 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E7, O7), add1), sh1));
+        int32x4_t r0 = vshlq_s32(vaddq_s32(vaddq_s32(E0, O0), add1), sh1);
+        int32x4_t r1 = vshlq_s32(vaddq_s32(vaddq_s32(E1, O1), add1), sh1);
+        int32x4_t r2 = vshlq_s32(vaddq_s32(vaddq_s32(E2, O2), add1), sh1);
+        int32x4_t r3 = vshlq_s32(vaddq_s32(vaddq_s32(E3, O3), add1), sh1);
+        int32x4_t r4 = vshlq_s32(vaddq_s32(vsubq_s32(E0, O0), add1), sh1);
+        int32x4_t r5 = vshlq_s32(vaddq_s32(vsubq_s32(E1, O1), add1), sh1);
+        int32x4_t r6 = vshlq_s32(vaddq_s32(vsubq_s32(E2, O2), add1), sh1);
+        int32x4_t r7 = vshlq_s32(vaddq_s32(vsubq_s32(E3, O3), add1), sh1);
+        int32x4_t r8 = vshlq_s32(vaddq_s32(vaddq_s32(E4, O4), add1), sh1);
+        int32x4_t r9 = vshlq_s32(vaddq_s32(vaddq_s32(E5, O5), add1), sh1);
+        int32x4_t r10 = vshlq_s32(vaddq_s32(vaddq_s32(E6, O6), add1), sh1);
+        int32x4_t r11 = vshlq_s32(vaddq_s32(vaddq_s32(E7, O7), add1), sh1);
+        int32x4_t r12 = vshlq_s32(vaddq_s32(vsubq_s32(E4, O4), add1), sh1);
+        int32x4_t r13 = vshlq_s32(vaddq_s32(vsubq_s32(E5, O5), add1), sh1);
+        int32x4_t r14 = vshlq_s32(vaddq_s32(vsubq_s32(E6, O6), add1), sh1);
+        int32x4_t r15 = vshlq_s32(vaddq_s32(vsubq_s32(E7, O7), add1), sh1);
 
-        int16x4_t t0 = vzip1_s16(dest0, dest1);
-        int16x4_t t1 = vzip1_s16(dest2, dest3);
-        int16x4_t t2 = vzip2_s16(dest0, dest1);
-        int16x4_t t3 = vzip2_s16(dest2, dest3);
-        int16x4_t t4 = vzip1_s16(dest8, dest9);
-        int16x4_t t5 = vzip1_s16(dest10, dest11);
-        int16x4_t t6 = vzip2_s16(dest8, dest9);
-        int16x4_t t7 = vzip2_s16(dest10, dest11);
-
-        dest0 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t0), vreinterpret_s32_s16(t1)));
-        dest1 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t0), vreinterpret_s32_s16(t1)));
-        dest2 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t2), vreinterpret_s32_s16(t3)));
-        dest3 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t2), vreinterpret_s32_s16(t3)));
-        dest8 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t4), vreinterpret_s32_s16(t5)));
-        dest9 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t4), vreinterpret_s32_s16(t5)));
-        dest10 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t6), vreinterpret_s32_s16(t7)));
-        dest11 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t6), vreinterpret_s32_s16(t7)));
-
-        int16x4_t t8 = vzip1_s16(dest5, dest4);
-        int16x4_t t9 = vzip1_s16(dest7, dest6);
-        int16x4_t t10 = vzip2_s16(dest5, dest4);
-        int16x4_t t11 = vzip2_s16(dest7, dest6);
-        int16x4_t t12 = vzip1_s16(dest13, dest12);
-        int16x4_t t13 = vzip1_s16(dest15, dest14);
-        int16x4_t t14 = vzip2_s16(dest13, dest12);
-        int16x4_t t15 = vzip2_s16(dest15, dest14);
-
-        dest4 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t9), vreinterpret_s32_s16(t8)));
-        dest5 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t9), vreinterpret_s32_s16(t8)));
-        dest6 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t11), vreinterpret_s32_s16(t10)));
-        dest7 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t11), vreinterpret_s32_s16(t10)));
-        dest12 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t13), vreinterpret_s32_s16(t12)));
-        dest13 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t13), vreinterpret_s32_s16(t12)));
-        dest14 = vreinterpret_s16_s32(vzip1_s32(vreinterpret_s32_s16(t15), vreinterpret_s32_s16(t14)));
-        dest15 = vreinterpret_s16_s32(vzip2_s32(vreinterpret_s32_s16(t15), vreinterpret_s32_s16(t14)));
+        // store in the row layout of the C version (dst[j * 8 + k])
+        itx_store_4x4_32b(dst + 0 * 8 + 0, r0, r1, r2, r3);
+        itx_store_4x4_32b(dst + 0 * 8 + 4, r7, r6, r5, r4);
+        itx_store_4x4_32b(dst + 4 * 8 + 0, r8, r9, r10, r11);
+        itx_store_4x4_32b(dst + 4 * 8 + 4, r15, r14, r13, r12);
     }
-
-    // store in the row layout of the C version (dst[j * 8 + k])
-    vst1_s16(dst + 0 * 8 + 0, dest0);
-    vst1_s16(dst + 0 * 8 + 4, dest4);
-    vst1_s16(dst + 1 * 8 + 0, dest1);
-    vst1_s16(dst + 1 * 8 + 4, dest5);
-    vst1_s16(dst + 2 * 8 + 0, dest2);
-    vst1_s16(dst + 2 * 8 + 4, dest6);
-    vst1_s16(dst + 3 * 8 + 0, dest3);
-    vst1_s16(dst + 3 * 8 + 4, dest7);
-    vst1_s16(dst + 4 * 8 + 0, dest8);
-    vst1_s16(dst + 4 * 8 + 4, dest12);
-    vst1_s16(dst + 5 * 8 + 0, dest9);
-    vst1_s16(dst + 5 * 8 + 4, dest13);
-    vst1_s16(dst + 6 * 8 + 0, dest10);
-    vst1_s16(dst + 6 * 8 + 4, dest14);
-    vst1_s16(dst + 7 * 8 + 0, dest11);
-    vst1_s16(dst + 7 * 8 + 4, dest15);
 }
 
 const oapv_fn_itx_part_t oapv_tbl_fn_itx_part_neon[2] =
