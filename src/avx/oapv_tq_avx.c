@@ -243,7 +243,7 @@ const oapv_fn_tx_t oapv_tbl_fn_txb_avx[2] =
     e1 = _mm256_add_epi32(ee1, eo1);            \
     e2 = _mm256_sub_epi32(ee1, eo1);                    
 
-#define ITX_POSTPROCESSING(shift, offset)                                       \
+#define ITX_ROUND_SHIFT(shift, offset)                                          \
     e0 = _mm256_add_epi32(e0, offset);                                          \
     e3 = _mm256_add_epi32(e3, offset);                                          \
     e1 = _mm256_add_epi32(e1, offset);                                          \
@@ -263,12 +263,18 @@ const oapv_fn_tx_t oapv_tbl_fn_txb_avx[2] =
     d2 = _mm256_srai_epi32(d2, shift);                                          \
     d5 = _mm256_srai_epi32(d5, shift);                                          \
     d3 = _mm256_srai_epi32(d3, shift);                                          \
-    d4 = _mm256_srai_epi32(d4, shift);                                          \
+    d4 = _mm256_srai_epi32(d4, shift);
+
+#define ITX_PACK                                                                \
     TRANSPOSE_8x8_32BIT_16BIT(d0, d1, d2, d3, d4, d5, d6, d7, d4, d5, d6, d7);  \
     d0 = _mm256_insertf128_si256(d4, _mm256_castsi256_si128(d5), 1);            \
     d1 = _mm256_insertf128_si256(d6, _mm256_castsi256_si128(d7), 1);            \
     d2 = _mm256_insertf128_si256(d5, _mm256_extracti128_si256(d4, 1), 0);       \
-    d3 = _mm256_insertf128_si256(d7, _mm256_extracti128_si256(d6, 1), 0);       
+    d3 = _mm256_insertf128_si256(d7, _mm256_extracti128_si256(d6, 1), 0);
+
+#define ITX_POSTPROCESSING(shift, offset)                                       \
+    ITX_ROUND_SHIFT(shift, offset)                                              \
+    ITX_PACK
 
 static void oapv_itx_part_avx(s16* src, s16* dst, int shift, int line)
 {
@@ -323,6 +329,17 @@ const oapv_fn_itx_part_t oapv_tbl_fn_itx_part_avx[2] =
         NULL
 };
 
+static inline int itx_exceeds_16b(__m256i d0, __m256i d1, __m256i d2, __m256i d3, __m256i d4, __m256i d5, __m256i d6, __m256i d7)
+{
+    __m256i mx = _mm256_max_epi32(_mm256_max_epi32(_mm256_max_epi32(d0, d1), _mm256_max_epi32(d2, d3)),
+                                  _mm256_max_epi32(_mm256_max_epi32(d4, d5), _mm256_max_epi32(d6, d7)));
+    __m256i mn = _mm256_min_epi32(_mm256_min_epi32(_mm256_min_epi32(d0, d1), _mm256_min_epi32(d2, d3)),
+                                  _mm256_min_epi32(_mm256_min_epi32(d4, d5), _mm256_min_epi32(d6, d7)));
+    __m256i ov = _mm256_or_si256(_mm256_cmpgt_epi32(mx, _mm256_set1_epi32(32767)),
+                                 _mm256_cmpgt_epi32(_mm256_set1_epi32(-32768), mn));
+    return !_mm256_testz_si256(ov, ov);
+}
+
 static void oapv_itx_avx(s16* src, int shift1, int shift2, int line)
 {
     SET_COEFF
@@ -358,7 +375,15 @@ static void oapv_itx_avx(s16* src, int shift1, int shift2, int line)
 
         ITX_PROCESSING_EVEN
 
-        ITX_POSTPROCESSING(shift1, offset1)
+        ITX_ROUND_SHIFT(shift1, offset1)
+
+        // the first stage needs 18 bits in the spec: the C path decodes the
+        // rare blocks that do not fit in 16 bits
+        if(itx_exceeds_16b(d0, d1, d2, d3, d4, d5, d6, d7)) {
+            oapv_tbl_fn_itx[0](src, shift1, shift2, line);
+            return;
+        }
+        ITX_PACK
     }
     {
         // O[0] - O[3]

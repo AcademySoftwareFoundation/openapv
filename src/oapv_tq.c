@@ -383,9 +383,55 @@ const oapv_fn_itx_part_t oapv_tbl_fn_itx_part[2] = {
 
 static void oapv_itx(s16 *src, int shift1, int shift2, int line)
 {
-    ALIGNED_16(s16 dst[OAPV_BLK_D]);
-    oapv_itx_part(src, dst, shift1, line);
-    oapv_itx_part(dst, src, shift2, line);
+    // t32 needs 18 bits (-122624 to 122620) in all profiles
+    s32 t32[OAPV_BLK_D];
+    int j, k;
+    int E[4], O[4];
+    int EE[2], EO[2];
+    int add1 = 1 << (shift1 - 1);
+    int add2 = 1 << (shift2 - 1);
+
+    for(j = 0; j < line; j++) {
+        for(k = 0; k < 4; k++) {
+            O[k] = oapv_tbl_tm8[1][k] * src[1 * line + j] + oapv_tbl_tm8[3][k] * src[3 * line + j] + oapv_tbl_tm8[5][k] * src[5 * line + j] + oapv_tbl_tm8[7][k] * src[7 * line + j];
+        }
+
+        EO[0] = oapv_tbl_tm8[2][0] * src[2 * line + j] + oapv_tbl_tm8[6][0] * src[6 * line + j];
+        EO[1] = oapv_tbl_tm8[2][1] * src[2 * line + j] + oapv_tbl_tm8[6][1] * src[6 * line + j];
+        EE[0] = oapv_tbl_tm8[0][0] * src[0 * line + j] + oapv_tbl_tm8[4][0] * src[4 * line + j];
+        EE[1] = oapv_tbl_tm8[0][1] * src[0 * line + j] + oapv_tbl_tm8[4][1] * src[4 * line + j];
+
+        E[0] = EE[0] + EO[0];
+        E[3] = EE[0] - EO[0];
+        E[1] = EE[1] + EO[1];
+        E[2] = EE[1] - EO[1];
+
+        for(k = 0; k < 4; k++) {
+            t32[j * 8 + k] = ((E[k] + O[k] + add1) >> shift1);
+            t32[j * 8 + k + 4] = ((E[3 - k] - O[3 - k] + add1) >> shift1);
+        }
+    }
+
+    for(j = 0; j < line; j++) {
+        for(k = 0; k < 4; k++) {
+            O[k] = oapv_tbl_tm8[1][k] * t32[1 * line + j] + oapv_tbl_tm8[3][k] * t32[3 * line + j] + oapv_tbl_tm8[5][k] * t32[5 * line + j] + oapv_tbl_tm8[7][k] * t32[7 * line + j];
+        }
+
+        EO[0] = oapv_tbl_tm8[2][0] * t32[2 * line + j] + oapv_tbl_tm8[6][0] * t32[6 * line + j];
+        EO[1] = oapv_tbl_tm8[2][1] * t32[2 * line + j] + oapv_tbl_tm8[6][1] * t32[6 * line + j];
+        EE[0] = oapv_tbl_tm8[0][0] * t32[0 * line + j] + oapv_tbl_tm8[4][0] * t32[4 * line + j];
+        EE[1] = oapv_tbl_tm8[0][1] * t32[0 * line + j] + oapv_tbl_tm8[4][1] * t32[4 * line + j];
+
+        E[0] = EE[0] + EO[0];
+        E[3] = EE[0] - EO[0];
+        E[1] = EE[1] + EO[1];
+        E[2] = EE[1] - EO[1];
+
+        for(k = 0; k < 4; k++) {
+            src[j * 8 + k] = (s16)oapv_clip3(-32768, 32767, (E[k] + O[k] + add2) >> shift2);
+            src[j * 8 + k + 4] = (s16)oapv_clip3(-32768, 32767, (E[3 - k] - O[3 - k] + add2) >> shift2);
+        }
+    }
 }
 
 const oapv_fn_itx_t oapv_tbl_fn_itx[2] = {
