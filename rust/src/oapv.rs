@@ -216,8 +216,51 @@ pub extern "C" fn oapvd_frm_setup(ctx: *mut ffi::oapvd_ctx_t, cs: c_int) -> c_in
     }, ffi::OAPV_ERR_UNEXPECTED as c_int)
 }
 
+// the tile sizes of the frame header, collected in ctx->pos_tiles. the header
+// was read with the buffer a previous frame left behind; when that was too
+// small to take the sizes, the header is read again from fh_beg.
 #[no_mangle]
-pub extern "C" fn oapvd_frm_prepare(ctx: *mut ffi::oapvd_ctx_t, imgb: *mut ffi::oapv_imgb_t) -> c_int {
+pub extern "C" fn oapvd_fh_tile_sizes(ctx: *mut ffi::oapvd_ctx_t, fh_beg: *mut u8) -> c_int {
+    ffi_try!({
+        if (*ctx).fh.tile_size_present_in_fh_flag == 0 {
+            return ffi::OAPV_OK as c_int;
+        }
+        // the buffer follows the tile array: same count, grown the same way
+        if (*ctx).num_tiles > (*ctx).pos_tiles_cap {
+            // the allocator takes a 32-bit size, so reject a request that would not
+            // survive the conversion instead of letting it truncate
+            let pos_bytes = core::mem::size_of::<ffi::oapv_tile_pos_t>() as i64 * (*ctx).num_tiles as i64;
+            if pos_bytes > u32::MAX as i64 {
+                return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
+            }
+
+            ops_free(ctx, (*ctx).pos_tiles as *mut core::ffi::c_void);
+            // clear both, so a failed allocation cannot leave a stale capacity
+            // beside a pointer that is no longer valid
+            (*ctx).pos_tiles = core::ptr::null_mut();
+            (*ctx).pos_tiles_cap = 0;
+
+            let p = ops_malloc(ctx, pos_bytes as u32) as *mut ffi::oapv_tile_pos_t;
+            if p.is_null() {
+                return ffi::OAPV_ERR_OUT_OF_MEMORY as c_int;
+            }
+            (*ctx).pos_tiles = p;
+            (*ctx).pos_tiles_cap = (*ctx).num_tiles;
+
+            let mut bs: ffi::oapv_bs_t = core::mem::zeroed();
+            let mut fh: ffi::oapv_fh_t = core::mem::zeroed();
+            crate::oapv_bs::bsr_init(&mut bs, fh_beg, (*ctx).bs.end.offset_from(fh_beg) as u32, None);
+            let ret = crate::oapv_vlc::dec_vlc_frame_header(&mut bs, &mut fh, (*ctx).pos_tiles, (*ctx).num_tiles);
+            if ret != 0 {
+                return ret;
+            }
+        }
+        ffi::OAPV_OK as c_int
+    }, -1)
+}
+
+#[no_mangle]
+pub extern "C" fn oapvd_frm_prepare(ctx: *mut ffi::oapvd_ctx_t, imgb: *mut ffi::oapv_imgb_t, fh_beg: *mut u8) -> c_int {
     ffi_try!({
         if imgb.is_null() {
             return ffi::OAPV_ERR_INVALID_ARGUMENT as c_int;
@@ -228,6 +271,10 @@ pub extern "C" fn oapvd_frm_prepare(ctx: *mut ffi::oapvd_ctx_t, imgb: *mut ffi::
         }
 
         let ret = oapvd_frm_setup(ctx, (*imgb).cs);
+        if ret != 0 {
+            return ret;
+        }
+        let ret = oapvd_fh_tile_sizes(ctx, fh_beg);
         if ret != 0 {
             return ret;
         }
@@ -530,6 +577,9 @@ pub extern "C" fn oapvd_info(au: *mut c_void, au_size: c_int, aui: *mut ffi::oap
             if !(pbu_size >= 4 && pbu_size <= remain) {
                 return ffi::OAPV_ERR_MALFORMED_BITSTREAM as c_int;
             }
+            // parse this PBU only: end the reader where the PBU ends
+            crate::oapv_bs::bsr_init(&mut bs, (au as *mut u8).add(cur_read_size as usize), 4 + pbu_size, None);
+            crate::oapv_bs::bsr_skip(&mut bs, 32); // pbu_size, read above
 
             let mut pbuh: ffi::oapv_pbuh_t = core::mem::zeroed();
             let ret = crate::oapv_vlc::dec_vlc_pbu_header(&mut bs, &mut pbuh);
