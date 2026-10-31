@@ -369,7 +369,7 @@ static void print_stat_frm(oapvd_stat_t *stat, oapv_frms_t *frms, oapvm_t mid, a
     if(op_verbose < VERBOSE_FRAME)
         return;
 
-    assert(stat->aui.num_frms == frms->num_frms);
+    assert(stat->aui.num_frms <= frms->num_frms);
 
     finfo = stat->aui.frm_info;
 
@@ -617,7 +617,7 @@ int dec_api_set_0(args_var_t *args_var, FILE *fp_bs, int is_y4m)
         print_stat_frm(&stat, &ofrms, mid, args_var);
 
         /* write decoded frames into files */
-        for(i = 0; i < ofrms.num_frms; i++) {
+        for(i = 0; i < stat.aui.num_frms; i++) {
             frm = &ofrms.frm[i];
             if(ofrms.num_frms > 0) {
                 if(OAPV_CS_GET_BIT_DEPTH(frm->imgb->cs) != args_var->output_depth && args_var->output_csp != OUTPUT_CSP_P210) {
@@ -877,6 +877,10 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             logerr("ERR: signature mismatch (0x%08X)\n", signature);
             ret = -1;  goto ERR;
         }
+        if(au_size < 4) {
+            logerr("ERR: invalid AU size (%u bytes)\n", au_size);
+            ret = -1; goto ERR;
+        }
         au_size -= 4; /* byte size of signature syntax */
 
         logv3("AU[%03d] (%d byte)\n", au_cnt, au_size);
@@ -897,6 +901,11 @@ int dec_api_set_1(args_var_t *args_var, FILE *fp_bs, int is_y4m)
             /* check if PBU size exceeds MAX_BS_BUF */
             if(pbu_size > MAX_BS_BUF) {
                 logerr("ERR: PBU size (%u bytes) exceeds maximum buffer size (%d bytes)\n", pbu_size, MAX_BS_BUF);
+                ret = -1; goto ERR;
+            }
+            /* a PBU must fit in the rest of the AU */
+            if(rsize > au_size || pbu_size > au_size - rsize) {
+                logerr("ERR: PBU size (%u bytes) exceeds the remaining AU size\n", pbu_size);
                 ret = -1; goto ERR;
             }
 

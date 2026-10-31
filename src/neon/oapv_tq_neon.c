@@ -304,22 +304,50 @@ void oapv_itx_pb8b_opt_neon(s16* src, int shift1, int shift2, int line)
         int32x4_t E6 = vsubq_s32(EE3, EO3);
         int32x4_t E7 = vsubq_s32(EE2, EO2);
 
-        dest0 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E0, O0), add1), sh1));
-        dest1 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E1, O1), add1), sh1));
-        dest2 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E2, O2), add1), sh1));
-        dest3 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E3, O3), add1), sh1));
-        dest4 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E0, O0), add1), sh1));
-        dest5 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E1, O1), add1), sh1));
-        dest6 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E2, O2), add1), sh1));
-        dest7 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E3, O3), add1), sh1));
-        dest8 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E4, O4), add1), sh1));
-        dest9 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E5, O5), add1), sh1));
-        dest10 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E6, O6), add1), sh1));
-        dest11 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E7, O7), add1), sh1));
-        dest12 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E4, O4), add1), sh1));
-        dest13 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E5, O5), add1), sh1));
-        dest14 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E6, O6), add1), sh1));
-        dest15 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E7, O7), add1), sh1));
+        int32x4_t r0 = vshlq_s32(vaddq_s32(vaddq_s32(E0, O0), add1), sh1);
+        int32x4_t r1 = vshlq_s32(vaddq_s32(vaddq_s32(E1, O1), add1), sh1);
+        int32x4_t r2 = vshlq_s32(vaddq_s32(vaddq_s32(E2, O2), add1), sh1);
+        int32x4_t r3 = vshlq_s32(vaddq_s32(vaddq_s32(E3, O3), add1), sh1);
+        int32x4_t r4 = vshlq_s32(vaddq_s32(vsubq_s32(E0, O0), add1), sh1);
+        int32x4_t r5 = vshlq_s32(vaddq_s32(vsubq_s32(E1, O1), add1), sh1);
+        int32x4_t r6 = vshlq_s32(vaddq_s32(vsubq_s32(E2, O2), add1), sh1);
+        int32x4_t r7 = vshlq_s32(vaddq_s32(vsubq_s32(E3, O3), add1), sh1);
+        int32x4_t r8 = vshlq_s32(vaddq_s32(vaddq_s32(E4, O4), add1), sh1);
+        int32x4_t r9 = vshlq_s32(vaddq_s32(vaddq_s32(E5, O5), add1), sh1);
+        int32x4_t r10 = vshlq_s32(vaddq_s32(vaddq_s32(E6, O6), add1), sh1);
+        int32x4_t r11 = vshlq_s32(vaddq_s32(vaddq_s32(E7, O7), add1), sh1);
+        int32x4_t r12 = vshlq_s32(vaddq_s32(vsubq_s32(E4, O4), add1), sh1);
+        int32x4_t r13 = vshlq_s32(vaddq_s32(vsubq_s32(E5, O5), add1), sh1);
+        int32x4_t r14 = vshlq_s32(vaddq_s32(vsubq_s32(E6, O6), add1), sh1);
+        int32x4_t r15 = vshlq_s32(vaddq_s32(vsubq_s32(E7, O7), add1), sh1);
+
+        // the first stage needs 18 bits in the spec: the C path decodes the
+        // rare blocks that do not fit in 16 bits
+        int32x4_t mx = vmaxq_s32(vmaxq_s32(vmaxq_s32(vmaxq_s32(r0, r1), vmaxq_s32(r2, r3)), vmaxq_s32(vmaxq_s32(r4, r5), vmaxq_s32(r6, r7))),
+                                 vmaxq_s32(vmaxq_s32(vmaxq_s32(r8, r9), vmaxq_s32(r10, r11)), vmaxq_s32(vmaxq_s32(r12, r13), vmaxq_s32(r14, r15))));
+        int32x4_t mn = vminq_s32(vminq_s32(vminq_s32(vminq_s32(r0, r1), vminq_s32(r2, r3)), vminq_s32(vminq_s32(r4, r5), vminq_s32(r6, r7))),
+                                 vminq_s32(vminq_s32(vminq_s32(r8, r9), vminq_s32(r10, r11)), vminq_s32(vminq_s32(r12, r13), vminq_s32(r14, r15))));
+        if(vmaxvq_s32(mx) > 32767 || vminvq_s32(mn) < -32768) {
+            oapv_tbl_fn_itx[0](src, shift1, shift2, line);
+            return;
+        }
+
+        dest0 = vmovn_s32(r0);
+        dest1 = vmovn_s32(r1);
+        dest2 = vmovn_s32(r2);
+        dest3 = vmovn_s32(r3);
+        dest4 = vmovn_s32(r4);
+        dest5 = vmovn_s32(r5);
+        dest6 = vmovn_s32(r6);
+        dest7 = vmovn_s32(r7);
+        dest8 = vmovn_s32(r8);
+        dest9 = vmovn_s32(r9);
+        dest10 = vmovn_s32(r10);
+        dest11 = vmovn_s32(r11);
+        dest12 = vmovn_s32(r12);
+        dest13 = vmovn_s32(r13);
+        dest14 = vmovn_s32(r14);
+        dest15 = vmovn_s32(r15);
 
         int16x4_t t0 = vzip1_s16(dest0, dest1);
         int16x4_t t1 = vzip1_s16(dest2, dest3);
@@ -413,22 +441,22 @@ void oapv_itx_pb8b_opt_neon(s16* src, int shift1, int shift2, int line)
         int32x4_t E6 = vsubq_s32(EE3, EO3);
         int32x4_t E7 = vsubq_s32(EE2, EO2);
 
-        int16x4_t v_src_0 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E0, O0), add2), sh2));
-        int16x4_t v_src_1 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E1, O1), add2), sh2));
-        int16x4_t v_src_2 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E2, O2), add2), sh2));
-        int16x4_t v_src_3 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E3, O3), add2), sh2));
-        int16x4_t v_src_4 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E0, O0), add2), sh2));
-        int16x4_t v_src_5 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E1, O1), add2), sh2));
-        int16x4_t v_src_6 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E2, O2), add2), sh2));
-        int16x4_t v_src_7 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E3, O3), add2), sh2));
-        int16x4_t v_src_8 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E4, O4), add2), sh2));
-        int16x4_t v_src_9 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E5, O5), add2), sh2));
-        int16x4_t v_src_10 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E6, O6), add2), sh2));
-        int16x4_t v_src_11 = vmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E7, O7), add2), sh2));
-        int16x4_t v_src_12 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E4, O4), add2), sh2));
-        int16x4_t v_src_13 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E5, O5), add2), sh2));
-        int16x4_t v_src_14 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E6, O6), add2), sh2));
-        int16x4_t v_src_15 = vmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E7, O7), add2), sh2));
+        int16x4_t v_src_0 = vqmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E0, O0), add2), sh2));
+        int16x4_t v_src_1 = vqmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E1, O1), add2), sh2));
+        int16x4_t v_src_2 = vqmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E2, O2), add2), sh2));
+        int16x4_t v_src_3 = vqmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E3, O3), add2), sh2));
+        int16x4_t v_src_4 = vqmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E0, O0), add2), sh2));
+        int16x4_t v_src_5 = vqmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E1, O1), add2), sh2));
+        int16x4_t v_src_6 = vqmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E2, O2), add2), sh2));
+        int16x4_t v_src_7 = vqmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E3, O3), add2), sh2));
+        int16x4_t v_src_8 = vqmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E4, O4), add2), sh2));
+        int16x4_t v_src_9 = vqmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E5, O5), add2), sh2));
+        int16x4_t v_src_10 = vqmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E6, O6), add2), sh2));
+        int16x4_t v_src_11 = vqmovn_s32(vshlq_s32(vaddq_s32(vaddq_s32(E7, O7), add2), sh2));
+        int16x4_t v_src_12 = vqmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E4, O4), add2), sh2));
+        int16x4_t v_src_13 = vqmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E5, O5), add2), sh2));
+        int16x4_t v_src_14 = vqmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E6, O6), add2), sh2));
+        int16x4_t v_src_15 = vqmovn_s32(vshlq_s32(vaddq_s32(vsubq_s32(E7, O7), add2), sh2));
 
         int16x4_t t0 = vzip1_s16(v_src_0, v_src_1);
         int16x4_t t1 = vzip1_s16(v_src_2, v_src_3);
