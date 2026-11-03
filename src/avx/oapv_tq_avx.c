@@ -276,7 +276,35 @@ const oapv_fn_tx_t oapv_tbl_fn_txb_avx[2] =
     ITX_ROUND_SHIFT(shift, offset)                                              \
     ITX_PACK
 
-static void oapv_itx_part_avx(s16* src, s16* dst, int shift, int line)
+static inline void itx_store_8x8_32b(s32 *dst, __m256i d0, __m256i d1, __m256i d2, __m256i d3, __m256i d4, __m256i d5, __m256i d6, __m256i d7)
+{
+    __m256i t0 = _mm256_unpacklo_epi32(d0, d1);
+    __m256i t1 = _mm256_unpackhi_epi32(d0, d1);
+    __m256i t2 = _mm256_unpacklo_epi32(d2, d3);
+    __m256i t3 = _mm256_unpackhi_epi32(d2, d3);
+    __m256i t4 = _mm256_unpacklo_epi32(d4, d5);
+    __m256i t5 = _mm256_unpackhi_epi32(d4, d5);
+    __m256i t6 = _mm256_unpacklo_epi32(d6, d7);
+    __m256i t7 = _mm256_unpackhi_epi32(d6, d7);
+    __m256i u0 = _mm256_unpacklo_epi64(t0, t2);
+    __m256i u1 = _mm256_unpackhi_epi64(t0, t2);
+    __m256i u2 = _mm256_unpacklo_epi64(t1, t3);
+    __m256i u3 = _mm256_unpackhi_epi64(t1, t3);
+    __m256i u4 = _mm256_unpacklo_epi64(t4, t6);
+    __m256i u5 = _mm256_unpackhi_epi64(t4, t6);
+    __m256i u6 = _mm256_unpacklo_epi64(t5, t7);
+    __m256i u7 = _mm256_unpackhi_epi64(t5, t7);
+    _mm256_storeu_si256((__m256i*)(dst + 0 * 8), _mm256_permute2x128_si256(u0, u4, 0x20));
+    _mm256_storeu_si256((__m256i*)(dst + 1 * 8), _mm256_permute2x128_si256(u1, u5, 0x20));
+    _mm256_storeu_si256((__m256i*)(dst + 2 * 8), _mm256_permute2x128_si256(u2, u6, 0x20));
+    _mm256_storeu_si256((__m256i*)(dst + 3 * 8), _mm256_permute2x128_si256(u3, u7, 0x20));
+    _mm256_storeu_si256((__m256i*)(dst + 4 * 8), _mm256_permute2x128_si256(u0, u4, 0x31));
+    _mm256_storeu_si256((__m256i*)(dst + 5 * 8), _mm256_permute2x128_si256(u1, u5, 0x31));
+    _mm256_storeu_si256((__m256i*)(dst + 6 * 8), _mm256_permute2x128_si256(u2, u6, 0x31));
+    _mm256_storeu_si256((__m256i*)(dst + 7 * 8), _mm256_permute2x128_si256(u3, u7, 0x31));
+}
+
+static void oapv_itx_part_avx(s16* src, s32* dst, int shift, int line)
 {
     SET_COEFF
 
@@ -312,13 +340,9 @@ static void oapv_itx_part_avx(s16* src, s16* dst, int shift, int line)
 
         ITX_PROCESSING_EVEN
 
-        ITX_POSTPROCESSING(shift, offset)
-        
-        // store line x 8
-        _mm256_storeu_si256((__m256i*)dst, d0);
-        _mm256_storeu_si256((__m256i*)(dst + 16), d1);
-        _mm256_storeu_si256((__m256i*)(dst + 32), d2);
-        _mm256_storeu_si256((__m256i*)(dst + 48), d3);
+        ITX_ROUND_SHIFT(shift, offset)
+
+        itx_store_8x8_32b(dst, d0, d1, d2, d3, d4, d5, d6, d7);
         dst += 64;
     }
 }
