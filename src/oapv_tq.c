@@ -311,7 +311,7 @@ const oapv_fn_quant_t oapv_tbl_fn_quant[2] = {
 #endif // ENABLE_ENCODER
 ///////////////////////////////////////////////////////////////////////////////
 
-void oapv_itx_get_wo_sft(s16 *src, s16 *dst, s32 *dst32, int shift, int line)
+void oapv_itx_get_wo_sft(s32 *src, s16 *dst, s32 *dst32, int shift, int line)
 {
     int j, k;
     s32 E[4], O[4];
@@ -339,13 +339,13 @@ void oapv_itx_get_wo_sft(s16 *src, s16 *dst, s32 *dst32, int shift, int line)
             dst32[j * 8 + k] = E[k] + O[k];
             dst32[j * 8 + k + 4] = E[3 - k] - O[3 - k];
 
-            dst[j * 8 + k] = ((dst32[j * 8 + k] + add) >> shift);
-            dst[j * 8 + k + 4] = ((dst32[j * 8 + k + 4] + add) >> shift);
+            dst[j * 8 + k] = (s16)oapv_clip3(-32768, 32767, (dst32[j * 8 + k] + add) >> shift);
+            dst[j * 8 + k + 4] = (s16)oapv_clip3(-32768, 32767, (dst32[j * 8 + k + 4] + add) >> shift);
         }
     }
 }
 
-static void oapv_itx_part(s16 *src, s16 *dst, int shift, int line)
+static void oapv_itx_part(s16 *src, s32 *dst, int shift, int line)
 {
     int j, k;
     int E[4], O[4];
